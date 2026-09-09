@@ -1,0 +1,49 @@
+optimizer_validation:
+  budgets: [500, 1000, 2000, 4000]
+  optional_max_budget: 8000
+  auto_escalate: true
+  min_cold_seeds: 5
+
+  convergence:
+    paired_median_improvement_fraction_max: 0.02
+    seed_iqr_primary_max: 0.10
+    common_validation_gap_max: 0.02
+    best_polish_improvement_max: 0.02
+    late_improvement_fraction_cutoff: 0.75
+    required_consecutive_plateaus: 2
+
+  boundary_detection:
+    enabled: true
+    min_seed_fraction_at_boundary: 0.80
+    elite_boundary_fraction: 0.50
+    required_persistent_checkpoints: 2
+    exploration_injection_fraction: 0.20
+    auto_shrink: false
+    use_boundary_probe: true
+
+  bounds:
+    io_idt_pairs:
+      initial: [20, 100]
+      hard: [8, 120]
+      expandable: true
+      lower_steps: [15, 10, 8]
+    center_idt_pairs:
+      initial: [10, 80]
+      hard: [5, 100]
+      expandable: true
+      lower_steps: [8, 5]
+
+  parallel:
+    seed_level: true
+    benchmark_workers: [1, 2, 4, 5]
+    blas_threads_per_worker: 1
+
+  review_bundle:
+    self_contained: true
+    include_configs_at_test_paths: true
+    include_source: true
+    include_tests: true
+    include_git_diff: true
+    include_trial_json: true
+    include_history_default: false
+    include_npz_default: false

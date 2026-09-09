@@ -1,0 +1,19 @@
+.deps/
+
+# Python environments and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Project-generated study outputs
+saw-com-optimizer/runs/
+
+# Local/editor files
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,13 @@
+base_config: ../base/b28_dms_baseline.yaml
+seeds: [20260908, 20260909, 20260910]
+wirings: [outer_ports, center_outer_same, center_outer_opposite]
+baseline_iterations: 30
+screen_iterations: 16
+refine_iterations: 40
+population: 24
+refine_top: 3
+layout:
+  die_um: [900, 700]
+  length_margin_um: 60
+  width_margin_um: 60
+  max_total_electrodes: 500
