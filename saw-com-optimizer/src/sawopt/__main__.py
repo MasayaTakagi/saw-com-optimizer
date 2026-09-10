@@ -28,17 +28,34 @@ def _refinement_points(command, step, records, configured_resistances):
 
 def main():
     p = argparse.ArgumentParser(description='Hypothetical COM impedance optimizer')
-    p.add_argument('command', choices=['simulate', 'optimize', 'sweep', 'report'])
+    p.add_argument('command', choices=['simulate', 'optimize', 'sweep', 'report', 'stage3_3', 'stage3_3_1_preprod'])
     p.add_argument('--config', default='configs/base/b28_dms_baseline.yaml')
     p.add_argument('--run', default='runs/prototype')
     p.add_argument('--rs', type=float, default=50)
     p.add_argument('--rl', type=float, default=50)
     p.add_argument('--maxiter', type=int)
     p.add_argument('--refine-step', type=float)
+    p.add_argument('--workers', type=int)
+    p.add_argument('--resume', action='store_true')
+    p.add_argument('--run-parallelism-benchmark', action='store_true')
     args = p.parse_args()
 
     if args.command == 'report':
         print(json.dumps({'report': report(args.run)}))
+        return
+
+    if args.command == 'stage3_3':
+        from .optimization.convergence_study import _load_config
+        from .optimization.stage33_study import run_stage33
+        cfg = _load_config(args.config)
+        print(json.dumps(run_stage33(args.run, cfg, resume=args.resume, workers=args.workers,
+                                     run_parallelism=args.run_parallelism_benchmark),
+                         ensure_ascii=False, indent=2))
+        return
+
+    if args.command == 'stage3_3_1_preprod':
+        from .optimization.stage331_preprod import run_preproduction
+        print(json.dumps(run_preproduction(args.config, args.run), ensure_ascii=False, indent=2))
         return
 
     path = Path(args.config)

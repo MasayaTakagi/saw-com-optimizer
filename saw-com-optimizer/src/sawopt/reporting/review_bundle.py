@@ -66,7 +66,13 @@ def _repository_root(module_path=None):
 
 def _git(repo, args):
     try:
-        return subprocess.check_output(['git', *args], cwd=repo, stderr=subprocess.STDOUT, text=True)
+        # Git emits repository text as UTF-8 even when the Windows process
+        # locale is a legacy code page.  Decode explicitly so review bundles
+        # remain reproducible on Japanese Windows hosts.
+        return subprocess.check_output(
+            ['git', *args], cwd=repo, stderr=subprocess.STDOUT,
+            text=True, encoding='utf-8', errors='replace',
+        )
     except (OSError, subprocess.CalledProcessError) as exc:
         return f'git unavailable: {exc}\n'
 
