@@ -1,0 +1,40 @@
+stage3_3:
+  ab_pilot:
+    wirings: [center_outer_same]
+    budgets: [1000, 2000, 4000]
+    population_schedule_terminal_budget: 4000
+    hard_max_budget: 4000
+    budget_completion_min_fraction: 0.98
+    auto_bound: false
+
+stage3_3_1a:
+  human_review_gate: true
+  production_allowed_before_review: false
+
+  tiny_smoke:
+    impedance_ohm: 50.0
+    wiring: center_outer_same
+    seeds: [20260909, 20260910]
+    unique_budget: 200
+    checkpoints: [100, 200]
+    auto_bound: false
+
+  source_freeze:
+    enabled: true
+    require_equal_hashes: true
+    checkpoints:
+      - before_preflight
+      - after_invariants
+      - after_regression
+      - after_smoke
+      - before_bundle
+      - bundle
+
+  ab_validity:
+    budget_completion_min_fraction: 0.98
+    reject_shortfall_before_performance_gate: true
+    allow_search_space_exhausted_as_separate_status: true
+
+  parallel_parity:
+    worker_counts: [1, 2]
+    blas_threads_per_worker: 1

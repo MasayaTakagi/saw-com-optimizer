@@ -1,0 +1,20 @@
+base_config: ../base/b28_dms_baseline.yaml
+config_fragments:
+  - ../stage3_2_convergence_fragment.yaml
+  - ../stage3_3_fragment.yaml
+  - ../stage3_3_1a_fragment.yaml
+impedance_grid_ohm: [50]
+wirings: [center_outer_same]
+seeds: [20260909, 20260910, 20260911, 20260912, 20260913]
+
+convergence:
+  impedance_ohm: 50.0
+  min_cold_seeds: 5
+
+stage3_3_1:
+  tiny_smoke_seeds: [20260909, 20260910]
+  tiny_smoke_unique_budget: 200
+  tiny_smoke_wiring: center_outer_same
+  preprod_gate:
+    mandatory_for_this_stage: true
+    stop_after_bundle: true

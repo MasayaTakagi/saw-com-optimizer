@@ -69,6 +69,7 @@ def _bound_state(cfg):
             "expandable": bool(supplied.get("expandable", False)),
             "lower_steps": [float(x) for x in supplied.get("lower_steps", [])],
             "upper_steps": [float(x) for x in supplied.get("upper_steps", [])],
+            "integer_boundary_zone_steps": int(section.get("integer_boundary_zone_steps", 1)) if name in NAMES[1:4] else 0,
         }
     return result
 
@@ -79,6 +80,23 @@ def active_bounds(state):
 
 def _copy_bounds(state):
     return copy.deepcopy(state)
+
+
+def _boundary_settings(cfg):
+    """Merge Stage 3.2 and Stage 3.3 boundary names."""
+    result = dict(cfg.get("optimizer_validation", {}).get("boundary_detection", {}))
+    stage33 = cfg.get("stage3_3", {}).get("bounds", {})
+    aliases = {
+        "integer_boundary_zone_steps": "integer_boundary_zone_steps",
+        "multi_seed_pressure_fraction": "min_seed_fraction_at_boundary",
+        "elite_material_advantage_fraction": "elite_material_advantage_fraction",
+        "elite_probe_enabled": "elite_probe_enabled",
+    }
+    for source, destination in aliases.items():
+        if source in stage33:
+            result[destination] = stage33[source]
+    result.setdefault("elite_probe_enabled", True)
+    return result
 
 
 def _canonical_design(x, bounds):
@@ -159,6 +177,13 @@ def _inject_new_region(population, old_bounds, new_bounds, rng, cfg, fraction=.2
 def _boundary_hit(design, name, values, *, tolerance=0.0):
     value = float(design[name])
     low, high = values["active"]
+    # Integer variables use decoded steps, not a fraction of a physical
+    # span.  This prevents an elite at ``upper - 1`` from being treated as
+    # comfortably interior on a wide count range.
+    integer_steps = int(values.get("integer_boundary_zone_steps", 0))
+    if integer_steps > 0 and name in NAMES[1:4]:
+        return ("lower" if value <= low + integer_steps else
+                "upper" if value >= high - integer_steps else None)
     span = max(high - low, 1.0)
     tol = max(float(tolerance), 0.01 * span if name not in NAMES[1:4] else 0.5)
     return ("lower" if abs(value - low) <= tol else
@@ -171,7 +196,7 @@ def detect_boundary_pressure(records, state, cfg):
     A single seed cannot activate pressure.  The returned rows are designed
     for both the coordinator and synthetic unit tests.
     """
-    section = cfg.get("optimizer_validation", {}).get("boundary_detection", {})
+    section = _boundary_settings(cfg)
     if not section.get("enabled", True):
         return {"enabled": False, "pressures": []}
     records = list(records)
@@ -212,6 +237,43 @@ def detect_boundary_pressure(records, state, cfg):
     return {"enabled": True, "seed_count": len(records), "pressures": pressures}
 
 
+def detect_elite_boundary_probe(records, state, cfg):
+    """Return diagnostic-only elite probes without expanding a bound.
+
+    A single unusually good seed may request probe evaluations.  It can never
+    change the active bound by itself; expansion still goes through the
+    multi-seed pressure and repeated positive-probe path.
+    """
+    section = _boundary_settings(cfg)
+    if not section.get("elite_probe_enabled", True) or not records:
+        return {"enabled": False, "probes": []}
+    ordered = sorted(records, key=rank)
+    elite = ordered[0]
+    others = [_record_primary(record) for record in ordered[1:]]
+    median = float(np.median(others)) if others else float("inf")
+    advantage = float(section.get("elite_material_advantage_fraction", .05))
+    probes = []
+    for name, values in state.items():
+        if not values.get("expandable", False):
+            continue
+        for direction in ("lower", "upper"):
+            if _boundary_hit(elite["design"], name, dict(values, integer_boundary_zone_steps=section.get("integer_boundary_zone_steps", 1))) != direction:
+                continue
+            elite_primary = _record_primary(elite)
+            materially_better = np.isfinite(median) and elite_primary <= median * (1.0 - advantage)
+            side = 0 if direction == "lower" else 1
+            hard = float(values["hard"][side])
+            active = float(values["active"][side])
+            if materially_better and ((direction == "lower" and hard < active) or (direction == "upper" and hard > active)):
+                probes.append({
+                    "variable": name, "direction": direction, "elite_seed": int(elite.get("seed", -1)),
+                    "elite_primary": elite_primary, "comparison_median": median,
+                    "material_advantage_fraction": advantage, "active_bound": active, "hard_bound": hard,
+                    "expansion_allowed": False, "reason": "elite_probe_requires_consensus",
+                })
+    return {"enabled": True, "probes": probes}
+
+
 def _next_expansion(state, pressure):
     name = pressure["variable"]
     values = state[name]
@@ -250,8 +312,7 @@ def boundary_probe(records, cfg, z0, wiring, state, pressure):
                        "rank": list(rank(probe_record))})
         improvements.append(float(_record_primary(record) - _record_primary(probe_record)))
     best = max(improvements, default=0.0)
-    positive = bool(best > float(cfg.get("optimizer_validation", {}).get(
-        "boundary_detection", {}).get("probe_improvement_threshold", .02)))
+    positive = bool(best > float(_boundary_settings(cfg).get("probe_improvement_threshold", .02)))
     return {
         "variable": variable, "direction": pressure["direction"],
         "target": target, "positive": positive, "hard_bound_reached": False,

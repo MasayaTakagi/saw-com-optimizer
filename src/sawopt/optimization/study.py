@@ -13,6 +13,7 @@ from .optimizer_utils import (
     EvaluationCounters, IncrementalFrequencyCache, common_validation_grid,
     critical_frequencies, new_frequency_points, PlateauStopper,
 )
+from .selection import DEFAULT_COMPARATOR
 
 
 def save(path, data):
@@ -346,6 +347,8 @@ def optimize_one(out, cfg, rs, rl, seed, neighbor=None, *, wiring='outer_ports',
     best_so_far_trace = []
     budget_stop = False
     budget_stop_candidates = 0
+    early_stop_triggered = False
+    frequency_grid_events = []
     history = out / (tag + '.jsonl')
     rng = np.random.default_rng(seed)
     center = np.asarray([asdict(FilterDesign())[k] for k in NAMES], dtype=float)
@@ -528,10 +531,14 @@ def optimize_one(out, cfg, rs, rl, seed, neighbor=None, *, wiring='outer_ports',
                 )
 
             def budget_callback(xk, convergence):
+                nonlocal early_stop_triggered
                 if budget_stop or round_budget_stop or (round_limit is not None and
                                    counters.unique_decoded_evaluations >= round_limit):
                     return True
-                return bool(callback(xk, convergence)) if callback is not None else False
+                stopped = bool(callback(xk, convergence)) if callback is not None else False
+                if stopped:
+                    early_stop_triggered = True
+                return stopped
 
             differential_evolution(
                 objective, BOUNDS, init=pop, seed=seed + adaptive_round,
@@ -558,11 +565,22 @@ def optimize_one(out, cfg, rs, rl, seed, neighbor=None, *, wiring='outer_ports',
                 dense_critical_frequencies=critical.tolist(),
             ))
             added = new_frequency_points(search_f, critical, adaptive_tol_hz)
-            if (adaptive_round >= adaptive_rounds or len(added) == 0 or
-                    budget_stop or (total_budget is not None and
-                                    counters.unique_decoded_evaluations >= total_budget)):
+            frequency_grid_events.append({
+                'adaptive_round': adaptive_round,
+                'from_frequency_count': int(len(search_f)),
+                'added_frequency_count': int(len(added)),
+                'grid_fixed': bool(len(added) == 0),
+            })
+            # A fixed frequency grid is not design-space convergence.  In
+            # benchmark mode continue the remaining design budget on the
+            # current grid; only the explicit round horizon or budget
+            # exhaustion ends the adaptive loop.
+            if (adaptive_round >= adaptive_rounds or budget_stop or
+                    (total_budget is not None and
+                     counters.unique_decoded_evaluations >= total_budget)):
                 break
-            search_f = np.unique(np.r_[search_f, added])
+            if len(added):
+                search_f = np.unique(np.r_[search_f, added])
     finally:
         history_writer.close()
     counters.global_search_wall_time_s = time.time() - started
@@ -612,6 +630,20 @@ def optimize_one(out, cfg, rs, rl, seed, neighbor=None, *, wiring='outer_ports',
     post_polish = dict(selected)
     d = FilterDesign(**selected['design'])
     result = selected
+    requested_budget = total_budget
+    actual_budget = int(counters.unique_decoded_evaluations)
+    if requested_budget is not None and actual_budget >= requested_budget:
+        stop_reason = 'requested_budget_reached'
+    elif early_stop_triggered:
+        stop_reason = 'explicit_early_stop'
+    elif failures and requested_budget is not None and actual_budget < requested_budget:
+        stop_reason = 'numerical_failure'
+    elif requested_budget is not None and actual_budget < requested_budget:
+        # SciPy returned before the requested design budget without a formal
+        # early-stop callback or a known finite-space certificate.
+        stop_reason = 'numerical_failure'
+    else:
+        stop_reason = 'requested_budget_reached'
     result.update(
         design=asdict(d), rs=rs, rl=rl, seed=seed, wiring=wiring,
         evaluations=counters.unique_decoded_evaluations,
@@ -619,6 +651,15 @@ def optimize_one(out, cfg, rs, rl, seed, neighbor=None, *, wiring='outer_ports',
         canonical_candidates_seen=counters.canonical_candidates_seen,
         unique_decoded_evaluations=counters.unique_decoded_evaluations,
         requested_unique_design_budget=total_budget,
+        actual_unique_design_evaluations=actual_budget,
+        budget_completion_fraction=(
+            float(actual_budget / requested_budget)
+            if requested_budget is not None else None),
+        budget_completion_passed=(
+            bool(actual_budget >= .98 * requested_budget)
+            if requested_budget is not None else None),
+        search_space_exhausted=False,
+        stop_reason=stop_reason,
         valid_physics_evaluations=counters.valid_physics_evaluations,
         geometry_rejections=counters.geometry_rejections,
         cache_hits=counters.cache_hits,
@@ -646,6 +687,7 @@ def optimize_one(out, cfg, rs, rl, seed, neighbor=None, *, wiring='outer_ports',
         budget_allocation_fractions=list(fractions) if budget_limits is not None else None,
         budget_stop=budget_stop,
         budget_stop_candidates=budget_stop_candidates,
+        frequency_grid_events=frequency_grid_events,
         best_so_far_trace=best_so_far_trace,
         last_significant_improvement_unique_eval=(
             best_so_far_trace[-1]['unique_evaluation'] if best_so_far_trace else None),
@@ -692,9 +734,5 @@ def run(out, cfg, resistances, rl=None, use_neighbor=True):
 
 
 def rank(r):
-    return (
-        not r['feasible'],
-        r['max_violation'] if not r['feasible'] else 0,
-        sum(r['violations'].values()) if not r['feasible'] else 0,
-        r['metrics']['worst_il_db'],
-    )
+    """Compatibility entry point backed by the Stage 3.3 central comparator."""
+    return DEFAULT_COMPARATOR.rank_key(r)
