@@ -11,11 +11,12 @@ import argparse
 import copy
 import csv
 import json
+import multiprocessing as mp
 import os
 import subprocess
 import tempfile
 import time
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -512,6 +513,31 @@ class ContinuationTrajectory:
             return 1e15
         return float(self._evaluate(vector)["objective"])
 
+    def _diversify_after_stagnation(self):
+        """Refresh the DE initializer when decoded designs stop changing.
+
+        Integer decoding can make a converged SciPy population propose only
+        designs already present in the canonical cache.  Refreshing the
+        initializer keeps the same Legacy DE backend and seed trajectory
+        while allowing the requested unique-design budget to be consumed.
+        """
+        bounds = active_bounds(self.state)
+        center = (
+            np.asarray([self.best["design"][name] for name in NAMES], dtype=float)
+            if self.best is not None
+            else np.asarray([getattr(FilterDesign(), name) for name in NAMES], dtype=float)
+        )
+        size = len(self.population) if self.population is not None else int(
+            self.cfg.get("optimizer", {}).get("population", 14)
+        )
+        refreshed = _build_population(
+            self.cfg, self.rng, center, bounds, population=max(5, size)
+        )
+        if self.population is not None and len(self.population):
+            keep = max(1, len(self.population) // 4)
+            refreshed[:keep] = np.asarray(self.population, dtype=float)[:keep]
+        self.population = refreshed
+
     def _run_de(self, target):
         bounds = active_bounds(self.state)
         if self.population is None:
@@ -524,20 +550,24 @@ class ContinuationTrajectory:
         ceiling = int(self.cfg.get("optimizer", {}).get("maxiter_ceiling", max(configured, required_iterations)))
         maxiter = min(max(1, ceiling), max(configured, required_iterations))
         before = self.actual_unique_design_evaluations
-        result = differential_evolution(
-            lambda vector: self._objective(vector, target), bounds,
-            init=np.asarray(self.population, dtype=float),
-            seed=self.seed + self.segment_index,
-            maxiter=maxiter, polish=False, tol=0, atol=0, workers=1,
-            updating="immediate",
-        )
-        self.segment_index += 1
-        if hasattr(result, "population"):
-            self.population = np.asarray(result.population, dtype=float)
-        if self.actual_unique_design_evaluations == before:
-            self.stop_reason = "no_new_unique_designs"
-            return False
-        return True
+        for attempt in range(4):
+            result = differential_evolution(
+                lambda vector: self._objective(vector, target), bounds,
+                init=np.asarray(self.population, dtype=float),
+                seed=self.seed + self.segment_index,
+                maxiter=maxiter, polish=False, tol=0, atol=0, workers=1,
+                updating="immediate",
+            )
+            self.segment_index += 1
+            if hasattr(result, "population"):
+                self.population = np.asarray(result.population, dtype=float)
+            if self.actual_unique_design_evaluations > before:
+                self.stop_reason = None
+                return True
+            if attempt < 3:
+                self._diversify_after_stagnation()
+        self.stop_reason = "no_new_unique_designs"
+        return False
 
     def _update_grid(self):
         if self.best is None:
@@ -713,6 +743,19 @@ def _parallel_smoke_task(payload):
         return trajectory.advance(budget)
 
 
+def _advance_trajectory_process(payload):
+    """Advance one seed trajectory in a persistent spawn worker.
+
+    The trajectory is returned because bound expansion is coordinated by the
+    parent after all seeds reach the same checkpoint.  Keeping the worker pool
+    alive for one wiring avoids restarting processes at every checkpoint.
+    """
+    trajectory, budget, version, threads = payload
+    with _single_blas_environment(int(threads)):
+        record = trajectory.advance(int(budget), design_space_version=int(version))
+    return trajectory, record
+
+
 def run_parallelism_benchmark(out, cfg):
     section = cfg.get("optimizer_validation", {}).get("parallel", {})
     workers = [int(x) for x in section.get("benchmark_workers", [1, 2, 4, 5])]
@@ -821,17 +864,32 @@ def run_stage32(out, cfg, *, run_parallelism=False):
         candidate_budgets = list(budgets)
         if optional_budget is not None and optional_budget > max(budgets):
             candidate_budgets.append(optional_budget)
-        for budget in candidate_budgets:
+        process_pool = None
+        if max_workers > 1:
+            process_pool = ProcessPoolExecutor(
+                max_workers=max_workers,
+                mp_context=mp.get_context("spawn"),
+            )
+        try:
+          for budget in candidate_budgets:
             if budget == optional_budget and (not auto_escalate or (statuses.get(wiring, {}).get("status") == "converged")):
                 break
-            def advance(seed):
-                return seed, trajectories[seed].advance(budget, design_space_version=version)
-            if max_workers > 1:
-                with _single_blas_environment(int(section.get("parallel", {}).get("blas_threads_per_worker", 1))):
-                    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-                        checkpoint_records = dict(pool.map(advance, seeds))
+            threads = int(section.get("parallel", {}).get("blas_threads_per_worker", 1))
+            if process_pool is not None:
+                payloads = [
+                    (trajectories[seed], budget, version, threads)
+                    for seed in seeds
+                ]
+                advanced = list(process_pool.map(_advance_trajectory_process, payloads))
+                trajectories = {seed: trajectory for seed, (trajectory, _record)
+                                in zip(seeds, advanced)}
+                checkpoint_records = {seed: record for seed, (_trajectory, record)
+                                      in zip(seeds, advanced)}
             else:
-                checkpoint_records = dict(advance(seed) for seed in seeds)
+                checkpoint_records = {
+                    seed: trajectories[seed].advance(budget, design_space_version=version)
+                    for seed in seeds
+                }
             current_records = list(checkpoint_records.values())
             current_rows = [_stage32_row(record, budget) for record in current_records]
             for row in current_rows:
@@ -910,6 +968,9 @@ def run_stage32(out, cfg, *, run_parallelism=False):
                 break
             if budget == max(budgets) and optional_budget is not None and auto_escalate:
                 continue
+        finally:
+            if process_pool is not None:
+                process_pool.shutdown()
         budget_run[wiring] = sorted(set(int(row["budget"]) for row in rows_for_wiring))
         best_candidates[wiring] = {}
         budget_summaries[wiring] = {}
@@ -985,6 +1046,12 @@ def run_stage32(out, cfg, *, run_parallelism=False):
         "min_cold_seeds": int(section.get("min_cold_seeds", 5)),
         "budgets": budgets, "optional_max_budget": optional_budget,
         "budgets_run_by_wiring": budget_run, "auto_escalate": auto_escalate,
+        "production_parallel": {
+            "backend": "process",
+            "mp_context": "spawn",
+            "workers": max_workers,
+            "blas_threads_per_worker": int(section.get("parallel", {}).get("blas_threads_per_worker", 1)),
+        },
         "statuses": statuses, "boundary_events": boundary_events,
         "design_space_versions": design_versions,
         "budget_summary": budget_summaries,
