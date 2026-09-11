@@ -7,5 +7,5 @@
 プロジェクトルートから次を実行する。
 
 ```powershell
-python -m unittest discover -s tests -v
+python -m pytest -q
 ```

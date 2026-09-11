@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from ..optimization.study import rank,save
+from ..optimization.runner import rank,save
 from ..core.hybrid import TOPOLOGIES
 
 def diagram(topology, rs=50, rl=50):

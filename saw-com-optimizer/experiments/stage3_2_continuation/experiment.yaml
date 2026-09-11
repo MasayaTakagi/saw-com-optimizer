@@ -1,0 +1,3 @@
+base_config: ../../configs/studies/stage3_2_convergence_50ohm.yaml
+study:
+  type: continuation

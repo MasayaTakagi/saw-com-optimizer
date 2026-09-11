@@ -1,0 +1,8 @@
+# Final override for the 50 ohm production handoff.  This fragment is loaded
+# after stage3_2_convergence_fragment.yaml so the production worker count is
+# not replaced by the historical single-worker default.
+optimizer_validation:
+  parallel:
+    seed_level: true
+    production_workers: 5
+    blas_threads_per_worker: 1

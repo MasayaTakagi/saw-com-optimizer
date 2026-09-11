@@ -13,6 +13,9 @@ __pycache__/
 # Project-generated study outputs
 saw-com-optimizer/runs/
 
+# External review artifacts (generated ZIPs; keep the files locally, not in Git)
+/review_bundles/
+
 # Local/editor files
 .idea/
 .vscode/

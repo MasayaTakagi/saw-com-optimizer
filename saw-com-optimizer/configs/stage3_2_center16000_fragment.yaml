@@ -1,0 +1,5 @@
+# Escalation override from the 50 ohm convergence plan.
+optimizer_validation:
+  budgets: [500, 1000, 2000, 4000, 8000]
+  optional_max_budget: 16000
+  auto_escalate: true
