@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from ..optimization.study import rank
+from ..optimization.runner import rank
 from ..core.models import NAMES
 
 def report(out):

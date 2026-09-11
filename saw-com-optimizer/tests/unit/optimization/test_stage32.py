@@ -1,10 +1,13 @@
 import unittest
 from dataclasses import asdict
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 
+import sawopt.studies.continuation as stage32
 from sawopt.core.models import FilterDesign
-from sawopt.optimization.stage32_study import (
+from sawopt.studies.continuation import (
     _bound_state,
     _inject_new_region,
     _next_expansion,
@@ -80,6 +83,104 @@ class Stage32Bounds(unittest.TestCase):
         self.assertTrue(np.any(injected[:, 1] < 20))
         self.assertEqual(len(injected), len(old_vectors))
         self.assertEqual(old["io_idt_pairs"]["active"], [20, 100])
+
+
+class Stage32StagnationRecovery(unittest.TestCase):
+    @staticmethod
+    def _trajectory(*, best=None, seed=41):
+        trajectory = object.__new__(stage32.ContinuationTrajectory)
+        trajectory.cfg = {"optimizer": {"maxiter": 2, "maxiter_ceiling": 20, "population": 8}}
+        trajectory.state = {
+            name: {"active": list(bounds)}
+            for name, bounds in zip(stage32.NAMES, stage32.BOUNDS)
+        }
+        trajectory.seed = seed
+        trajectory.rng = np.random.default_rng(seed)
+        trajectory.population = np.arange(8 * len(stage32.NAMES), dtype=float).reshape(8, -1)
+        trajectory.seen = set()
+        trajectory.best = best
+        trajectory.segment_index = 0
+        trajectory.stop_reason = "previous_reason"
+        return trajectory
+
+    def test_four_attempt_stagnation_contract_and_population_retention(self):
+        best = {"design": asdict(FilterDesign(io_idt_pairs=33, center_idt_pairs=17))}
+        trajectory = self._trajectory(best=best)
+        original_population = trajectory.population.copy()
+        de_calls = []
+        build_calls = []
+
+        def fake_de(_objective, bounds, *, init, seed, **kwargs):
+            de_calls.append({
+                "bounds": bounds,
+                "init": np.asarray(init, dtype=float).copy(),
+                "seed": seed,
+                "kwargs": kwargs,
+            })
+            return SimpleNamespace(population=np.asarray(init, dtype=float).copy())
+
+        def fake_build(cfg, rng, center, bounds, *, population=None):
+            build_calls.append({
+                "cfg": cfg,
+                "rng": rng,
+                "center": np.asarray(center, dtype=float).copy(),
+                "bounds": bounds,
+                "population": population,
+            })
+            return np.full((population, len(stage32.NAMES)), 100.0 + len(build_calls))
+
+        with patch.object(stage32, "differential_evolution", side_effect=fake_de), \
+                patch.object(stage32, "_build_population", side_effect=fake_build):
+            self.assertFalse(trajectory._run_de(target=1))
+
+        self.assertEqual([call["seed"] for call in de_calls], [41, 42, 43, 44])
+        self.assertEqual(trajectory.segment_index, 4)
+        self.assertEqual(len(build_calls), 3)
+        self.assertEqual(trajectory.stop_reason, "no_new_unique_designs")
+        self.assertEqual(build_calls[0]["rng"], trajectory.rng)
+        self.assertEqual(build_calls[0]["bounds"], stage32.active_bounds(trajectory.state))
+        np.testing.assert_allclose(
+            build_calls[0]["center"],
+            [best["design"][name] for name in stage32.NAMES],
+        )
+        self.assertEqual([call["population"] for call in build_calls], [8, 8, 8])
+        for call in de_calls[1:]:
+            np.testing.assert_array_equal(call["init"][:2], original_population[:2])
+
+    def test_progress_on_retry_clears_stop_reason_and_uses_default_center(self):
+        trajectory = self._trajectory(best=None, seed=99)
+        de_calls = []
+        build_calls = []
+
+        def fake_de(_objective, bounds, *, init, seed, **kwargs):
+            de_calls.append({"bounds": bounds, "init": np.asarray(init, dtype=float).copy(), "seed": seed})
+            if len(de_calls) == 2:
+                trajectory.seen.add(("new", 2))
+            return SimpleNamespace(population=np.asarray(init, dtype=float).copy())
+
+        def fake_build(cfg, rng, center, bounds, *, population=None):
+            build_calls.append({
+                "rng": rng,
+                "center": np.asarray(center, dtype=float).copy(),
+                "bounds": bounds,
+                "population": population,
+            })
+            return np.full((population, len(stage32.NAMES)), 200.0)
+
+        with patch.object(stage32, "differential_evolution", side_effect=fake_de), \
+                patch.object(stage32, "_build_population", side_effect=fake_build):
+            self.assertTrue(trajectory._run_de(target=1))
+
+        self.assertEqual([call["seed"] for call in de_calls], [99, 100])
+        self.assertEqual(trajectory.segment_index, 2)
+        self.assertEqual(len(build_calls), 1)
+        self.assertIsNone(trajectory.stop_reason)
+        default = FilterDesign()
+        np.testing.assert_allclose(
+            build_calls[0]["center"],
+            [getattr(default, name) for name in stage32.NAMES],
+        )
+        np.testing.assert_array_equal(de_calls[1]["init"][:2], trajectory.population[:2])
 
 
 if __name__ == "__main__":

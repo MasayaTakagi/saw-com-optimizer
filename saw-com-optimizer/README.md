@@ -38,8 +38,11 @@ Stage 1/2の指示書と `saw_com_codex_handoff`、`saw_com_codex_stage2_handoff
 ./saw-com-optimizer/scripts/launchers/hybrid-50ohm.ps1 --run runs/hybrid-50ohm --report-only
 ```
 
-通常Python環境ではこのディレクトリから `python -m sawopt.optimization.hybrid_study --run runs/hybrid-50ohm`。
+通常Python環境ではこのディレクトリから `python -m sawopt.studies.hybrid --run runs/hybrid-50ohm`。
 設定は `configs/studies/hybrid_50ohm.yaml`、結果は `runs/hybrid-50ohm/report.html` です。
+
+canonical な実装は `sawopt.studies.hybrid` にあり、旧 `sawopt.optimization.hybrid_study`
+は互換 shim として残しています。
 
 DMS単独の3結線を各3シードで比較後、最良の結線に直列・並列COM共振子を最大2個追加する12構成を比較します。上位3構成とDMS単独を追加探索します。全段階でRs=Rl=50 Ωです。詳細は `docs/guides/hybrid_50ohm.md`。
 
@@ -52,15 +55,11 @@ Stage 3.1 は `maxiter` 倍率ではなく、一意にデコードされた設�
 `center_outer_same` を同一 cold seed で比較します。予算・適応ラウンド・
 best-so-far・polish・増分診断は各 trial JSON と集計 CSV に保存されます。
 
-```powershell
-$env:PYTHONPATH = "./src"
-python -m sawopt.optimization.convergence_study `
-  --config configs/studies/stage3_convergence_50ohm.yaml `
-  --run runs/stage3_1_50ohm
-python -m sawopt.reporting.review_bundle `
-  --run runs/stage3_1_50ohm `
-  --output review_bundles/stage3_1_50ohm_review.zip
-```
+The canonical Stage 3.1 experiment is intentionally not migrated: its legacy
+`configs/studies/stage3_convergence_50ohm.yaml` references the missing
+`configs/stage3_1_convergence_fragment.yaml`. The missing fragment was not
+reconstructed and the Stage 3.2 configuration is not used as a fallback.
+See `experiments/stage3_1_convergence/README.md`.
 
 レビュー bundle の作成前に、run 内の `tests/pytest.txt` と
 `tests/pytest_summary.json` にレビュー対象ソースのテスト結果を配置します。
@@ -105,7 +104,7 @@ python -m sawopt sweep --run runs/prototype --refine-step 5
 python -m sawopt report --run runs/prototype
 ```
 
-基準設定は `configs/base/b28_dms_baseline.yaml`、COM仮定数は `configs/models/com_params_hypothetical.yaml`。探索は標準14個体×初期世代+4世代×3シードで、短時間の動作確認用です。`--maxiter 100` などで増やす場合は新しい `--run` を指定してください。抵抗点・シード・仕様・重み・製造制約はYAMLで変更できます。7変数の境界は `src/sawopt/core/models.py` の BOUNDS、固定メタライゼーション/膜厚比はFilterDesignにあります。一般的な設定差し替え機能の全実装ではありません。
+基準設定は `configs/base/b28_dms_baseline.yaml`、COM仮定数は `configs/models/com_params_hypothetical.yaml`。探索は標準14個体×初期世代+4世代×3シードで、短時間の動作確認用です。`--maxiter 100` などで増やす場合は新しい `--run` を指定してください。抵抗点・シード・仕様・重み・製造制約はYAMLで変更できます。7変数の境界は `src/sawopt/core/models.py` の BOUNDS、固定メタライゼーション/膜厚比はFilterDesignにあります。新しい通常実験は `experiments/*/experiment.yaml` の `study.type` と設定参照だけで追加できます。
 
 同じコマンドとrunを再実行すると完了済みシードを再利用します。中断中のシードは初めからやり直し、履歴に追記します。設定指紋が異なるrunへの追記は拒否します。チェックポイントは最良設計の救済保存で、DE乱数状態の復元ではありません。
 

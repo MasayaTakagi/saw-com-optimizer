@@ -5,7 +5,8 @@ import yaml
 import numpy as np
 
 from .core.models import FilterDesign
-from .optimization.study import run, initialize, dense, save
+from .io.config import load_experiment_config
+from .optimization.runner import run, initialize, dense, save
 from .reporting.report import report
 
 
@@ -21,14 +22,58 @@ def _refinement_points(command, step, records, configured_resistances):
     ]
     if not coarse:
         raise ValueError('No completed symmetric coarse sweep results available for refinement')
-    from .optimization.study import rank
+    from .optimization.runner import rank
     resistance = min(coarse, key=rank)['rs']
     return np.arange(max(20, resistance - 10), min(200, resistance + 10) + 1e-9, step).tolist()
 
 
+def _run_study(config_path, run_path, *, workers=None, resume=False,
+               run_parallelism=False):
+    """Dispatch a config-declared protocol through an explicit registry."""
+    cfg = load_experiment_config(config_path)
+    study = cfg.get('study', {})
+    protocol = study.get('type') if isinstance(study, dict) else None
+    protocol = protocol or cfg.get('study_type')
+    registry = {
+        'topology_screening': 'stage2',
+        'stage2_joint_impedance': 'stage2',
+        'convergence': 'convergence',
+        'stage3_1_dms_convergence': 'convergence',
+        'continuation': 'continuation',
+        'stage3_2_dms_convergence': 'continuation',
+        'optimizer_ab': 'optimizer_ab',
+        'stage3_3_optimizer_ab': 'optimizer_ab',
+        'preproduction': 'preproduction',
+        'stage3_3_1_preproduction': 'preproduction',
+    }
+    kind = registry.get(protocol)
+    if kind is None:
+        raise ValueError(
+            f'Unknown study.type {protocol!r}; expected one of {sorted(set(registry))}'
+        )
+    if kind == 'stage2':
+        from .studies.topology_screening import load_config, run_stage2
+        return run_stage2(Path(run_path), load_config(config_path))
+    if kind == 'convergence':
+        from .studies.convergence import normalize_convergence_config, run_convergence
+        return run_convergence(run_path, normalize_convergence_config(cfg))
+    if kind == 'continuation':
+        from .studies.continuation import normalize_convergence_config, run_stage32
+        return run_stage32(run_path, normalize_convergence_config(cfg),
+                           run_parallelism=run_parallelism)
+    if kind == 'optimizer_ab':
+        from .studies.optimizer_ab import normalize_convergence_config, run_stage33
+        return run_stage33(run_path, normalize_convergence_config(cfg),
+                           resume=resume, workers=workers,
+                           run_parallelism=run_parallelism)
+    from .studies.preproduction import run_preproduction
+    return run_preproduction(config_path, run_path)
+
+
 def main():
     p = argparse.ArgumentParser(description='Hypothetical COM impedance optimizer')
-    p.add_argument('command', choices=['simulate', 'optimize', 'sweep', 'report', 'stage3_3', 'stage3_3_1_preprod'])
+    p.add_argument('command', choices=['simulate', 'optimize', 'sweep', 'report',
+                                       'run-study', 'stage3_3', 'stage3_3_1_preprod'])
     p.add_argument('--config', default='configs/base/b28_dms_baseline.yaml')
     p.add_argument('--run', default='runs/prototype')
     p.add_argument('--rs', type=float, default=50)
@@ -40,13 +85,20 @@ def main():
     p.add_argument('--run-parallelism-benchmark', action='store_true')
     args = p.parse_args()
 
+    if args.command == 'run-study':
+        print(json.dumps(_run_study(
+            args.config, args.run, workers=args.workers, resume=args.resume,
+            run_parallelism=args.run_parallelism_benchmark,
+        ), ensure_ascii=False, indent=2))
+        return
+
     if args.command == 'report':
         print(json.dumps({'report': report(args.run)}))
         return
 
     if args.command == 'stage3_3':
-        from .optimization.convergence_study import _load_config
-        from .optimization.stage33_study import run_stage33
+        from .studies.convergence import _load_config
+        from .studies.optimizer_ab import run_stage33
         cfg = _load_config(args.config)
         print(json.dumps(run_stage33(args.run, cfg, resume=args.resume, workers=args.workers,
                                      run_parallelism=args.run_parallelism_benchmark),
@@ -54,7 +106,7 @@ def main():
         return
 
     if args.command == 'stage3_3_1_preprod':
-        from .optimization.stage331_preprod import run_preproduction
+        from .studies.preproduction import run_preproduction
         print(json.dumps(run_preproduction(args.config, args.run), ensure_ascii=False, indent=2))
         return
 
