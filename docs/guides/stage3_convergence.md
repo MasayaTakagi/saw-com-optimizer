@@ -1,12 +1,12 @@
 # Stage 3 convergence benchmark
 
-Run the cold-seed DMS benchmark from the repository root:
+The canonical Stage 3.1 experiment is currently not migrated. The legacy
+config references the missing `configs/stage3_1_convergence_fragment.yaml`;
+do not substitute the Stage 3.2 config. See
+`experiments/stage3_1_convergence/README.md` for the migration status.
 
-```text
-PYTHONPATH=src python -m sawopt.optimization.convergence_study \
-  --config configs/studies/stage3_convergence_50ohm.yaml \
-  --run runs/convergence-50ohm-dms
-```
+Once the exact fragment is restored from project history, run the cold-seed
+DMS benchmark from the repository root:
 
 The benchmark evaluates every configured DMS wiring at 1x/2x/4x budget with
 cold seeds. It writes `convergence_report.html`, `convergence_summary.json`,

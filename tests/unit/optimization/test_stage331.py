@@ -1,5 +1,7 @@
 import json
+import importlib.util
 from pathlib import Path
+import sys
 from tempfile import TemporaryDirectory
 import unittest
 from types import SimpleNamespace
@@ -20,6 +22,7 @@ from sawopt.optimization.stage33_study import (
     validate_ab_candidates,
 )
 from sawopt.optimization import study as study_module
+from sawopt.studies import preproduction
 
 
 def _objective(x):
@@ -40,6 +43,33 @@ def _fixed_population():
 
 
 class Stage331Acceptance(unittest.TestCase):
+    def test_full_regression_gate_uses_pytest_and_propagates_nonzero(self):
+        with TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            out = Path(temp) / "run"
+            repo.mkdir()
+            completed = SimpleNamespace(returncode=1, stdout="pytest failure", stderr="")
+            with mock.patch.object(preproduction.subprocess, "run", return_value=completed) as run:
+                summary = preproduction.run_full_test_suite(repo, out)
+            command = run.call_args.args[0]
+            self.assertEqual(command[:3], [sys.executable, "-m", "pytest"])
+            self.assertEqual(command[3:], ["-q"])
+            self.assertFalse(summary["passed"])
+            self.assertEqual(summary["exit_code"], 1)
+
+    @unittest.skipUnless(importlib.util.find_spec("pytest"), "pytest is not installed")
+    def test_pytest_only_failure_blocks_full_regression_gate(self):
+        with TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            out = Path(temp) / "run"
+            repo.mkdir()
+            (repo / "test_pytest_only_failure.py").write_text(
+                "def test_failure():\n    assert False\n", encoding="utf-8"
+            )
+            summary = preproduction.run_full_test_suite(repo, out)
+            self.assertFalse(summary["passed"])
+            self.assertNotEqual(summary["exit_code"], 0)
+
     def test_required_synthetic_invariants(self):
         result = run_optimizer_invariants()
         self.assertTrue(result["passed"], result["failed"])

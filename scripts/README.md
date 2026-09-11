@@ -11,4 +11,8 @@
 - `launchers/hybrid-50ohm.ps1`: 50 Ω固定のDMS＋ラダー探索
 - `launchers/stage2-study.ps1`: 構成・結線・インピーダンスの共同探索
 
+新しい実験は `PYTHONPATH=src python -m sawopt run-study --config
+experiments/<name>/experiment.yaml --run runs/<name>` を使う。上記 launcher と
+旧 Stage module invocation は既存 workflow の互換入口である。
+
 `maintenance/` のスクリプトは通常の試行には使用しない。

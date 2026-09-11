@@ -1,0 +1,3 @@
+base_config: ../../configs/studies/stage3_3_convergence_50ohm.yaml
+study:
+  type: optimizer_ab

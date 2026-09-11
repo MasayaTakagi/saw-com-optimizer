@@ -9,8 +9,8 @@ from pathlib import Path
 
 import yaml
 
-from sawopt.optimization.hybrid_study import optimize_case
-from sawopt.optimization.study import rank
+from sawopt.studies.hybrid import optimize_case
+from sawopt.optimization.runner import rank
 
 
 root = Path(__file__).resolve().parents[2]

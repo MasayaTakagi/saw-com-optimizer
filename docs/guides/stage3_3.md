@@ -7,8 +7,8 @@ change the geometry parameterization.
 Run the controlled pilot with:
 
 ```text
-PYTHONPATH=src python -m sawopt stage3_3 \
-  --config configs/studies/stage3_3_convergence_50ohm.yaml \
+PYTHONPATH=src python -m sawopt run-study \
+  --config experiments/stage3_3_optimizer_ab/experiment.yaml \
   --run runs/stage3_3_50ohm --workers 5
 ```
 
@@ -20,4 +20,3 @@ The A/B decision is recorded in `algorithm_ab_summary.json`. L-SHADE is not
 promoted automatically: the predefined median-quality, basin-hit,
 evaluation-efficiency, dense-validation, numerical-failure, and checkpoint
 gates must all be reviewed first.
-
