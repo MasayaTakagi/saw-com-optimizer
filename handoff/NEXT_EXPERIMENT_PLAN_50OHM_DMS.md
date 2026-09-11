@@ -1,5 +1,7 @@
 # 次期実験計画 — 50 Ω DMS Production Convergence
 
+> この資料はワークスペースルートの `handoff/` にあります。以下のプロジェクト相対パスとコマンドは、`saw-com-optimizer/` をカレントディレクトリとして解釈してください。
+
 ## 1. 目的
 
 Stage 3.3までの比較結果を踏まえ、7次元DMS問題では Legacy SciPy Differential Evolution（DE）を標準optimizerとして採用する。
