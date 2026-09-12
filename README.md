@@ -38,7 +38,8 @@ Stage 1/2の指示書と `saw_com_codex_handoff`、`saw_com_codex_stage2_handoff
 ./saw-com-optimizer/scripts/launchers/hybrid-50ohm.ps1 --run runs/hybrid-50ohm --report-only
 ```
 
-通常Python環境ではこのディレクトリから `python -m sawopt.studies.hybrid --run runs/hybrid-50ohm`。
+仮想環境を有効にした状態でこのディレクトリから
+`python -m sawopt.studies.hybrid --run runs/hybrid-50ohm`。
 設定は `configs/studies/hybrid_50ohm.yaml`、結果は `runs/hybrid-50ohm/report.html` です。
 
 canonical な実装は `sawopt.studies.hybrid` にあり、旧 `sawopt.optimization.hybrid_study`
@@ -64,12 +65,24 @@ See `experiments/stage3_1_convergence/README.md`.
 レビュー bundle の作成前に、run 内の `tests/pytest.txt` と
 `tests/pytest_summary.json` にレビュー対象ソースのテスト結果を配置します。
 `--include-history` と `--include-npz` は大容量データを含める場合だけ指定します。
+レビューZIPの生成先は、ワークスペースルート（このディレクトリの親）の
+`review_bundles/` に固定します。`runs/` 内には生成しません。
+
+レビューZIPはプロジェクトディレクトリから次で生成します。`--output` を省略すると、
+自動的に `../review_bundles/<run名>_review.zip` に保存されます。
+
+```powershell
+$env:PYTHONPATH = (Join-Path (Get-Location) 'src')
+python -m sawopt.reporting.review_bundle --run runs/<run名>
+```
 
 左右対称3-IDTを仮COM定数で計算し、各終端抵抗に対して寸法を再最適化するPython CLIです。**実製品の最適インピーダンスを示すものではありません。** 計画書の確認結果は [初期計画レビュー](docs/reviews/review_ja.md)。
 
 ## このPCで実行
 
-作業フォルダ `saw-com-optimizer` の親からPowerShellで実行します。`scripts/launchers/base-study.ps1` は共通起動処理を介して、このPCの同梱Pythonと親フォルダ `.deps` を使用します。
+作業フォルダ `saw-com-optimizer` の親からPowerShellで実行します。事前に
+`saw-com-optimizer/.venv/` を作成・有効化してください。`scripts/launchers/base-study.ps1`
+は共通起動処理を介して、この仮想環境を使用します。
 
 ```powershell
 ./saw-com-optimizer/scripts/launchers/base-study.ps1 simulate --run runs/baseline

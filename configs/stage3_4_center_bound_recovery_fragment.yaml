@@ -1,0 +1,29 @@
+# Stage 3.4: denser production checkpoints + elite-boundary recovery.
+optimizer_validation:
+  budgets: [500, 1000, 2000, 3000, 4000, 6000, 8000, 10000, 12000, 14000, 16000]
+  optional_max_budget: 32000
+  auto_escalate: true
+  minimum_convergence_budget: 16000
+
+  boundary_detection:
+    enabled: true
+    integer_boundary_zone_steps: 1
+    min_seed_fraction_at_boundary: 0.80
+    elite_boundary_fraction: 0.50
+    required_persistent_checkpoints: 2
+    exploration_injection_fraction: 0.20
+    auto_shrink: false
+    use_boundary_probe: true
+    probe_improvement_threshold: 0.02
+    elite_probe_enabled: true
+    elite_material_advantage_fraction: 0.05
+    elite_probe_min_positive_seeds: 2
+    elite_probe_min_positive_fraction: 0.50
+    elite_probe_median_improvement_threshold: 0.02
+
+  stagnation_recovery:
+    enabled: true
+    duplicate_fraction_threshold: 0.80
+    minimum_interval_objective_calls: 500
+    unique_evaluations_since_improvement: 2000
+    max_recoveries_per_design_space_version: 2
