@@ -42,6 +42,7 @@ from ..optimizers.selection import DEFAULT_COMPARATOR, rank, time_to_target
 from ..problem.evaluator import dense, evaluate_design
 from ..optimization.adaptive_frequency import critical_frequencies, new_frequency_points
 from ..optimization.runner import optimize_one
+from ..reporting.review_bundle import _default_review_bundle_output
 
 _cold_seeds = cold_seeds
 
@@ -946,7 +947,7 @@ def create_stage33_review_bundle(run):
     """Create a self-contained, hash-verified Stage 3.3 review ZIP."""
     run = Path(run).resolve()
     repo = Path(__file__).resolve().parents[3]
-    output = run / "stage3_3_review.zip"
+    output = _default_review_bundle_output(run, repo).with_name("stage3_3_review.zip")
     with tempfile.TemporaryDirectory(prefix="stage33_bundle_", dir=str(run)) as temp:
         staging = Path(temp) / "bundle"
         (staging / "source").mkdir(parents=True)

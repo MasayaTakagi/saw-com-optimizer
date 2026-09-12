@@ -1,0 +1,66 @@
+# Stage 3.4b: production-grade 50 ohm center-outer-same convergence.
+optimizer_validation:
+  budgets: [16000, 32000, 48000, 64000, 96000, 128000, 192000, 256000, 384000]
+  optional_max_budget: 512000
+  auto_escalate: true
+  minimum_convergence_budget: 32000
+
+  parallel:
+    seed_level: true
+    production_workers: 8
+    benchmark_workers: [4, 6, 8]
+    benchmark_budget: 500
+    blas_threads_per_worker: 1
+
+  bounds:
+    io_idt_pairs:
+      initial: [8, 100]
+      hard: [8, 120]
+      expandable: true
+      lower_steps: []
+
+  boundary_detection:
+    enabled: true
+    integer_boundary_zone_steps: 1
+    min_seed_fraction_at_boundary: 0.80
+    elite_boundary_fraction: 0.50
+    required_persistent_checkpoints: 2
+    exploration_injection_fraction: 0.20
+    auto_shrink: false
+    use_boundary_probe: true
+    probe_improvement_threshold: 0.02
+    elite_probe_enabled: true
+    elite_material_advantage_fraction: 0.05
+    elite_probe_min_positive_seeds: 2
+    elite_probe_min_positive_fraction: 0.50
+    elite_probe_median_improvement_threshold: 0.02
+
+  stagnation_recovery:
+    enabled: true
+    duplicate_fraction_threshold: 0.80
+    minimum_interval_objective_calls: 500
+    unique_evaluations_since_improvement: 2000
+    max_recoveries_per_design_space_version: 2
+
+convergence:
+  stage3_4b: true
+  min_grid_converged_seed_fraction: 0.875
+  infeasible:
+    paired_median_primary_relative_improvement: 0.02
+    paired_median_primary_absolute_improvement: 0.02
+    final_seed_primary_iqr: 0.10
+    final_seed_primary_worst_minus_median: 0.10
+    validation_primary_gap: 0.02
+    best_polish_primary_improvement: 0.02
+    late_improvement_final_budget_fraction: 0.25
+    max_fraction_seeds_materially_improving: 0.25
+  feasible:
+    paired_median_il_improvement_db: 0.10
+    final_seed_il_iqr_db: 0.20
+    final_seed_il_worst_minus_median_db: 0.20
+    validation_il_gap_db: 0.10
+    best_polish_il_improvement_db: 0.10
+    late_improvement_final_budget_fraction: 0.25
+    max_fraction_seeds_materially_improving: 0.25
+
+smoke_budget: 100

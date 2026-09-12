@@ -64,6 +64,19 @@ def _repository_root(module_path=None):
     raise BundleValidationError(f'Cannot resolve repository root from {module_path}')
 
 
+def _workspace_root(repo=None):
+    """Return the workspace root that owns the external review artifacts."""
+    repo = Path(repo or _repository_root()).resolve()
+    parent = repo.parent
+    return parent if (parent / '.git').exists() else repo
+
+
+def _default_review_bundle_output(run, repo=None):
+    """Return the fixed workspace-level output path for ``run``."""
+    run = Path(run).resolve()
+    return _workspace_root(repo) / 'review_bundles' / f'{run.name}_review.zip'
+
+
 def _git(repo, args):
     try:
         # Git emits repository text as UTF-8 even when the Windows process
@@ -87,7 +100,9 @@ def _required_run_artifacts(run, summary):
     if stage32:
         names.extend([
             'boundary_events.csv', 'design_space_versions.json',
-            'parallel_benchmark.json', 'checkpoints/checkpoint_summary.json',
+            'stagnation_events.csv', 'parallel_benchmark.json',
+            'benchmark_decision.json', 'environment/local_runtime.json',
+            'checkpoints/checkpoint_summary.json',
             'smoke/smoke_test.json',
         ])
     missing = [name for name in names if not (run / name).is_file()]
@@ -133,6 +148,12 @@ def _required_run_artifacts(run, summary):
                     'last_significant_improvement_unique_eval',
                     'best_so_far_trace', 'grid_extension_events',
                     'validation_frequencies_hz', 'diagnostics',
+                    'validated_rank_tuple',
+                    'recovery_fired_at_current_checkpoint',
+                    'recovery_pending_confirmation',
+                    'boundary_pressure_first_seen_at_current_checkpoint',
+                    'boundary_pending_confirmation',
+                    'hard_bound_reached_by_variable',
                 }
             missing_fields = sorted(required_trial_fields - set(trial))
             if missing_fields:
@@ -178,8 +199,8 @@ def _run_bundle_self_test(staging, expected_source_hash):
     environment['PYTHONPATH'] = str(python_root)
     environment['PYTHONDONTWRITEBYTECODE'] = '1'
     process = subprocess.run(
-        [sys.executable, '-m', 'unittest', 'discover', '-s', 'tests', '-q'],
-        cwd=source_root, env=environment, capture_output=True, text=True,
+        [sys.executable, '-m', 'unittest', 'discover', '-s', '../tests', '-q'],
+        cwd=python_root, env=environment, capture_output=True, text=True,
     )
     output = (process.stdout or '') + (process.stderr or '')
     match = re.search(r'Ran\s+(\d+)\s+tests?', output)
@@ -208,14 +229,17 @@ def _review_text(summary, manifest, run, pytest_result=None):
         f'python -m sawopt.optimization.convergence_study --run {run.as_posix()}',
     )
     test_log_path = 'tests/unittest.txt' if summary.get('study_type') == 'stage3_2_dms_convergence' else 'tests/pytest.txt'
+    experiment_name = summary.get('experiment_name') or summary.get(
+        'study_type', 'convergence'
+    )
     lines = [
-        '# Stage 3.1 review summary',
+        f'# {experiment_name} review summary',
         '',
         'This bundle contains finite cold-seed evidence only; it does not claim a global optimum.',
         '',
         f'- Command: `{command}`',
         f'- Impedance: {summary.get("impedance_ohm")} ohm',
-        f'- Budgets (unique decoded designs): {summary.get("unique_design_budgets")}',
+        f'- Budgets (unique decoded designs): {summary.get("budgets", summary.get("unique_design_budgets"))}',
         f'- Wirings: {summary.get("wirings")}',
         f'- Cold seeds: {summary.get("cold_seeds")}',
         '',
@@ -227,6 +251,10 @@ def _review_text(summary, manifest, run, pytest_result=None):
         lines.append(f'- `{wiring}` status: `{value.get("status")}`')
         evidence = value.get('evidence', {})
         lines.append(f'  - final seed IQR: {evidence.get("final_seed_primary_iqr", evidence.get("final_seed_iqr_db"))}')
+        lines.append(f'  - worst-minus-median: {evidence.get("final_seed_primary_worst_minus_median", evidence.get("final_seed_il_worst_minus_median_db"))}')
+        lines.append(f'  - grid-converged fraction: {evidence.get("stage34b_gates", {}).get("grid_converged_seed_fraction")}')
+        lines.append(f'  - recovery pending: {evidence.get("stage34b_gates", {}).get("recovery_pending_confirmation")}')
+        lines.append(f'  - boundary pending: {evidence.get("stage34b_gates", {}).get("boundary_pending_confirmation")}')
         lines.append(f'  - common validation gap: {evidence.get("validation_primary_gap", evidence.get("validation_il_gap_db"))}')
         lines.append(f'  - best-candidate polish improvement: {evidence.get("best_polish_primary_improvement", evidence.get("best_polish_il_improvement_db"))}')
         intervals = evidence.get('paired_budget_deltas', [])
@@ -327,8 +355,11 @@ def create_review_bundle(run, output, *, include_history=False, include_npz=Fals
         copy_required(run / 'performance_gate.json', 'results/performance_gate.json')
         if stage32:
             copy_required(run / 'boundary_events.csv', 'results/boundary_events.csv')
+            copy_required(run / 'stagnation_events.csv', 'results/stagnation_events.csv')
             copy_required(run / 'design_space_versions.json', 'results/design_space_versions.json')
             copy_required(run / 'parallel_benchmark.json', 'results/parallel_benchmark.json')
+            copy_required(run / 'benchmark_decision.json', 'benchmark/benchmark_decision.json')
+            copy_required(run / 'environment/local_runtime.json', 'environment/local_runtime.json')
             copy_required(run / 'smoke/smoke_test.json', 'results/smoke_test.json')
             copy_required(run / 'checkpoints/checkpoint_summary.json', 'checkpoints/checkpoint_summary.json')
         for relative in trial_files:
@@ -337,6 +368,7 @@ def create_review_bundle(run, output, *, include_history=False, include_npz=Fals
         copy_required(test_summary, 'tests/test_summary.json' if stage32 else 'tests/pytest_summary.json')
         if stage32:
             copy_required(run / 'parallel_benchmark.json', 'tests/parallel_benchmark.json')
+            copy_required(run / 'benchmark_decision.json', 'tests/benchmark_decision.json')
             copy_required(run / 'smoke/smoke_test.json', 'tests/smoke_test.json')
 
         inputs = run_manifest.get('config', {}).get('inputs', {})
@@ -362,6 +394,11 @@ def create_review_bundle(run, output, *, include_history=False, include_npz=Fals
             for source in sorted(configs_root.rglob('*')):
                 if source.is_file():
                     destination = Path('source') / 'configs' / source.relative_to(configs_root)
+                    copy_required(source, destination)
+            experiments_root = repo / 'experiments'
+            for source in sorted(experiments_root.rglob('*')):
+                if source.is_file():
+                    destination = Path('source') / 'experiments' / source.relative_to(experiments_root)
                     copy_required(source, destination)
         copy_required(repo / 'pyproject.toml', 'source/pyproject.toml')
         if _source_hash(staging / 'source' / 'sawopt') != expected_source_hash:
@@ -418,7 +455,7 @@ def create_review_bundle(run, output, *, include_history=False, include_npz=Fals
             'git_dirty': bool(_git(repo, ['status', '--short']).strip()),
             'python_version': run_manifest.get('python', sys.version),
             'platform': platform.platform(),
-            'review_scope': '50 ohm DMS convergence',
+            'review_scope': summary.get('experiment_name', '50 ohm DMS convergence'),
             'included_history': bool(include_history),
             'included_npz': bool(include_npz),
             'test_log_name': test_log_name,
@@ -457,12 +494,24 @@ def create_review_bundle(run, output, *, include_history=False, include_npz=Fals
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Create a Stage 3.1 review bundle ZIP')
     parser.add_argument('--run', required=True)
-    parser.add_argument('--output', required=True)
+    parser.add_argument(
+        '--output',
+        help='Optional filename inside the workspace-root review_bundles directory; '
+             'defaults to <run-name>_review.zip',
+    )
     parser.add_argument('--include-history', action='store_true')
     parser.add_argument('--include-npz', action='store_true')
     args = parser.parse_args(argv)
+    repo = _repository_root()
+    default_output = _default_review_bundle_output(args.run, repo)
+    output = default_output if args.output is None else Path(args.output).resolve()
+    if output.parent != default_output.parent.resolve():
+        parser.error(
+            'Review bundles must be written directly under the workspace-root '
+            f'review_bundles directory: {default_output.parent}'
+        )
     try:
-        path = create_review_bundle(args.run, args.output,
+        path = create_review_bundle(args.run, output,
                                     include_history=args.include_history,
                                     include_npz=args.include_npz)
     except BundleValidationError as exc:

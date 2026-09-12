@@ -5,11 +5,23 @@ from pathlib import Path
 from zipfile import ZipFile
 
 from sawopt.reporting.review_bundle import (
-    BundleValidationError, _source_hash, create_review_bundle,
+    BundleValidationError, _default_review_bundle_output, _source_hash,
+    create_review_bundle,
 )
 
 
 class ReviewBundle(unittest.TestCase):
+    def test_default_output_is_workspace_review_bundles(self):
+        with tempfile.TemporaryDirectory() as temp:
+            workspace = Path(temp)
+            repo = workspace / 'saw-com-optimizer'
+            (workspace / '.git').mkdir()
+            run = repo / 'runs' / 'example-run'
+            self.assertEqual(
+                _default_review_bundle_output(run, repo),
+                workspace / 'review_bundles' / 'example-run_review.zip',
+            )
+
     def _make_run(self, root):
         run = Path(root)
         (run / 'trials').mkdir(parents=True)

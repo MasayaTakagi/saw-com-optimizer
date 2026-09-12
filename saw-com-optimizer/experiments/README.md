@@ -1,5 +1,9 @@
 # Config-driven experiments
 
+実行時はプロジェクト直下の `.venv` を使用します。PowerShellでは、先に
+`.\.venv\Scripts\Activate.ps1` を実行してください。レビュー用ZIPはワークスペース
+ルートの `review_bundles/` に保存します。
+
 Each experiment declares a reusable protocol in `experiment.yaml` and may
 reference an existing resolved study configuration. Run one with:
 
