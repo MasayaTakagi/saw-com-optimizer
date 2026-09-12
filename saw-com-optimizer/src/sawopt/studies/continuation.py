@@ -17,6 +17,7 @@ import tempfile
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -27,7 +28,7 @@ from ..core.models import BOUNDS, FilterDesign, NAMES, decode
 from ..io.config import cold_seeds, load_study_config
 from ..io.run_store import initialize
 from ..io.serialization import save
-from ..runtime.parallel import single_blas_thread_environment
+from ..runtime.parallel import local_runtime_metadata, single_blas_thread_environment
 from ..optimizers.selection import rank
 from ..problem.evaluator import dense, evaluate_design
 from .convergence import normalize_convergence_config, parity_check
@@ -311,17 +312,53 @@ def boundary_probe(records, cfg, z0, wiring, state, pressure):
         if not _valid_geometry(candidate, cfg):
             continue
         probe_record, _net, _sim = evaluate_design(candidate, cfg, f, z0, z0, wiring=wiring)
-        tested.append({"seed": int(record["seed"]), "design": design,
-                       "rank": list(rank(probe_record))})
-        improvements.append(float(_record_primary(record) - _record_primary(probe_record)))
+        before_primary = float(_record_primary(record))
+        after_primary = float(_record_primary(probe_record))
+        improvement = before_primary - after_primary
+        tested.append({
+            "seed": int(record["seed"]), "design": design,
+            "before_primary": before_primary,
+            "after_primary": after_primary,
+            "improvement": float(improvement),
+            "before_rank": list(rank(record)),
+            "after_rank": list(rank(probe_record)),
+            "rank": list(rank(probe_record)),
+            "before_validated_rank": list(record.get("validated_rank_tuple", rank(record))),
+            "after_validated_rank": list(probe_record.get("validated_rank_tuple", rank(probe_record))),
+            "search_rank": list(rank(probe_record)),
+        })
+        improvements.append(float(improvement))
+    threshold = float(_boundary_settings(cfg).get("probe_improvement_threshold", .02))
     best = max(improvements, default=0.0)
-    positive = bool(best > float(_boundary_settings(cfg).get("probe_improvement_threshold", .02)))
+    positive_count = int(sum(value > threshold for value in improvements))
+    positive_fraction = float(positive_count / max(len(improvements), 1))
+    median_improvement = float(np.median(improvements)) if improvements else 0.0
+    positive = bool(best > threshold)
     return {
         "variable": variable, "direction": pressure["direction"],
         "target": target, "positive": positive, "hard_bound_reached": False,
         "evaluations": len(tested), "best_improvement": best,
+        "positive_count": positive_count,
+        "positive_fraction": positive_fraction,
+        "median_improvement": median_improvement,
         "tested": tested,
     }
+
+
+def elite_probe_consensus(probe, cfg):
+    """Require independent multi-seed evidence before elite expansion."""
+    section = _boundary_settings(cfg)
+    minimum_count = int(section.get("elite_probe_min_positive_seeds", 2))
+    minimum_fraction = float(section.get("elite_probe_min_positive_fraction", .50))
+    median_threshold = float(section.get(
+        "elite_probe_median_improvement_threshold",
+        section.get("probe_improvement_threshold", .02),
+    ))
+    return bool(
+        int(probe.get("positive_count", 0)) >= minimum_count
+        and float(probe.get("positive_fraction", 0.0)) >= minimum_fraction
+        and float(probe.get("median_improvement", 0.0)) > median_threshold
+    )
 
 
 def _active_state_version(state):
@@ -353,6 +390,23 @@ def _stage32_row(record, budget):
         "design_space_version": int(record.get("design_space_version", 1)),
         "grid_converged": bool(record.get("grid_converged", False)),
         "optimizer_converged": bool(record.get("optimizer_converged", False)),
+        "validated_rank_tuple": list(record.get("validated_rank_tuple", rank(record))),
+        "recovery_fired_at_current_checkpoint": bool(
+            record.get("recovery_fired_at_current_checkpoint", False)
+        ),
+        "recovery_pending_confirmation": bool(
+            record.get("recovery_pending_confirmation", False)
+        ),
+        "boundary_pressure_first_seen_at_current_checkpoint": bool(
+            record.get("boundary_pressure_first_seen_at_current_checkpoint", False)
+        ),
+        "boundary_pending_confirmation": bool(
+            record.get("boundary_pending_confirmation", False)
+        ),
+        "hard_bound_reached_by_variable": record.get(
+            "hard_bound_reached_by_variable", {}
+        ),
+        "hard_bound_unresolved": bool(record.get("hard_bound_unresolved", False)),
     }
     return row
 
@@ -453,10 +507,27 @@ class ContinuationTrajectory:
         self.design_space_version = 1
         self.checkpoints = []
         self.stop_reason = None
+        self.stagnation_events = []
+        self._diagnostic_objective_calls = 0
+        self._diagnostic_cache_hits = 0
+        self._stagnation_recoveries_by_version = {}
 
     @property
     def actual_unique_design_evaluations(self):
         return len(self.seen)
+
+    def __getstate__(self):
+        """Keep checkpoint IPC bounded as the trajectory cache grows.
+
+        The cache is an in-process optimization of duplicate proposals.  The
+        canonical ``seen`` set, incumbent, population, and checkpoint records
+        are the continuation contract; stale search records do not need to be
+        copied through the Windows process queue at every checkpoint.  A
+        worker rebuilds its local cache while advancing the next interval.
+        """
+        state = dict(self.__dict__)
+        state["cache"] = {}
+        return state
 
     def _evaluate(self, vector, *, count_objective=True):
         bounds = active_bounds(self.state)
@@ -539,6 +610,56 @@ class ContinuationTrajectory:
             keep = max(1, len(self.population) // 4)
             refreshed[:keep] = np.asarray(self.population, dtype=float)[:keep]
         self.population = refreshed
+
+    def maybe_diversify_for_duplicate_stagnation(self):
+        """Refresh diversity when duplicate proposals dominate one interval.
+
+        This checkpoint-level recovery is deliberately separate from the
+        existing four-attempt zero-progress retry in ``_run_de``.  It uses
+        interval counters, requires stale significant improvement, and is
+        capped independently for each design-space version.
+        """
+        section = self.cfg.get("optimizer_validation", {}).get(
+            "stagnation_recovery", {}
+        )
+        delta_calls = int(self.objective_calls - self._diagnostic_objective_calls)
+        delta_hits = int(self.cache_hits - self._diagnostic_cache_hits)
+        self._diagnostic_objective_calls = int(self.objective_calls)
+        self._diagnostic_cache_hits = int(self.cache_hits)
+        duplicate_fraction = float(delta_hits / max(delta_calls, 1))
+        if not section.get("enabled", True):
+            return None
+        minimum_calls = int(section.get("minimum_interval_objective_calls", 500))
+        threshold = float(section.get("duplicate_fraction_threshold", .80))
+        patience = int(section.get("unique_evaluations_since_improvement", 2000))
+        maximum = int(section.get("max_recoveries_per_design_space_version", 2))
+        last = self.last_significant if self.last_significant is not None else 0
+        stalled_unique = int(self.actual_unique_design_evaluations - last)
+        used = int(self._stagnation_recoveries_by_version.get(
+            self.design_space_version, 0
+        ))
+        if (delta_calls < minimum_calls or duplicate_fraction < threshold
+                or stalled_unique < patience or used >= maximum):
+            return None
+        self._diversify_after_stagnation()
+        self._stagnation_recoveries_by_version[self.design_space_version] = used + 1
+        event = {
+            "event": "duplicate_stagnation_diversification",
+            "seed": self.seed,
+            "design_space_version": int(self.design_space_version),
+            "interval_objective_calls": delta_calls,
+            "interval_cache_hits": delta_hits,
+            "interval_duplicate_fraction": duplicate_fraction,
+            "unique_evaluations_since_last_significant_improvement": stalled_unique,
+            "unique_evaluations_at_recovery": int(self.actual_unique_design_evaluations),
+            "recovery_count_for_design_space_version": used + 1,
+        }
+        self.stagnation_events.append(event)
+        return event
+
+    def reset_stagnation_diagnostics(self):
+        self._diagnostic_objective_calls = int(self.objective_calls)
+        self._diagnostic_cache_hits = int(self.cache_hits)
 
     def _run_de(self, target):
         bounds = active_bounds(self.state)
@@ -664,6 +785,12 @@ class ContinuationTrajectory:
             "active_bounds": _active_state_version(self.state),
             "stop_reason": self.stop_reason,
             "validation_record": validation_record,
+            "recovery_fired_at_current_checkpoint": False,
+            "recovery_pending_confirmation": False,
+            "boundary_pressure_first_seen_at_current_checkpoint": False,
+            "boundary_pending_confirmation": False,
+            "hard_bound_reached_by_variable": {},
+            "hard_bound_unresolved": False,
         })
         self.checkpoints.append(record)
         return record
@@ -676,6 +803,7 @@ class ContinuationTrajectory:
         self.population = _inject_new_region(
             self.population, old_bounds, new_bounds, self.rng, self.cfg, fraction=fraction)
         self.cache = {}
+        self.reset_stagnation_diagnostics()
         self.grid_extension_events.append({
             "design_space_version": int(version),
             "event": "bound_expansion_population_injection",
@@ -716,6 +844,23 @@ class ContinuationTrajectory:
             "incumbent": record["design"],
             "best_so_far_trace": self.best_trace,
             "grid_extension_events": self.grid_extension_events,
+            "stagnation_events": self.stagnation_events,
+            "recovery_fired_at_current_checkpoint": record.get(
+                "recovery_fired_at_current_checkpoint", False
+            ),
+            "recovery_pending_confirmation": record.get(
+                "recovery_pending_confirmation", False
+            ),
+            "boundary_pressure_first_seen_at_current_checkpoint": record.get(
+                "boundary_pressure_first_seen_at_current_checkpoint", False
+            ),
+            "boundary_pending_confirmation": record.get(
+                "boundary_pending_confirmation", False
+            ),
+            "hard_bound_reached_by_variable": record.get(
+                "hard_bound_reached_by_variable", {}
+            ),
+            "hard_bound_unresolved": record.get("hard_bound_unresolved", False),
         })
 
 
@@ -743,15 +888,24 @@ def _advance_trajectory_process(payload):
     return trajectory, record
 
 
+def _convergence_stop_allowed(status, budget, minimum_budget, *,
+                              recovery_fired=False, recovery_pending=False,
+                              boundary_pending=False):
+    """Apply the production minimum-budget gate to convergence stopping."""
+    return bool(
+        status == "converged" and int(budget) >= int(minimum_budget) and
+        not recovery_fired and not recovery_pending and not boundary_pending
+    )
+
+
 def run_parallelism_benchmark(out, cfg):
     section = cfg.get("optimizer_validation", {}).get("parallel", {})
-    workers = [int(x) for x in section.get("benchmark_workers", [1, 2, 4, 5])]
+    workers = [int(x) for x in section.get("benchmark_workers", [4, 6, 8])]
     seeds = _cold_seeds(cfg)
     wirings = list(cfg.get("wirings", ["outer_ports", "center_outer_same"]))
-    budget = int(section.get("benchmark_budget", 100))
+    budget = int(section.get("benchmark_budget", 500))
     tasks = [(wiring, seed) for wiring in wirings for seed in seeds]
     results = {}
-    baseline = None
     for worker_count in workers:
         target_root = Path(out) / "parallelism" / f"workers{worker_count}"
         target_root.mkdir(parents=True, exist_ok=True)
@@ -767,25 +921,122 @@ def run_parallelism_benchmark(out, cfg):
                 with ProcessPoolExecutor(max_workers=worker_count) as pool:
                     trial_results = list(pool.map(_parallel_smoke_task, payloads))
         elapsed = time.time() - started
-        ranks = [tuple(result.get("validated_rank_tuple", rank(result))) for result in trial_results]
-        if baseline is None:
-            baseline = ranks
+        unique_designs = int(sum(
+            result.get("actual_unique_design_evaluations", 0)
+            for result in trial_results
+        ))
+        runtime = local_runtime_metadata(
+            production_workers=worker_count,
+            blas_threads_per_worker=int(section.get("blas_threads_per_worker", 1)),
+        )
         results[str(worker_count)] = {
             "workers": worker_count, "budget": budget,
             "trial_count": len(trial_results), "wall_time_s": elapsed,
-            "numerical_rank_parity_with_workers_1": ranks == baseline,
+            "total_unique_designs": unique_designs,
+            "unique_designs_per_sec": unique_designs / max(elapsed, np.finfo(float).tiny),
+            "peak_worker_rss_mb": None,
+            "ram_available_start_gib": runtime.get("ram_available_start_gib"),
             "blas_threads_per_worker": int(section.get("blas_threads_per_worker", 1)),
         }
-    first = results[str(workers[0])]["wall_time_s"]
+    first = results[str(workers[0])]["wall_time_s"] if workers else 0.0
     for values in results.values():
         values["speedup_vs_first"] = first / max(values["wall_time_s"], np.finfo(float).tiny)
         values["parallel_efficiency_vs_first"] = values["speedup_vs_first"] / max(values["workers"], 1)
-    return {
+    decision = _benchmark_decision(results, section.get("production_workers", 8))
+    output = {
         "executed": True, "workers_requested": workers, "workers": results,
         "seed_count": len(seeds), "wirings": wirings, "budget": budget,
         "blas_threads_per_worker": int(section.get("blas_threads_per_worker", 1)),
         "environment_policy": {name: "1" for name in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS")},
+        "decision": decision,
     }
+    save(Path(out) / "parallel_benchmark.json", output)
+    save(Path(out) / "benchmark_decision.json", decision)
+    return output
+
+
+def _benchmark_decision(results, configured_workers=8):
+    """Choose production workers using throughput and explicit safe fallbacks."""
+    available = {int(key): value for key, value in results.items()}
+    if not available:
+        return {
+            "production_workers": int(configured_workers),
+            "reason": "benchmark returned no worker results; retained config",
+            "safe_fallback": True,
+        }
+    if 8 in available:
+        selected = 8
+        reason = "8 workers available and no measured memory-pressure signal"
+        if 6 in available:
+            throughput8 = float(available[8].get("unique_designs_per_sec", 0.0))
+            throughput6 = float(available[6].get("unique_designs_per_sec", 0.0))
+            if throughput8 < throughput6 * .90:
+                selected = 6
+                reason = "8 workers were materially slower than 6 workers"
+    elif 6 in available:
+        selected = 6
+        reason = "8 workers were not benchmarked; selected 6-worker fallback"
+    else:
+        selected = int(configured_workers) if int(configured_workers) in available else min(available)
+        reason = "partial benchmark; selected configured/lowest available worker count"
+    return {
+        "production_workers": int(selected),
+        "reason": reason,
+        "safe_fallback": bool(selected != 8),
+        "memory_pressure_signal": False,
+    }
+
+
+def run_smoke_test(out, cfg):
+    """Exercise the Stage 3.4b scheduling and serialization contract cheaply."""
+    out = Path(out)
+    smoke_dir = out / "smoke"
+    smoke_dir.mkdir(parents=True, exist_ok=True)
+    section = cfg.get("optimizer_validation", {}).get("parallel", {})
+    seeds = _cold_seeds(cfg)
+    wiring = "center_outer_same"
+    budget = int(cfg.get("smoke_budget", 100))
+    threads = int(section.get("blas_threads_per_worker", 1))
+    workers = max(1, min(int(section.get("production_workers", len(seeds))), len(seeds)))
+    smoke_cfg = copy.deepcopy(cfg)
+    smoke_cfg["wirings"] = [wiring]
+    payloads = [
+        (str(smoke_dir / f"seed{seed}"), smoke_cfg, wiring, seed, budget)
+        for seed in seeds
+    ]
+    started = time.time()
+    with _single_blas_environment(threads):
+        if workers == 1:
+            records = [_parallel_smoke_task(payload) for payload in payloads]
+        else:
+            with ProcessPoolExecutor(
+                max_workers=workers, mp_context=mp.get_context("spawn")
+            ) as pool:
+                records = list(pool.map(_parallel_smoke_task, payloads))
+    required = {
+        "actual_unique_design_evaluations", "grid_converged",
+        "recovery_fired_at_current_checkpoint", "recovery_pending_confirmation",
+        "boundary_pressure_first_seen_at_current_checkpoint",
+        "boundary_pending_confirmation", "hard_bound_reached_by_variable",
+    }
+    passed = all(required.issubset(record) for record in records)
+    result = {
+        "passed": bool(passed), "wiring": wiring, "seed_count": len(seeds),
+        "seeds": seeds, "requested_unique_budget": budget,
+        "workers": workers, "blas_threads_per_worker": threads,
+        "record_count": len(records),
+        "required_fields": sorted(required),
+        "records": [
+            {"seed": int(record.get("seed", -1)),
+             "actual_unique_design_evaluations": int(record.get(
+                 "actual_unique_design_evaluations", 0)),
+             "grid_converged": bool(record.get("grid_converged", False))}
+            for record in records
+        ],
+        "elapsed_s": time.time() - started,
+    }
+    save(smoke_dir / "smoke_test.json", result)
+    return result
 
 
 def _write_csv(path, rows):
@@ -816,15 +1067,23 @@ def run_stage32(out, cfg, *, run_parallelism=False):
     seeds = _cold_seeds(cfg)
     wirings = list(cfg.get("wirings", ["outer_ports", "center_outer_same"]))
     thresholds = _thresholds(cfg)
-    max_workers = int(section.get("parallel", {}).get("production_workers", 1))
+    configured_workers = int(section.get("parallel", {}).get("production_workers", 1))
+    parallel = run_parallelism and run_parallelism_benchmark(out, cfg)
+    selected_workers = (
+        int(parallel.get("decision", {}).get("production_workers", configured_workers))
+        if parallel else configured_workers
+    )
+    max_workers = int(selected_workers)
     max_workers = max(1, min(max_workers, len(seeds)))
     auto_escalate = bool(section.get("auto_escalate", True))
     boundary_section = section.get("boundary_detection", {})
     injection_fraction = float(boundary_section.get("exploration_injection_fraction", .20))
     required_persistence = int(boundary_section.get("required_persistent_checkpoints", 2))
+    minimum_convergence_budget = int(section.get("minimum_convergence_budget", 0))
     all_rows = []
     trial_files = []
     boundary_events = []
+    stagnation_events = []
     design_versions = []
     checkpoint_summary = []
     statuses = {}
@@ -833,6 +1092,12 @@ def run_stage32(out, cfg, *, run_parallelism=False):
     budget_summaries = {}
     paired_deltas = []
     started = time.time()
+    runtime_start = local_runtime_metadata(
+        production_workers=max_workers,
+        blas_threads_per_worker=int(section.get("parallel", {}).get(
+            "blas_threads_per_worker", 1
+        )),
+    )
 
     for wiring in wirings:
         state = _bound_state(cfg)
@@ -842,6 +1107,7 @@ def run_stage32(out, cfg, *, run_parallelism=False):
         }
         rows_for_wiring = []
         pressure_history = {}
+        recovery_pending_by_seed = {}
         version = 1
         design_versions.append({
             "wiring": wiring, "design_space_version": version,
@@ -903,13 +1169,19 @@ def run_stage32(out, cfg, *, run_parallelism=False):
                     "actual_unique_design_evaluations": int(record["actual_unique_design_evaluations"]),
                 })
             pressure = detect_boundary_pressure(current_records, state, cfg)
+            expanded_this_checkpoint = False
+            handled_keys = set()
+            boundary_first_seen = False
+            hard_bound_reached_by_variable = {}
             for item in pressure.get("pressures", []):
                 key = (item["variable"], item["direction"])
+                handled_keys.add(key)
                 pressure_history[key] = pressure_history.get(key, 0) + 1
                 item["persistence_count"] = pressure_history[key]
                 item["budget"] = int(budget)
                 item["wiring"] = wiring
                 item["design_space_version"] = version
+                boundary_first_seen = boundary_first_seen or pressure_history[key] == 1
                 if pressure_history[key] >= required_persistence:
                     probe = boundary_probe(current_records, cfg, z0, wiring, state, item)
                     item["probe"] = probe
@@ -931,33 +1203,176 @@ def run_stage32(out, cfg, *, run_parallelism=False):
                                 "trigger": event,
                             })
                             pressure_history = {}
+                            expanded_this_checkpoint = True
                         else:
                             boundary_events.append(dict(item, event="hard_bound_limited"))
                     elif probe.get("hard_bound_reached"):
+                        hard_bound_reached_by_variable.setdefault(
+                            item["variable"], []
+                        ).append(item["direction"])
                         boundary_events.append(dict(item, event="hard_bound_limited"))
                     else:
                         boundary_events.append(dict(item, event="boundary_probe_no_improvement"))
+
+            # An elite seed can request a diagnostic probe even when ordinary
+            # all-seed pressure is below its trigger.  The probe is evaluated
+            # across every cold seed, and only consensus can expand the bound.
+            if not expanded_this_checkpoint:
+                elite = detect_elite_boundary_probe(current_records, state, cfg)
+                for item in elite.get("probes", []):
+                    key = (item["variable"], item["direction"])
+                    if key in handled_keys:
+                        continue
+                    item.update({
+                        "budget": int(budget), "wiring": wiring,
+                        "design_space_version": version,
+                    })
+                    probe = boundary_probe(current_records, cfg, z0, wiring, state, item)
+                    item["probe"] = probe
+                    item["probe_positive"] = bool(probe.get("positive"))
+                    item["probe_consensus_positive"] = elite_probe_consensus(probe, cfg)
+                    boundary_events.append(dict(item, event="elite_boundary_probe"))
+                    if item["probe_consensus_positive"]:
+                        old_state = _copy_bounds(state)
+                        target = _next_expansion(state, item)
+                        if target is not None:
+                            state[item["variable"]]["active"][
+                                0 if item["direction"] == "lower" else 1
+                            ] = target
+                            version += 1
+                            for trajectory in trajectories.values():
+                                trajectory.expand(old_state, state, version, injection_fraction)
+                            event = dict(
+                                item, event="bound_expansion",
+                                reason="elite_probe_consensus",
+                                new_bound=float(target),
+                                new_design_space_version=version,
+                            )
+                            boundary_events.append(event)
+                            design_versions.append({
+                                "wiring": wiring, "design_space_version": version,
+                                "active_bounds": _active_state_version(state),
+                                "reason": "elite_probe_consensus",
+                                "trigger": event,
+                            })
+                            pressure_history = {}
+                            expanded_this_checkpoint = True
+                            break
+                        hard_bound_reached_by_variable.setdefault(
+                            item["variable"], []
+                        ).append(item["direction"])
+                        boundary_events.append(dict(item, event="hard_bound_limited"))
             for key in list(pressure_history):
                 if not any((x["variable"], x["direction"]) == key for x in pressure.get("pressures", [])):
                     pressure_history[key] = 0
+            current_recovery_seeds = set()
+            if not expanded_this_checkpoint:
+                for seed, trajectory in trajectories.items():
+                    event = trajectory.maybe_diversify_for_duplicate_stagnation()
+                    if event is not None:
+                        event.update({"wiring": wiring, "budget": int(budget)})
+                        stagnation_events.append(event)
+                        current_recovery_seeds.add(int(seed))
+                        recovery_pending_by_seed[int(seed)] = {
+                            "unique_evaluations_at_recovery": int(
+                                event["unique_evaluations_at_recovery"]
+                            ),
+                            "design_space_version": int(version),
+                        }
+            recovery_pending = {}
+            for seed, record in checkpoint_records.items():
+                marker = recovery_pending_by_seed.get(int(seed))
+                confirmed = marker is None or (
+                    int(record.get("actual_unique_design_evaluations", 0)) >
+                    int(marker["unique_evaluations_at_recovery"])
+                )
+                if confirmed and marker is not None:
+                    recovery_pending_by_seed.pop(int(seed), None)
+                recovery_pending[int(seed)] = bool(not confirmed)
+            current_recovery = bool(current_recovery_seeds)
+            boundary_pending = bool(boundary_first_seen)
+            for seed, record in checkpoint_records.items():
+                pending = bool(recovery_pending.get(int(seed), False))
+                record.update({
+                    "recovery_fired_at_current_checkpoint": int(seed) in current_recovery_seeds,
+                    "recovery_pending_confirmation": pending,
+                    "boundary_pressure_first_seen_at_current_checkpoint": boundary_first_seen,
+                    "boundary_pending_confirmation": boundary_pending,
+                    "hard_bound_reached_by_variable": hard_bound_reached_by_variable,
+                    "hard_bound_unresolved": False,
+                })
+            for row in current_rows:
+                seed = int(row["seed"])
+                row.update({
+                    "recovery_fired_at_current_checkpoint": int(seed) in current_recovery_seeds,
+                    "recovery_pending_confirmation": bool(recovery_pending.get(seed, False)),
+                    "boundary_pressure_first_seen_at_current_checkpoint": boundary_first_seen,
+                    "boundary_pending_confirmation": boundary_pending,
+                    "hard_bound_reached_by_variable": hard_bound_reached_by_variable,
+                    "hard_bound_unresolved": False,
+                })
+            for seed, record in checkpoint_records.items():
+                trial_path = out / "trials" / f"{wiring}__B{budget}__seed{seed}.json"
+                save(trial_path, record)
+                trajectories[seed].save_checkpoint(
+                    record, out / "checkpoints" / wiring /
+                    f"seed{seed}__B{budget}__v{version}.json"
+                )
             status, evidence = _continuation_status(rows_for_wiring, thresholds, version)
-            unresolved_hard = any(
-                event.get("event") == "hard_bound_limited" and
-                int(event.get("design_space_version", 1)) == version
-                for event in boundary_events if event.get("wiring") == wiring
-            )
-            if unresolved_hard:
-                status = "hard_bound_limited"
+            unresolved_hard = False
+            if evidence.get("stage34b_gates") is not None:
+                evidence["stage34b_gates"]["hard_bound_reached_by_variable"] = (
+                    hard_bound_reached_by_variable
+                )
+            evidence["recovery_fired_at_current_checkpoint"] = current_recovery
+            evidence["recovery_pending_confirmation"] = any(recovery_pending.values())
+            evidence["boundary_pressure_first_seen_at_current_checkpoint"] = boundary_first_seen
+            evidence["boundary_pending_confirmation"] = boundary_pending
+            evidence["hard_bound_reached_by_variable"] = hard_bound_reached_by_variable
+            if optional_budget is not None and int(budget) == int(optional_budget) and status != "converged":
+                status = "inconclusive_at_hard_ceiling"
+                evidence["hard_ceiling_reached"] = True
             statuses[wiring] = {"status": status, "evidence": evidence,
                                 "trial_count": len(rows_for_wiring),
                                 "design_space_version": version}
-            if status == "converged" and not unresolved_hard:
+            if _convergence_stop_allowed(
+                    status, budget, minimum_convergence_budget,
+                    recovery_fired=current_recovery,
+                    recovery_pending=any(recovery_pending.values()),
+                    boundary_pending=boundary_pending):
                 break
             if budget == max(budgets) and optional_budget is not None and auto_escalate:
                 continue
         finally:
             if process_pool is not None:
                 process_pool.shutdown()
+        # Final validation and ranking must complete before best-candidate
+        # serialization.  Earlier checkpoints retain their search ranking;
+        # only the terminal checkpoint is promoted to the validated ranking.
+        final_budget = max(int(row["budget"]) for row in rows_for_wiring)
+        for seed in seeds:
+            matching = [
+                row for row in rows_for_wiring
+                if int(row["seed"]) == int(seed) and int(row["budget"]) == final_budget
+            ]
+            if not matching:
+                continue
+            path = out / "trials" / f"{wiring}__B{final_budget}__seed{seed}.json"
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data = trajectories[seed].finalise(data)
+            save(path, data)
+            updated_row = _stage32_row(data, final_budget)
+            for index, row in enumerate(rows_for_wiring):
+                if (int(row["seed"]) == int(seed) and
+                        int(row["budget"]) == final_budget):
+                    rows_for_wiring[index] = updated_row
+                    for global_index, global_row in enumerate(all_rows):
+                        if (global_row is row or (
+                                int(global_row["seed"]) == int(seed) and
+                                int(global_row["budget"]) == final_budget and
+                                global_row["wiring"] == wiring)):
+                            all_rows[global_index] = updated_row
+                    break
         budget_run[wiring] = sorted(set(int(row["budget"]) for row in rows_for_wiring))
         best_candidates[wiring] = {}
         budget_summaries[wiring] = {}
@@ -1008,38 +1423,56 @@ def run_stage32(out, cfg, *, run_parallelism=False):
                 item, wiring=wiring,
                 design_space_version=statuses[wiring]["design_space_version"],
             ))
-        # Final common-grid polish is represented in the final checkpoint file.
-        final_budget = max(budget_run[wiring])
-        for seed in seeds:
-            matching = [row for row in rows_for_wiring if row["seed"] == seed and row["budget"] == final_budget]
-            if matching:
-                path = out / "trials" / f"{wiring}__B{final_budget}__seed{seed}.json"
-                data = json.loads(path.read_text(encoding="utf-8"))
-                data = trajectories[seed].finalise(data)
-                save(path, data)
 
-    parallel = run_parallelism_benchmark(out, cfg) if run_parallelism else {
-        "executed": False,
-        "workers_requested": cfg.get("optimizer_validation", {}).get("parallel", {}).get("benchmark_workers", [1, 2, 4, 5]),
-        "note": "Run with --run-parallelism-benchmark to execute the fixed-seed worker benchmark.",
-    }
+    if not parallel:
+        existing_benchmark = out / "parallel_benchmark.json"
+        if existing_benchmark.is_file():
+            parallel = json.loads(existing_benchmark.read_text(encoding="utf-8"))
+        else:
+            parallel = {
+                "executed": False,
+                "workers_requested": cfg.get("optimizer_validation", {}).get(
+                    "parallel", {}).get("benchmark_workers", [4, 6, 8]),
+                "note": "Run with --run-parallelism-benchmark to execute the fixed-seed worker benchmark.",
+            }
     _write_csv(out / "boundary_events.csv", boundary_events)
+    _write_csv(out / "stagnation_events.csv", stagnation_events)
     save(out / "design_space_versions.json", design_versions)
     save(out / "checkpoints" / "checkpoint_summary.json", checkpoint_summary)
     _write_csv(out / "convergence_trials.csv", all_rows)
+    elapsed = time.time() - started
+    runtime_end = local_runtime_metadata(
+        production_workers=max_workers,
+        blas_threads_per_worker=int(section.get("parallel", {}).get(
+            "blas_threads_per_worker", 1
+        )),
+        run_start=runtime_start.get("run_start"),
+        run_end=datetime.now(timezone.utc).isoformat(),
+        wall_time_sec=elapsed,
+    )
+    runtime_end["ram_available_start_gib"] = runtime_start.get("ram_available_start_gib")
+    runtime_end["ram_available_end_gib"] = runtime_end.get("ram_available_start_gib")
+    (out / "environment").mkdir(parents=True, exist_ok=True)
+    save(out / "environment" / "local_runtime.json", runtime_end)
+    experiment_name = cfg.get("experiment_name", cfg.get("experiment", STAGE32_TYPE))
     summary = {
         "bundle_format_version": 2, "study_type": STAGE32_TYPE,
+        "experiment_name": experiment_name,
         "impedance_ohm": z0, "wirings": wirings, "cold_seeds": seeds,
-        "min_cold_seeds": int(section.get("min_cold_seeds", 5)),
+        "min_cold_seeds": int(section.get(
+            "min_cold_seeds", cfg.get("convergence", {}).get("min_cold_seeds", 5)
+        )),
         "budgets": budgets, "optional_max_budget": optional_budget,
         "budgets_run_by_wiring": budget_run, "auto_escalate": auto_escalate,
         "production_parallel": {
             "backend": "process",
             "mp_context": "spawn",
             "workers": max_workers,
+            "configured_workers": configured_workers,
             "blas_threads_per_worker": int(section.get("parallel", {}).get("blas_threads_per_worker", 1)),
         },
         "statuses": statuses, "boundary_events": boundary_events,
+        "stagnation_events": stagnation_events,
         "design_space_versions": design_versions,
         "budget_summary": budget_summaries,
         "paired_budget_deltas": paired_deltas,
@@ -1048,11 +1481,13 @@ def run_stage32(out, cfg, *, run_parallelism=False):
         "parity": parity_check(cfg, z0),
         "trial_files": trial_files, "expected_trial_count": len(trial_files),
         "checkpoint_count": len(checkpoint_summary),
-        "elapsed_s": time.time() - started,
+        "elapsed_s": elapsed,
+        "local_runtime": runtime_end,
+        "hard_ceiling": optional_budget,
         "command": cfg.get("benchmark_command", "python -m sawopt.optimization.stage32_study --config configs/studies/stage3_2_convergence_50ohm.yaml --run runs/stage3_2_50ohm"),
         "deviations": [
             "SciPy differential_evolution is resumed with the previous population and incumbent; its private RNG state is not exposed, so each continuation segment uses a deterministic derived seed.",
-            "Boundary probes use the existing search grid and are diagnostic; they do not consume trajectory unique-design budget.",
+            "Boundary probes use the existing search grid and do not consume trajectory unique-design budget; elite-requested expansion additionally requires multi-seed probe consensus.",
             "Parallel worker benchmark uses a small fixed budget to measure worker behavior without duplicating the production certificate.",
         ],
         "known_limitations": [
@@ -1090,10 +1525,16 @@ def main():
     parser.add_argument("--config", default="configs/studies/stage3_2_convergence_50ohm.yaml")
     parser.add_argument("--run", default="runs/stage3_2_50ohm")
     parser.add_argument("--run-parallelism-benchmark", action="store_true")
+    parser.add_argument("--smoke", action="store_true")
     args = parser.parse_args()
     cfg = normalize_convergence_config(load_study_config(args.config))
-    print(json.dumps(run_stage32(args.run, cfg, run_parallelism=args.run_parallelism_benchmark),
-                     ensure_ascii=False, indent=2))
+    if args.smoke:
+        cfg["study_type"] = STAGE32_TYPE
+        initialize(args.run, cfg)
+        result = run_smoke_test(args.run, cfg)
+    else:
+        result = run_stage32(args.run, cfg, run_parallelism=args.run_parallelism_benchmark)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

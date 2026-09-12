@@ -4,11 +4,19 @@ Stage 3.3 compares the existing `scipy_de_legacy` path with the resumable
 `lshade` backend. `center_outer_same` remains a wiring identifier; it does not
 change the geometry parameterization.
 
-Run the controlled pilot with:
+From the `saw-com-optimizer` directory, activate `.venv` before running the
+controlled pilot:
 
-```text
-PYTHONPATH=src python -m sawopt run-study \
-  --config experiments/stage3_3_optimizer_ab/experiment.yaml \
+```powershell
+.\.venv\Scripts\Activate.ps1
+$env:PYTHONPATH = (Join-Path (Get-Location) 'src')
+```
+
+Then run the controlled pilot with:
+
+```powershell
+python -m sawopt run-study `
+  --config experiments/stage3_3_optimizer_ab/experiment.yaml `
   --run runs/stage3_3_50ohm --workers 5
 ```
 

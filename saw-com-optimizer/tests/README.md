@@ -7,5 +7,9 @@
 プロジェクトルートから次を実行する。
 
 ```powershell
+.\.venv\Scripts\Activate.ps1
 python -m pytest -q
 ```
+
+テストもプロジェクト直下の `.venv` を既定の実行環境とします。レビュー用ZIPは
+ワークスペースルートの `review_bundles/` に保存します。

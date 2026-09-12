@@ -16,7 +16,8 @@ python -m pytest
 
 詳しい使い方は [プロジェクトREADME](saw-com-optimizer/README.md) と [docs/](saw-com-optimizer/docs/) を参照してください。
 
-外部AIレビュー用の資料は `handoff/` に、生成したレビューZIPは `review_bundles/` に保存します。レビューZIPは生成物のためGit管理対象外です。
+外部AIレビュー用の資料は `handoff/` に、生成したレビューZIPはこのルート直下の
+`review_bundles/` に保存します。レビューZIPは生成物のためGit管理対象外です。
 
 ## ディレクトリ
 
@@ -29,3 +30,21 @@ python -m pytest
 - `review_bundles/` — 外部レビュー用に生成したZIP（Git管理対象外）
 
 `runs/` や `review_bundles/` などの生成物はGit管理対象外です。
+
+## 実行環境とレビューZIPの保存先
+
+通常の実行には、`saw-com-optimizer/.venv/` を使用します。PowerShellでは
+プロジェクトの仮想環境を有効化してから、`python` を実行してください。
+ランチャーもこの仮想環境を既定で使用し、システムPythonや同梱ランタイムへ
+自動フォールバックしません。
+
+```powershell
+Set-Location .\saw-com-optimizer
+if (-not (Test-Path .\.venv\Scripts\python.exe)) { py -3 -m venv .venv }
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e .
+```
+
+外部AIレビュー用ZIPの生成先は、常にこのREADMEのあるルート直下の
+`review_bundles/` です。`saw-com-optimizer/runs/` やプロジェクト配下に
+保存しないでください。

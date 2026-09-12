@@ -4,8 +4,11 @@ param(
 )
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$python = 'C:\Users\sub\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
-$env:PYTHONPATH = "$projectRoot\src;$projectRoot\..\.deps"
+$python = Join-Path $projectRoot '.venv\Scripts\python.exe'
+if (-not (Test-Path -LiteralPath $python)) {
+    throw "Project virtual environment is missing: $python. Create it with 'py -3 -m venv .venv'."
+}
+$env:PYTHONPATH = "$projectRoot\src"
 
 Push-Location $projectRoot
 try {

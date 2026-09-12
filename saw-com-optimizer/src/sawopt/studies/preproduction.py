@@ -30,6 +30,7 @@ from ..core.models import BOUNDS
 from ..io.config import load_experiment_config, load_study_config
 from ..optimizers.lshade import LShadeBackend, parent_midpoint_repair, shade_success_memory
 from ..optimizers.selection import DEFAULT_COMPARATOR, time_to_target
+from ..reporting.review_bundle import _default_review_bundle_output
 from .convergence import normalize_convergence_config
 from .optimizer_ab import (
     evaluate_promotion_gate,
@@ -734,7 +735,9 @@ def _copy_tree_files(source_root: Path, destination_root: Path, suffixes=None):
 
 def create_preprod_bundle(repo: Path, run: Path):
     """Create, clean-extract-test and hash-verify the mandatory review ZIP."""
-    output = run / "stage3_3_1_preprod_review.zip"
+    output = _default_review_bundle_output(run, repo).with_name(
+        "stage3_3_1_preprod_review.zip"
+    )
     with tempfile.TemporaryDirectory(prefix="stage331_bundle_", dir=str(run)) as temp_name:
         staging = Path(temp_name) / "bundle"
         staging.mkdir(parents=True)
