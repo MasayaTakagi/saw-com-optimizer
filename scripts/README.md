@@ -12,8 +12,8 @@ py -3 -m venv .venv
 python -m pip install -e .
 ```
 
-レビュー用ZIPはワークスペースルート（`saw-com-optimizer` の親）の
-`review_bundles/` に固定し、`runs/` には保存しません。
+レビュー用ZIPはプロジェクトroot直下の
+`artifacts/review_bundles/` に固定し、`runs/` には保存しません。
 
 - `common/`: すべてのPowerShellランチャーが共有する環境設定とPython起動処理
 - `launchers/`: 解析・試行ごとの利用者向け起動ファイル

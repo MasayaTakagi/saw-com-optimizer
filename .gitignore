@@ -1,5 +1,16 @@
 runs/
+artifacts/
 __pycache__/
 *.egg-info/
 .codex/runtime/*
 !.codex/runtime/.gitignore
+.venv/
+venv/
+env/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.deps/
+.idea/
+.vscode/
+*.swp

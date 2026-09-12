@@ -21,13 +21,13 @@ Stage 1/2の指示書と `saw_com_codex_handoff`、`saw_com_codex_stage2_handoff
 
 ```powershell
 # 短時間の動作・探索確認（20/50/100 Ω、3構成、3結線、3シード）
-./saw-com-optimizer/scripts/launchers/stage2-study.ps1 --config configs/studies/stage2_pilot.yaml --run runs/stage2-pilot-v1
+./scripts/launchers/stage2-study.ps1 --config configs/studies/stage2_pilot.yaml --run runs/stage2-pilot-v1
 
 # 保存済み結果からレポートだけ再生成
-./saw-com-optimizer/scripts/launchers/stage2-study.ps1 --config configs/studies/stage2_pilot.yaml --run runs/stage2-pilot-v1 --report-only
+./scripts/launchers/stage2-study.ps1 --config configs/studies/stage2_pilot.yaml --run runs/stage2-pilot-v1 --report-only
 
 # 本探索。計算量が非常に大きいため、予算と構成を確認して新しいrun名で実行
-./saw-com-optimizer/scripts/launchers/stage2-study.ps1 --config configs/studies/stage2_full.yaml --run runs/stage2-full-v1
+./scripts/launchers/stage2-study.ps1 --config configs/studies/stage2_full.yaml --run runs/stage2-full-v1
 ```
 
 パイロット結果は `runs/stage2-pilot-v1/report.html`、実装と検証の詳細は `docs/guides/stage2_implementation.md` にあります。スクリプトの分類は `scripts/README.md`、文書の分類は `docs/README.md` を参照してください。パイロットは探索予算が小さく全候補が仕様未達なので、最適インピーダンスの結論には使えません。
@@ -36,8 +36,8 @@ Stage 1/2の指示書と `saw_com_codex_handoff`、`saw_com_codex_stage2_handoff
 
 ```powershell
 # このディレクトリの親から実行
-./saw-com-optimizer/scripts/launchers/hybrid-50ohm.ps1 --run runs/hybrid-50ohm
-./saw-com-optimizer/scripts/launchers/hybrid-50ohm.ps1 --run runs/hybrid-50ohm --report-only
+./scripts/launchers/hybrid-50ohm.ps1 --run runs/hybrid-50ohm
+./scripts/launchers/hybrid-50ohm.ps1 --run runs/hybrid-50ohm --report-only
 ```
 
 仮想環境を有効にした状態でこのディレクトリから
@@ -67,11 +67,11 @@ See `experiments/stage3_1_convergence/README.md`.
 レビュー bundle の作成前に、run 内の `tests/pytest.txt` と
 `tests/pytest_summary.json` にレビュー対象ソースのテスト結果を配置します。
 `--include-history` と `--include-npz` は大容量データを含める場合だけ指定します。
-レビューZIPの生成先は、ワークスペースルート（このディレクトリの親）の
-`review_bundles/` に固定します。`runs/` 内には生成しません。
+レビューZIPの生成先は、このプロジェクトroot直下の
+`artifacts/review_bundles/` に固定します。`runs/` 内には生成しません。
 
 レビューZIPはプロジェクトディレクトリから次で生成します。`--output` を省略すると、
-自動的に `../review_bundles/<run名>_review.zip` に保存されます。
+自動的に `artifacts/review_bundles/<run名>_review.zip` に保存されます。
 
 ```powershell
 $env:PYTHONPATH = (Join-Path (Get-Location) 'src')
@@ -82,15 +82,15 @@ python -m sawopt.reporting.review_bundle --run runs/<run名>
 
 ## このPCで実行
 
-作業フォルダ `saw-com-optimizer` の親からPowerShellで実行します。事前に
-`saw-com-optimizer/.venv/` を作成・有効化してください。`scripts/launchers/base-study.ps1`
+作業フォルダ `saw-com-optimizer` からPowerShellで実行します。事前に
+`.venv/` を作成・有効化してください。`scripts/launchers/base-study.ps1`
 は共通起動処理を介して、この仮想環境を使用します。
 
 ```powershell
-./saw-com-optimizer/scripts/launchers/base-study.ps1 simulate --run runs/baseline
-./saw-com-optimizer/scripts/launchers/base-study.ps1 optimize --rs 50 --rl 50 --run runs/50ohm
-./saw-com-optimizer/scripts/launchers/base-study.ps1 sweep --run runs/prototype --refine-step 5
-./saw-com-optimizer/scripts/launchers/base-study.ps1 report --run runs/prototype
+./scripts/launchers/base-study.ps1 simulate --run runs/baseline
+./scripts/launchers/base-study.ps1 optimize --rs 50 --rl 50 --run runs/50ohm
+./scripts/launchers/base-study.ps1 sweep --run runs/prototype --refine-step 5
+./scripts/launchers/base-study.ps1 report --run runs/prototype
 ```
 
 `runs/prototype/report.html` をブラウザで開くと比較図を確認できます。全阻止帯域・寸法・シード幅は `comparison.csv`、各候補の周波数応答はNPZ、各評価履歴はJSONLです。reportコマンドは保存済みデータだけを使います。
@@ -98,7 +98,7 @@ python -m sawopt.reporting.review_bundle --run runs/<run名>
 納品時の追加探索結果は **`runs/refined-prototype/report.html`** です。製造可能な初期集団を使い、次のコマンドで20世代まで探索しています。
 
 ```powershell
-./saw-com-optimizer/scripts/launchers/base-study.ps1 sweep --run runs/refined-prototype --refine-step 5 --maxiter 20
+./scripts/launchers/base-study.ps1 sweep --run runs/refined-prototype --refine-step 5 --maxiter 20
 ```
 
 初期試行の `runs/prototype` は旧コードによる比較用の記録です。現在のコードでは指紋が一致しないため再開せず、新しいrun名を使用してください。

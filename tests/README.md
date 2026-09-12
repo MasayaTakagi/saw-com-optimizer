@@ -12,4 +12,4 @@ python -m pytest -q
 ```
 
 テストもプロジェクト直下の `.venv` を既定の実行環境とします。レビュー用ZIPは
-ワークスペースルートの `review_bundles/` に保存します。
+プロジェクトroot直下の `artifacts/review_bundles/` に保存します。

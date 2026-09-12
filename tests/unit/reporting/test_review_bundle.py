@@ -11,15 +11,13 @@ from sawopt.reporting.review_bundle import (
 
 
 class ReviewBundle(unittest.TestCase):
-    def test_default_output_is_workspace_review_bundles(self):
+    def test_default_output_is_repository_artifacts_review_bundles(self):
         with tempfile.TemporaryDirectory() as temp:
-            workspace = Path(temp)
-            repo = workspace / 'saw-com-optimizer'
-            (workspace / '.git').mkdir()
+            repo = Path(temp) / 'saw-com-optimizer'
             run = repo / 'runs' / 'example-run'
             self.assertEqual(
                 _default_review_bundle_output(run, repo),
-                workspace / 'review_bundles' / 'example-run_review.zip',
+                repo / 'artifacts' / 'review_bundles' / 'example-run_review.zip',
             )
 
     def _make_run(self, root):

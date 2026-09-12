@@ -49,10 +49,9 @@ Python runtime. Create the environment with `py -3 -m venv .venv` when it is
 missing, then install the project with `.venv\Scripts\python.exe -m pip
 install -e .`.
 
-Review bundles are external artifacts and must always be written to the
-workspace root's `review_bundles/` directory, one level above this project
-directory. Do not place review bundles under `runs/` or under
-`saw-com-optimizer/review_bundles/`.
+Review bundles are external artifacts and must always be written to this
+repository root's `artifacts/review_bundles/` directory. Do not place review
+bundles under `runs/`.
 
 ## Long-running production run policy
 

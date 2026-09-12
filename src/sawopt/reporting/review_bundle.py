@@ -65,16 +65,14 @@ def _repository_root(module_path=None):
 
 
 def _workspace_root(repo=None):
-    """Return the workspace root that owns the external review artifacts."""
-    repo = Path(repo or _repository_root()).resolve()
-    parent = repo.parent
-    return parent if (parent / '.git').exists() else repo
+    """Return the repository root that owns the external review artifacts."""
+    return Path(repo or _repository_root()).resolve()
 
 
 def _default_review_bundle_output(run, repo=None):
-    """Return the fixed workspace-level output path for ``run``."""
+    """Return the fixed repository-level output path for ``run``."""
     run = Path(run).resolve()
-    return _workspace_root(repo) / 'review_bundles' / f'{run.name}_review.zip'
+    return _workspace_root(repo) / 'artifacts' / 'review_bundles' / f'{run.name}_review.zip'
 
 
 def _git(repo, args):
@@ -496,7 +494,7 @@ def main(argv=None):
     parser.add_argument('--run', required=True)
     parser.add_argument(
         '--output',
-        help='Optional filename inside the workspace-root review_bundles directory; '
+        help='Optional filename inside the repository-root artifacts/review_bundles directory; '
              'defaults to <run-name>_review.zip',
     )
     parser.add_argument('--include-history', action='store_true')
@@ -507,8 +505,8 @@ def main(argv=None):
     output = default_output if args.output is None else Path(args.output).resolve()
     if output.parent != default_output.parent.resolve():
         parser.error(
-            'Review bundles must be written directly under the workspace-root '
-            f'review_bundles directory: {default_output.parent}'
+            'Review bundles must be written directly under the repository-root '
+            f'artifacts/review_bundles directory: {default_output.parent}'
         )
     try:
         path = create_review_bundle(args.run, output,
