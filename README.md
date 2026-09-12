@@ -13,6 +13,8 @@
 
 通常の流れは、`configs/studies/` から試行設定を選び、対応する `scripts/launchers/` を実行し、`runs/` のレポートを確認する。実装を変更した場合は `tests/` を実行する。
 
+長時間の本番探索は、Codexのターンを保持せずに実行するため、`docs/guides/async_orchestration.md` の非同期launcherを使用する。短時間の検証と既存の同期CLIは従来どおり利用できる。
+
 ## Stage 2: DMS＋ラダー共振子のインピーダンス探索
 
 Stage 1/2の指示書と `saw_com_codex_handoff`、`saw_com_codex_stage2_handoff` の参照パッチを統合済みです。50 Ωを基準に、DMS単独と直列・並列COM共振子を含む構成を、結線との組み合わせで比較します。

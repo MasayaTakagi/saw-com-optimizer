@@ -54,6 +54,15 @@ workspace root's `review_bundles/` directory, one level above this project
 directory. Do not place review bundles under `runs/` or under
 `saw-com-optimizer/review_bundles/`.
 
+## Long-running production run policy
+
+- Do not run a long production optimization synchronously from the Codex shell.
+- Use `python -m sawopt.orchestration.cli launch` for production runs.
+- Once the launcher reports a detached worker, do not poll `stdout.log` or wait for optimizer completion.
+- The worker stores state and invokes the callback against the explicitly captured Codex session.
+- Callback review must not automatically start another production run; user approval is required.
+- Short unit tests, smoke tests, and small validation runs may remain synchronous.
+
 ---
 
 # Token and context efficiency

@@ -1,0 +1,19 @@
+{
+  "description": "Capture the current Codex session for explicit asynchronous run callbacks.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .codex/hooks/capture_session.py",
+            "commandWindows": ".codex\\hooks\\capture_session.cmd",
+            "additionalContextLimit": 1000,
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

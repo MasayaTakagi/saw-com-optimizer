@@ -1,3 +1,5 @@
 runs/
 __pycache__/
 *.egg-info/
+.codex/runtime/*
+!.codex/runtime/.gitignore
