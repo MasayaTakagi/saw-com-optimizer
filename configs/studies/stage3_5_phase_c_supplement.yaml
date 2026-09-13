@@ -1,0 +1,14 @@
+base_config: next_50ohm_center_outer_same_stage34b.yaml
+
+study:
+  type: stage3_5_phase_c_supplement
+
+stage3_5:
+  phase: C_supplement
+  s1_path: artifacts/stage3_5/phase_a_revised/search_space_s1.yaml
+  seeds: [20260917, 20260918, 20260919, 20260920]
+  workers: 4
+  terminal_budget: 64000
+  checkpoints: [4000, 8000, 16000, 32000, 64000]
+  cold_start: true
+  source_population_injected: false
