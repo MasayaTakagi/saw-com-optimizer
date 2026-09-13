@@ -1,22 +1,16 @@
-.deps/
-
-# Python environments and caches
+runs/
+artifacts/
+__pycache__/
+*.egg-info/
+.codex/runtime/*
+!.codex/runtime/.gitignore
 .venv/
 venv/
 env/
-__pycache__/
 *.py[cod]
-*.egg-info/
 .pytest_cache/
 .mypy_cache/
-
-# Project-generated study outputs
-saw-com-optimizer/runs/
-
-# External review artifacts (generated ZIPs; keep the files locally, not in Git)
-/review_bundles/
-
-# Local/editor files
+.deps/
 .idea/
 .vscode/
 *.swp
