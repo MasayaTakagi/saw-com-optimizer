@@ -31,6 +31,7 @@ def mixed_variable_polish(record, cfg, rs, rl, wiring, frequencies, counters=Non
     evaluations = 0
     solved_points = 0
     step_history = []
+    improved_any = False
     integer_indices = {1, 2, 3}
     integer_steps = [float(value) for value in settings.get("integer_steps", [-1, 1])]
     second_integer_steps = [float(value) for value in settings.get(
@@ -85,6 +86,7 @@ def mixed_variable_polish(record, cfg, rs, rl, wiring, frequencies, counters=Non
                     best = candidate_result
                     current = np.asarray([getattr(candidate, name) for name in NAMES], dtype=float)
                     improved = True
+                    improved_any = True
         if not improved:
             if fraction <= min_fraction:
                 break
@@ -97,6 +99,9 @@ def mixed_variable_polish(record, cfg, rs, rl, wiring, frequencies, counters=Non
     if not promoted:
         best = record
     elapsed = time.time() - polish_started
+    stop_reason = "accepted_improvement" if promoted else (
+        "no_valid_moves" if evaluations == 0 else "no_improvement"
+    )
     return best, {
         "enabled": True,
         "promoted": promoted,
@@ -109,6 +114,9 @@ def mixed_variable_polish(record, cfg, rs, rl, wiring, frequencies, counters=Non
         "after_rank": list(rank(best)),
         "improvement": float(best_primary_before - polished_primary),
         "best_feasible": bool(best.get("feasible", False)),
+        "accepted": promoted,
+        "stop_reason": stop_reason,
+        "improved_any": improved_any,
     }
 
 

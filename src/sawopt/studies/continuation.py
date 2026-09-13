@@ -377,6 +377,10 @@ def _stage32_row(record, budget):
         "input_vswr": float(record["metrics"]["input_vswr"]),
         "output_vswr": float(record["metrics"]["output_vswr"]),
         "objective_calls": int(record.get("objective_calls", 0)),
+        "cache_hits": int(record.get("cache_hits", 0)),
+        "cache_hit_rate": record.get("cache_hit_rate"),
+        "duplicate_decoded_attempts": record.get("duplicate_decoded_attempts"),
+        "duplicate_decoded_rate": record.get("duplicate_decoded_rate"),
         "unique_decoded_evaluations": int(record.get("actual_unique_design_evaluations", 0)),
         "requested_unique_design_budget": int(record.get("requested_unique_design_budget", budget)),
         "solved_frequency_points": int(record.get("solved_frequency_points", 0)),
@@ -407,6 +411,16 @@ def _stage32_row(record, budget):
             "hard_bound_reached_by_variable", {}
         ),
         "hard_bound_unresolved": bool(record.get("hard_bound_unresolved", False)),
+        "optimizer_wall_time_s": record.get("optimizer_wall_time_s"),
+        "validation_wall_time_s": record.get("validation_wall_time_s"),
+        "total_trial_wall_time_s": record.get("total_trial_wall_time_s"),
+        "elapsed_s": record.get("elapsed_s"),
+        "terminal_budget": record.get("terminal_budget"),
+        "current_budget": record.get("current_budget", budget),
+        "initial_population": record.get("initial_population"),
+        "current_population": record.get("current_population"),
+        "population_schedule_identifier": record.get("population_schedule_identifier"),
+        "population_schedule_version": record.get("population_schedule_version"),
     }
     return row
 
@@ -497,6 +511,8 @@ class ContinuationTrajectory:
         self.segment_index = 0
         self.objective_calls = 0
         self.cache_hits = 0
+        self.decoded_attempts = 0
+        self.duplicate_decoded_attempts = 0
         self.geometry_rejections = 0
         self.valid_physics_evaluations = 0
         self.solved_frequency_points = 0
@@ -532,6 +548,7 @@ class ContinuationTrajectory:
     def _evaluate(self, vector, *, count_objective=True):
         bounds = active_bounds(self.state)
         d, canonical, key = _canonical_design(vector, bounds)
+        self.decoded_attempts += 1
         if count_objective:
             self.objective_calls += 1
         cache_entry = self.cache.get(key)
@@ -542,6 +559,7 @@ class ContinuationTrajectory:
         if is_new:
             self.seen.add(key)
         else:
+            self.duplicate_decoded_attempts += 1
             self.grid_extension_re_evaluations += 1
         self.solved_frequency_points += len(self.search_f)
         if not _valid_geometry(d, self.cfg):
@@ -733,9 +751,13 @@ class ContinuationTrajectory:
             raise ValueError("Continuation target cannot move backwards")
         if design_space_version is not None:
             self.design_space_version = int(design_space_version)
+        trial_started = time.monotonic()
+        optimizer_started = time.monotonic()
         while self.actual_unique_design_evaluations < target:
             if not self._run_de(target):
                 break
+        optimizer_wall_time_s = time.monotonic() - optimizer_started
+        validation_started = time.monotonic()
         if self.best is None:
             raise RuntimeError(f"No valid Stage 3.2 candidate for seed {self.seed}")
         grid_converged, added = self._update_grid()
@@ -762,6 +784,10 @@ class ContinuationTrajectory:
             "unique_decoded_evaluations": self.actual_unique_design_evaluations,
             "objective_calls": self.objective_calls,
             "cache_hits": self.cache_hits,
+            "cache_hit_rate": self.cache_hits / max(self.objective_calls, 1),
+            "decoded_attempts": self.decoded_attempts,
+            "duplicate_decoded_attempts": self.duplicate_decoded_attempts,
+            "duplicate_decoded_rate": self.duplicate_decoded_attempts / max(self.decoded_attempts, 1),
             "geometry_rejections": self.geometry_rejections,
             "valid_physics_evaluations": self.valid_physics_evaluations,
             "solved_frequency_points": self.solved_frequency_points,
@@ -774,6 +800,7 @@ class ContinuationTrajectory:
             "optimizer_converged": False,
             "design_space_version": int(self.design_space_version),
             "best_candidate_polish_improvement": float(best_polish.get("improvement", 0.0)),
+            "micro_polish_improvement": float(best_polish.get("improvement", 0.0)),
             "median_candidate_polish_improvement": float(median_polish.get("improvement", 0.0)),
             "best_candidate_polish": best_polish,
             "median_candidate_polish": median_polish,
@@ -791,7 +818,19 @@ class ContinuationTrajectory:
             "boundary_pending_confirmation": False,
             "hard_bound_reached_by_variable": {},
             "hard_bound_unresolved": False,
+            "terminal_budget": int(max(
+                [int(value) for value in self.cfg.get("optimizer_validation", {}).get("budgets", [target])] + [target]
+            )),
+            "current_budget": int(self.actual_unique_design_evaluations),
+            "initial_population": int(len(self.population) if self.population is not None else 0),
+            "current_population": int(len(self.population) if self.population is not None else 0),
+            "population_schedule_identifier": "legacy_de_fixed_population_v1",
+            "population_schedule_version": 1,
+            "optimizer_wall_time_s": float(optimizer_wall_time_s),
+            "validation_wall_time_s": float(time.monotonic() - validation_started),
+            "total_trial_wall_time_s": float(time.monotonic() - trial_started),
         })
+        record["elapsed_s"] = record["total_trial_wall_time_s"]
         self.checkpoints.append(record)
         return record
 
@@ -861,10 +900,32 @@ class ContinuationTrajectory:
                 "hard_bound_reached_by_variable", {}
             ),
             "hard_bound_unresolved": record.get("hard_bound_unresolved", False),
+            "objective_calls": record.get("objective_calls"),
+            "unique_decoded_evaluations": record.get("unique_decoded_evaluations"),
+            "cache_hits": record.get("cache_hits"),
+            "cache_hit_rate": record.get("cache_hit_rate"),
+            "duplicate_decoded_attempts": record.get("duplicate_decoded_attempts"),
+            "duplicate_decoded_rate": record.get("duplicate_decoded_rate"),
+            "terminal_budget": record.get("terminal_budget"),
+            "current_budget": record.get("current_budget"),
+            "initial_population": record.get("initial_population"),
+            "current_population": record.get("current_population"),
+            "population_schedule_identifier": record.get("population_schedule_identifier"),
+            "population_schedule_version": record.get("population_schedule_version"),
+            "optimizer_wall_time_s": record.get("optimizer_wall_time_s"),
+            "validation_wall_time_s": record.get("validation_wall_time_s"),
+            "total_trial_wall_time_s": record.get("total_trial_wall_time_s"),
         })
 
 
 _single_blas_environment = single_blas_thread_environment
+
+# Public names for reusable continuation coordination.  New study runners
+# should not depend on the historical private helper names below the module.
+bound_state = _bound_state
+copy_bound_state = _copy_bounds
+active_state_version = _active_state_version
+next_expansion = _next_expansion
 
 
 def _parallel_smoke_task(payload):

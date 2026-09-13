@@ -26,18 +26,27 @@ def _append_exception(run_dir: Path, exc: BaseException) -> None:
         traceback.print_exception(exc, file=stream)
 
 
-def _run_optimizer(manifest, run_dir: Path) -> int:
+def _run_optimizer(manifest, run_dir: Path, *, resume: bool = False) -> int:
     """Run the configured production entry point as a subprocess."""
+    command = list(manifest.command)
+    if resume and "--resume" not in command:
+        command.append("--resume")
     with (run_dir / "stdout.log").open("a", encoding="utf-8") as stdout, \
             (run_dir / "stderr.log").open("a", encoding="utf-8") as stderr:
-        process = subprocess.Popen(
-            manifest.command,
-            cwd=manifest.project_root,
-            env=dict(os.environ, PYTHONUNBUFFERED="1"),
-            stdin=subprocess.DEVNULL,
-            stdout=stdout,
-            stderr=stderr,
-        )
+        kwargs = {
+            "cwd": manifest.project_root,
+            "env": dict(os.environ, PYTHONUNBUFFERED="1"),
+            "stdin": subprocess.DEVNULL,
+            "stdout": stdout,
+            "stderr": stderr,
+        }
+        # The detached orchestration worker has no interactive console, but a
+        # child Python process launched without this flag can still create a
+        # transient console window on Windows.  Keep all long-running worker
+        # processes headless while retaining stdout/stderr log capture.
+        if os.name == "nt":
+            kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        process = subprocess.Popen(command, **kwargs)
         update_status_fields(
             run_dir,
             optimizer_pid=int(process.pid),
@@ -47,7 +56,7 @@ def _run_optimizer(manifest, run_dir: Path) -> int:
 
 
 def execute_run(run_dir: Path, *, callback_runner: Callable[..., int] | None = None,
-                codex_executable: str | None = None) -> dict:
+                codex_executable: str | None = None, resume: bool = False) -> dict:
     """Execute one durable run and return its final status dictionary."""
     run_dir = Path(run_dir).resolve()
     manifest = load_manifest(run_dir)
@@ -61,15 +70,25 @@ def execute_run(run_dir: Path, *, callback_runner: Callable[..., int] | None = N
         raise ValueError(f"worker cannot start from state {status['state']}")
 
     try:
-        exit_code = _run_optimizer(manifest, run_dir)
+        exit_code = _run_optimizer(manifest, run_dir, resume=resume)
     except BaseException as exc:
         _append_exception(run_dir, exc)
         transition(run_dir, "FAILED", exit_code=None, error=str(exc))
         exit_code = None
     else:
+        review_waiting = bool(
+            exit_code == 0
+            and any(
+                (run_dir / marker).is_file()
+                for marker in (
+                    "PHASE_C_SUPPLEMENT_COMPLETE_WAITING_FOR_REVIEW.txt",
+                    "PHASE_C_FINAL_CONFIRMATION_COMPLETE_WAITING_FOR_REVIEW.txt",
+                )
+            )
+        )
         transition(
             run_dir,
-            "COMPLETED" if exit_code == 0 else "FAILED",
+            "REVIEW_WAITING" if review_waiting else ("COMPLETED" if exit_code == 0 else "FAILED"),
             exit_code=exit_code,
             error=None if exit_code == 0 else f"optimizer exited with code {exit_code}",
         )

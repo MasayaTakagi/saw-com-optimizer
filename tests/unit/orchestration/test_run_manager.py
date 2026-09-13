@@ -65,6 +65,16 @@ class RunManagerTests(unittest.TestCase):
             self.assertFalse(prepare_callback(run_dir, automatic=True))
             self.assertTrue(prepare_callback(run_dir, automatic=False))
 
+    def test_callback_claim_accepts_review_waiting(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "run"
+            create_run(_manifest(run_dir, callback=True, session_id="session-review-waiting"))
+            transition(run_dir, "STARTING")
+            transition(run_dir, "RUNNING")
+            transition(run_dir, "REVIEW_WAITING", exit_code=0)
+            self.assertTrue(prepare_callback(run_dir, automatic=True))
+            self.assertEqual(load_status(run_dir)["state"], "CALLBACK_RUNNING")
+
     def test_session_validation_rejects_stale_or_wrong_project(self):
         with TemporaryDirectory() as temporary:
             root = Path(temporary) / "project"

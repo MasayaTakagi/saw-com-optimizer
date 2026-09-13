@@ -2,17 +2,19 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .codex_callback import run_codex_callback
 from .models import RunManifest
-from .process_runner import launch_detached, pid_exists
+from .process_runner import build_worker_command, launch_detached, pid_exists
 from .run_manager import (
     SessionValidationError,
     callback_lock_path,
     create_run,
+    atomic_write_json,
     exclusive_lock,
     finish_callback,
     format_status,
@@ -59,13 +61,79 @@ def _build_optimizer_command(config: Path, run_dir: Path, *, workers: int | None
     return command
 
 
+def _write_session_checkpoint(run_dir: Path, *, mode: str, resume_count: int,
+                               session_id: str | None = None) -> Path:
+    path = Path(run_dir) / "session_checkpoint.json"
+    atomic_write_json(path, {
+        "schema_version": 1,
+        "run_id": load_manifest(Path(run_dir)).run_id,
+        "run_dir": str(Path(run_dir).resolve()),
+        "mode": mode,
+        "resume_count": int(resume_count),
+        "session_id": session_id,
+        "updated_at": utc_now(),
+    })
+    return path
+
+
+def _resume_launch(args: argparse.Namespace, root: Path) -> int:
+    if not args.run_dir:
+        raise ValueError("--resume requires --run-dir pointing to an existing run")
+    run_dir = resolve_run_dir(args.run_dir, root)
+    manifest = load_manifest(run_dir)
+    status = load_status(run_dir)
+    current_count = int(status.get("resume_count", 0))
+    state = status["state"]
+    if state in {"STARTING", "RUNNING"}:
+        worker_alive = pid_exists(status.get("worker_pid"))
+        optimizer_alive = pid_exists(status.get("optimizer_pid"))
+        if worker_alive or optimizer_alive:
+            checkpoint = _write_session_checkpoint(
+                run_dir, mode="reattach", resume_count=current_count + 1,
+                session_id=getattr(args, "session_id", None),
+            )
+            update_status_fields(
+                run_dir,
+                resume_count=current_count + 1,
+                last_attached_at=utc_now(),
+                session_checkpoint_path=str(checkpoint),
+            )
+            print(f"Run is still active; reattached to {run_dir}")
+            print(f"run_id: {manifest.run_id}")
+            print(f"worker_alive: {worker_alive}")
+            print(f"optimizer_alive: {optimizer_alive}")
+            return 0
+        transition(run_dir, "ORPHANED", error="resume requested after detached process exit")
+        state = "ORPHANED"
+    if state not in {"FAILED", "ORPHANED", "ORPHANED_CHILD"}:
+        raise ValueError(f"run cannot be resumed from state {state}")
+    checkpoint = _write_session_checkpoint(
+        run_dir, mode="resume", resume_count=current_count + 1,
+        session_id=getattr(args, "session_id", None),
+    )
+    transition(
+        run_dir, "STARTING", resume_requested=True,
+        resume_count=current_count + 1,
+        last_attached_at=utc_now(),
+        session_checkpoint_path=str(checkpoint),
+        error=None,
+    )
+    worker_pid = launch_detached(
+        run_dir, project_root=root,
+        command=build_worker_command(run_dir, resume=True),
+    )
+    update_status_fields(run_dir, worker_pid=worker_pid)
+    print("Production run resumed asynchronously.")
+    print(f"run_id: {manifest.run_id}")
+    print(f"pid: {worker_pid}")
+    print(f"run_dir: {run_dir}")
+    return 0
+
+
 def launch(args: argparse.Namespace) -> int:
     root = project_root()
     if getattr(args, "resume", False):
-        raise ValueError(
-            "async launch does not support --resume; use the optimizer's synchronous "
-            "checkpoint interface separately"
-        )
+        return _resume_launch(args, root)
     if args.no_callback and getattr(args, "session_id", None):
         raise ValueError("--session-id cannot be combined with --no-callback")
     config = Path(args.config)
@@ -112,6 +180,11 @@ def launch(args: argparse.Namespace) -> int:
         codex_session_source=None if session is None else str(session.get("source", "unknown")),
     )
     create_run(manifest)
+    checkpoint = _write_session_checkpoint(
+        run_dir, mode="launch", resume_count=0,
+        session_id=None if session is None else str(session["session_id"]),
+    )
+    update_status_fields(run_dir, session_checkpoint_path=str(checkpoint))
     transition(run_dir, "STARTING")
     try:
         worker_pid = launch_detached(run_dir, project_root=root)
@@ -224,7 +297,7 @@ def build_parser() -> argparse.ArgumentParser:
     launch_parser.add_argument(
         "--resume",
         action="store_true",
-        help=argparse.SUPPRESS,
+        help="reattach to an active run or restart an orphaned run from checkpoints",
     )
     launch_parser.add_argument("--session-id", help="explicit Codex callback session ID")
     launch_parser.add_argument("--no-callback", action="store_true")
@@ -244,7 +317,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     worker_parser = subparsers.add_parser("worker", help="internal detached worker")
     worker_parser.add_argument("--run-dir", required=True)
-    worker_parser.set_defaults(handler=lambda args: (execute_run(Path(args.run_dir)), 0)[1])
+    worker_parser.add_argument("--resume", action="store_true")
+    worker_parser.set_defaults(handler=lambda args: (
+        execute_run(Path(args.run_dir), resume=args.resume), 0
+    )[1])
     return parser
 
 

@@ -55,12 +55,73 @@ bundles under `runs/`.
 
 ## Long-running production run policy
 
+- Treat any program expected to run for 30 minutes or longer as a long-running
+  production run. If duration is uncertain, use this policy conservatively.
 - Do not run a long production optimization synchronously from the Codex shell.
 - Use `python -m sawopt.orchestration.cli launch` for production runs.
+- Long-running launches must capture a Codex session for completion callback and
+  reattachment. Do not pass `--no-callback` unless the user explicitly requests
+  callback suppression for that specific run.
+- Prefer an explicit valid `--session-id` or `--session-file` when launching.
+  After launch, verify `run_manifest.json` before considering the launch valid:
+  `codex_session_id` must be non-null, `callback_enabled` must be true, and
+  `review_after_completion` must be true. If any check fails, stop and repair
+  the launch configuration before relying on the run.
+- If no valid Codex session can be captured, do not start the long-running
+  program silently; report the blocker and request a session or explicit user
+  instruction to run without automatic callback.
 - Once the launcher reports a detached worker, do not poll `stdout.log` or wait for optimizer completion.
 - The worker stores state and invokes the callback against the explicitly captured Codex session.
+- Use the orchestration `--resume` path for reattachment or recovery. Do not
+  substitute a new production run when an existing detached run can be resumed.
 - Callback review must not automatically start another production run; user approval is required.
 - Short unit tests, smoke tests, and small validation runs may remain synchronous.
+
+## Sol Escalation Policy
+
+You are the Luna root implementation agent.
+
+Perform routine implementation, tests, experiment execution, logging,
+reporting, and clearly specified changes yourself.
+
+Use GPT-5.6 Sol only for bounded high-risk judgment tasks.
+
+You MUST escalate before changing:
+
+- optimizer algorithms
+- objective functions
+- penalties or constraints
+- search-space definitions
+- convergence or early-stopping logic
+- evaluation budgets when comparison fairness may change
+- COM/physics calculations
+- experiment conditions affecting comparison validity
+- architectural interfaces
+- behavior that could invalidate previous experiment results
+
+You MUST also escalate when:
+
+- current results materially contradict previous results
+- there are multiple reasonable interpretations of the specification
+- root cause is unclear and a design change is being considered
+- two repair attempts for the same issue have failed
+- a long-running experiment would need to be repeated because of a proposed change
+
+Do NOT escalate routine implementation, tests, logging, plotting, documentation,
+formatting, simple refactoring, or changes whose behavior is fully specified.
+
+When escalating:
+
+1. Create a self-contained Escalation Packet.
+2. Prefer `fork_context=false`.
+3. Explicitly request `gpt-5.6-sol`.
+4. Use one Sol agent at a time.
+5. Ask Sol for judgment/review, not full implementation.
+6. Resume implementation yourself after receiving the decision.
+7. Record the escalation and outcome in `reports/escalation_log.md`.
+
+Never claim that the backend model identity or actual internal reasoning effort
+was verified unless the runtime explicitly exposes that information.
 
 ---
 

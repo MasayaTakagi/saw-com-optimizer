@@ -13,6 +13,10 @@ class ProcessRunnerTests(unittest.TestCase):
         self.assertEqual(command[:4], ["python-test", "-m", "sawopt.orchestration.cli", "worker"])
         self.assertNotIn("--last", command)
 
+    def test_worker_command_can_request_resume(self):
+        command = build_worker_command(Path("run"), python_executable="python-test", resume=True)
+        self.assertEqual(command[-1], "--resume")
+
     def test_detached_probe_completes_after_launcher_returns(self):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)

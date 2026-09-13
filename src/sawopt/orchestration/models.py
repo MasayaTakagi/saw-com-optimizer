@@ -13,6 +13,7 @@ RUN_STATES = (
     "FAILED",
     "CALLBACK_PENDING",
     "CALLBACK_RUNNING",
+    "REVIEW_WAITING",
     "REVIEWED",
     "CALLBACK_FAILED",
     "ORPHANED",
@@ -106,6 +107,9 @@ class RunStatus:
     finished_at: str | None = None
     callback_started_at: str | None = None
     callback_finished_at: str | None = None
+    resume_count: int = 0
+    last_attached_at: str | None = None
+    session_checkpoint_path: str | None = None
 
     def __post_init__(self) -> None:
         if self.state not in RUN_STATES:
@@ -121,5 +125,6 @@ class RunStatus:
             "callback_attempts", "callback_completed", "callback_exit_code",
             "callback_enabled", "optimizer_state", "error", "started_at",
             "finished_at", "callback_started_at", "callback_finished_at",
+            "resume_count", "last_attached_at", "session_checkpoint_path",
         }
         return cls(**{key: value[key] for key in fields if key in value})

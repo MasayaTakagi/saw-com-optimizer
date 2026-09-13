@@ -117,6 +117,8 @@ class LShadeBackend(OptimizerBackend):
     name = "lshade"
     design_space_version = 1
     frequency_grid_version = 1
+    population_schedule_identifier = "lshade_linear_population_v1"
+    population_schedule_version = 1
 
     def __init__(self, bounds, *, seed: int = 0, config: Mapping[str, Any] | None = None,
                  integer_indices=(1, 2, 3), canonicalizer: Callable | None = None,
@@ -675,10 +677,23 @@ class LShadeBackend(OptimizerBackend):
                 for key, value in self.duplicate_by_group.items()
             },
             "cache_hits": int(self.cache_hits),
+            "cache_hit_rate": float(self.cache_hits / max(self.proposals_total, 1)),
             "population_size": len(self._population),
+            "current_budget": int(self.unique_evaluations),
+            "terminal_budget": int(self.population_schedule_terminal_budget),
+            "initial_population": int(self.initial_population_size),
+            "current_population": int(len(self._population)),
+            "population_schedule_identifier": self.population_schedule_identifier,
+            "population_schedule_version": int(self.population_schedule_version),
             "generations": int(self.generations),
             "search_space_exhausted": bool(self.search_space_exhausted),
             "population_schedule_terminal_budget": int(self.population_schedule_terminal_budget),
+            "terminal_budget": int(self.population_schedule_terminal_budget),
+            "current_budget": int(self.unique_evaluations),
+            "initial_population": int(self.initial_population_size),
+            "current_population": int(len(self._population)),
+            "population_schedule_identifier": self.population_schedule_identifier,
+            "population_schedule_version": int(self.population_schedule_version),
             "hard_max_budget": int(self.hard_max_budget),
             "boundary_repair_counts": copy.deepcopy(self.boundary_repair_counts),
             "archive_size": len(self._archive),
@@ -744,6 +759,14 @@ class LShadeBackend(OptimizerBackend):
     def load_state_dict(self, state: Mapping[str, Any]) -> None:
         if state.get("backend") not in (None, self.name):
             raise ValueError("checkpoint backend mismatch")
+        saved_terminal = state.get(
+            "terminal_budget", state.get("population_schedule_terminal_budget")
+        )
+        if (saved_terminal is not None
+                and int(saved_terminal) != int(self.population_schedule_terminal_budget)):
+            raise ValueError(
+                "L-SHADE checkpoint terminal horizon mismatch; cold start is required"
+            )
         checkpoint_fingerprint = state.get("source_config_fingerprint")
         if (self.source_config_fingerprint is not None and checkpoint_fingerprint is not None
                 and checkpoint_fingerprint != self.source_config_fingerprint):

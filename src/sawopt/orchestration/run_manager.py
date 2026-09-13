@@ -17,15 +17,16 @@ from .pid_utils import pid_exists as _pid_exists
 TRANSITIONS = {
     "CREATED": {"STARTING", "FAILED"},
     "STARTING": {"RUNNING", "FAILED", "ORPHANED", "ORPHANED_CHILD"},
-    "RUNNING": {"COMPLETED", "FAILED", "ORPHANED", "ORPHANED_CHILD"},
-    "COMPLETED": {"CALLBACK_PENDING"},
-    "FAILED": {"CALLBACK_PENDING"},
+    "RUNNING": {"COMPLETED", "REVIEW_WAITING", "FAILED", "ORPHANED", "ORPHANED_CHILD"},
+    "COMPLETED": {"CALLBACK_PENDING", "REVIEW_WAITING"},
+    "FAILED": {"CALLBACK_PENDING", "STARTING"},
     "CALLBACK_PENDING": {"CALLBACK_RUNNING"},
     "CALLBACK_RUNNING": {"REVIEWED", "CALLBACK_FAILED"},
     "CALLBACK_FAILED": {"CALLBACK_PENDING"},
+    "REVIEW_WAITING": {"CALLBACK_PENDING", "REVIEWED"},
     "REVIEWED": set(),
-    "ORPHANED": set(),
-    "ORPHANED_CHILD": set(),
+    "ORPHANED": {"STARTING"},
+    "ORPHANED_CHILD": {"STARTING"},
 }
 
 LOCK_STALE_AFTER_S = 300.0
@@ -231,9 +232,9 @@ def transition(run_dir: Path, new_state: str, **updates: Any) -> dict[str, Any]:
         now = utc_now()
         if new_state == "RUNNING" and value.get("started_at") is None:
             value["started_at"] = now
-        if new_state in {"COMPLETED", "FAILED", "ORPHANED", "ORPHANED_CHILD"}:
+        if new_state in {"COMPLETED", "FAILED", "ORPHANED", "ORPHANED_CHILD", "REVIEW_WAITING"}:
             value["finished_at"] = value.get("finished_at") or now
-            if new_state in {"COMPLETED", "FAILED"}:
+            if new_state in {"COMPLETED", "FAILED", "REVIEW_WAITING"}:
                 value["optimizer_state"] = new_state
         if new_state == "CALLBACK_RUNNING" and value.get("callback_started_at") is None:
             value["callback_started_at"] = now
@@ -252,7 +253,7 @@ def prepare_callback(run_dir: Path, *, automatic: bool) -> bool:
         return False
     if automatic and int(current.get("callback_attempts", 0)) >= 1:
         return False
-    if current_state in {"COMPLETED", "FAILED", "CALLBACK_FAILED"}:
+    if current_state in {"COMPLETED", "FAILED", "REVIEW_WAITING", "CALLBACK_FAILED"}:
         transition(run_dir, "CALLBACK_PENDING")
 
     def mutate(value: dict[str, Any]) -> None:
@@ -382,6 +383,7 @@ def format_status(run_dir: Path) -> str:
     started = parse_timestamp(status.get("started_at")) or parse_timestamp(manifest.created_at)
     elapsed = max(0.0, (datetime.now(timezone.utc) - started).total_seconds()) if started else 0.0
     callback = (
+        "review-waiting" if status.get("state") == "REVIEW_WAITING" else
         "completed" if status.get("callback_completed") else
         "failed" if status.get("state") == "CALLBACK_FAILED" else
         "running" if status.get("state") == "CALLBACK_RUNNING" else

@@ -4,6 +4,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import json
+import os
 from pathlib import Path
 from typing import Callable
 
@@ -135,9 +136,21 @@ def run_codex_callback(manifest: RunManifest, *, exit_code: int | None,
     with callback_log.open("a", encoding="utf-8") as stream:
         stream.write(f"$ {executable} exec resume {manifest.codex_session_id} <review-prompt>\n")
         try:
+            callback_env = dict(os.environ)
+            # Detached Windows workers may inherit USERPROFILE without HOME.
+            # Codex CLI uses HOME to resolve its global state/session store;
+            # fill only the missing compatibility variable and preserve any
+            # explicitly configured environment.
+            if not callback_env.get("HOME") and callback_env.get("USERPROFILE"):
+                callback_env["HOME"] = callback_env["USERPROFILE"]
+            if not callback_env.get("CODEX_HOME") and callback_env.get("USERPROFILE"):
+                callback_env["CODEX_HOME"] = str(
+                    Path(callback_env["USERPROFILE"]) / ".codex"
+                )
             result = runner(
                 command,
                 cwd=manifest.project_root,
+                env=callback_env,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,

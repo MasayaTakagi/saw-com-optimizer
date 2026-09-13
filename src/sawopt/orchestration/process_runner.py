@@ -10,8 +10,13 @@ from typing import Sequence
 from .pid_utils import pid_exists
 
 
-def build_worker_command(run_dir: Path, python_executable: str | None = None) -> list[str]:
-    return [
+def build_worker_command(
+    run_dir: Path,
+    python_executable: str | None = None,
+    *,
+    resume: bool = False,
+) -> list[str]:
+    command = [
         python_executable or sys.executable,
         "-m",
         "sawopt.orchestration.cli",
@@ -19,6 +24,9 @@ def build_worker_command(run_dir: Path, python_executable: str | None = None) ->
         "--run-dir",
         str(Path(run_dir).resolve()),
     ]
+    if resume:
+        command.append("--resume")
+    return command
 
 
 def launch_detached(run_dir: Path, *, project_root: Path,

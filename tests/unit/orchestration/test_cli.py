@@ -1,3 +1,4 @@
+import json
 import unittest
 from argparse import Namespace
 from datetime import datetime, timezone
@@ -81,16 +82,63 @@ class CliTests(unittest.TestCase):
             self.assertEqual(load_manifest(run_a).codex_session_id, "session-A")
             self.assertEqual(load_manifest(run_b).codex_session_id, "session-B")
 
-    def test_resume_is_explicitly_unsupported_by_async_launcher(self):
-        args = cli.build_parser().parse_args([
-            "launch",
-            "--config",
-            "configs/base/b28_dms_baseline.yaml",
-            "--resume",
-            "--no-callback",
-        ])
-        with self.assertRaisesRegex(ValueError, "does not support --resume"):
-            cli.launch(args)
+    def test_launch_records_durable_session_checkpoint(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "checkpointed"
+            args = cli.build_parser().parse_args([
+                "launch", "--config", "configs/base/b28_dms_baseline.yaml",
+                "--run-dir", str(run_dir), "--no-callback",
+            ])
+            with mock.patch.object(cli, "launch_detached", return_value=4344):
+                self.assertEqual(cli.launch(args), 0)
+            checkpoint = json.loads((run_dir / "session_checkpoint.json").read_text(encoding="utf-8"))
+            self.assertEqual(checkpoint["mode"], "launch")
+            self.assertEqual(checkpoint["resume_count"], 0)
+            self.assertEqual(load_status(run_dir)["session_checkpoint_path"], str(run_dir / "session_checkpoint.json"))
+
+    def test_resume_active_run_reattaches_without_starting_duplicate_worker(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "active"
+            create_run(RunManifest(
+                schema_version=1, run_id="active", experiment_name="dummy",
+                created_at=datetime.now(timezone.utc).isoformat(),
+                project_root=str(run_dir), run_dir=str(run_dir), command=["dummy"],
+                config_path=None, codex_session_id=None, codex_model=None,
+                callback_enabled=False, review_after_completion=False,
+            ))
+            transition(run_dir, "STARTING", worker_pid=123)
+            transition(run_dir, "RUNNING", optimizer_pid=456)
+            args = cli.build_parser().parse_args([
+                "launch", "--config", "configs/base/b28_dms_baseline.yaml",
+                "--run-dir", str(run_dir), "--resume", "--no-callback",
+            ])
+            with mock.patch.object(cli, "pid_exists", side_effect=lambda pid: pid in {123, 456}), \
+                    mock.patch.object(cli, "launch_detached") as launch_mock:
+                self.assertEqual(cli.launch(args), 0)
+            launch_mock.assert_not_called()
+            self.assertEqual(load_status(run_dir)["resume_count"], 1)
+
+    def test_resume_orphan_restarts_worker_with_resume_flag(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "orphan"
+            create_run(RunManifest(
+                schema_version=1, run_id="orphan", experiment_name="dummy",
+                created_at=datetime.now(timezone.utc).isoformat(),
+                project_root=str(run_dir), run_dir=str(run_dir), command=["dummy"],
+                config_path=None, codex_session_id=None, codex_model=None,
+                callback_enabled=False, review_after_completion=False,
+            ))
+            transition(run_dir, "STARTING", worker_pid=999999)
+            transition(run_dir, "ORPHANED", error="test")
+            args = cli.build_parser().parse_args([
+                "launch", "--config", "configs/base/b28_dms_baseline.yaml",
+                "--run-dir", str(run_dir), "--resume", "--no-callback",
+            ])
+            with mock.patch.object(cli, "launch_detached", return_value=7878) as launch_mock:
+                self.assertEqual(cli.launch(args), 0)
+            command = launch_mock.call_args.kwargs["command"]
+            self.assertIn("--resume", command)
+            self.assertEqual(load_status(run_dir)["state"], "STARTING")
 
     def test_session_id_cannot_be_silently_ignored_when_callback_is_disabled(self):
         args = cli.build_parser().parse_args([

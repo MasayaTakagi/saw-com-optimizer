@@ -43,6 +43,7 @@ from ..problem.evaluator import dense, evaluate_design
 from ..optimization.adaptive_frequency import critical_frequencies, new_frequency_points
 from ..optimization.runner import optimize_one
 from ..reporting.review_bundle import _default_review_bundle_output
+from .convergence_evidence import apply_checkpoint_evidence
 
 _cold_seeds = cold_seeds
 
@@ -131,6 +132,28 @@ def _lshade_config(cfg, budget):
     return values
 
 
+def _backend_bounds(cfg):
+    """Resolve an optional experiment-owned active/hard box.
+
+    Stage 3.5 supplies this through metadata so the reusable L-SHADE backend
+    can be compared on the same initial box as Legacy DE.  Historical Stage
+    3.3 callers continue to use the immutable model bounds.
+    """
+    active = cfg.get("stage3_5_active_bounds")
+    hard = cfg.get("stage3_5_hard_bounds")
+    if active is None:
+        return np.asarray(BOUNDS, dtype=float), np.asarray(BOUNDS, dtype=float)
+    active = np.asarray(active, dtype=float)
+    hard = np.asarray(hard if hard is not None else BOUNDS, dtype=float)
+    if active.shape != (len(BOUNDS), 2) or hard.shape != active.shape:
+        raise ValueError("stage3_5 active/hard bounds must match the design dimension")
+    if np.any(active[:, 1] <= active[:, 0]) or np.any(hard[:, 1] <= hard[:, 0]):
+        raise ValueError("stage3_5 active/hard bounds must have positive spans")
+    if np.any(active[:, 0] < hard[:, 0]) or np.any(active[:, 1] > hard[:, 1]):
+        raise ValueError("stage3_5 active bounds must remain inside hard bounds")
+    return active, hard
+
+
 def lshade_exchange_at_checkpoint(backend, evaluator, cfg, wiring, z0,
                                   checkpoint_budget):
     """Refresh an L-SHADE trajectory between budget checkpoints.
@@ -188,7 +211,9 @@ def lshade_exchange_at_checkpoint(backend, evaluator, cfg, wiring, z0,
 
 def _lshade_record(backend, wiring, seed, budget, checkpoint_path,
                    frequency_events, started_wall, started_cpu,
-                   *, disk_resume_used=False, trajectory_index=0):
+                   *, disk_resume_used=False, trajectory_index=0,
+                   optimizer_wall_time_s=None, validation_wall_time_s=None,
+                   total_trial_wall_time_s=None):
     """Serialize one checkpoint observation from a live trajectory."""
     summary = backend.summary()
     requested = int(budget)
@@ -200,6 +225,11 @@ def _lshade_record(backend, wiring, seed, budget, checkpoint_path,
     else:
         stop_reason = "numerical_failure"
     record = dict(backend.incumbent() or {})
+    objective_calls = int(summary.get("proposals_total", 0))
+    cache_hits = int(summary.get("cache_hits", 0))
+    duplicate_attempts = max(objective_calls - actual, 0)
+    terminal_budget = int(summary.get("terminal_budget", summary.get(
+        "population_schedule_terminal_budget", requested)))
     record.update({
         "backend": "lshade", "wiring": wiring, "seed": int(seed),
         "requested_unique_design_budget": requested,
@@ -208,11 +238,13 @@ def _lshade_record(backend, wiring, seed, budget, checkpoint_path,
         "actual_unique_budget": actual,
         "budget_completion_fraction": float(actual / max(requested, 1)),
         "budget_completion_passed": bool(actual >= .98 * requested),
-        "objective_calls": int(summary.get("raw_offspring_count", 0)),
-        "raw_offspring_count": int(summary.get("raw_offspring_count", 0)),
-        "duplicate_decoded_count": int(summary.get("duplicate_count", 0)),
-        "duplicate_decoded_rate": float(summary.get("duplicate_rate", 0.0)),
-        "cache_hits": int(summary.get("cache_hits", 0)),
+         "objective_calls": objective_calls,
+         "raw_offspring_count": int(summary.get("raw_offspring_count", 0)),
+         "duplicate_decoded_count": int(summary.get("duplicate_count", 0)),
+         "duplicate_decoded_attempts": duplicate_attempts,
+         "duplicate_decoded_rate": float(duplicate_attempts / max(objective_calls, 1)),
+         "cache_hits": cache_hits,
+         "cache_hit_rate": float(cache_hits / max(objective_calls, 1)),
         "population_size": int(summary.get("population_size", 0)),
         "proposals_total": int(summary.get("proposals_total", 0)),
         "duplicate_rate": float(summary.get("duplicate_rate", 0.0)),
@@ -220,8 +252,14 @@ def _lshade_record(backend, wiring, seed, budget, checkpoint_path,
         "archive_size": int(summary.get("archive_size", 0)),
         "archive_trace": summary.get("archive_trace", []),
         "boundary_repair_counts": summary.get("boundary_repair_counts", {}),
-        "population_schedule_terminal_budget": int(
-            summary.get("population_schedule_terminal_budget", requested)),
+         "population_schedule_terminal_budget": terminal_budget,
+         "terminal_budget": terminal_budget,
+         "current_budget": actual,
+         "initial_population": int(summary.get("initial_population", 0)),
+         "current_population": int(summary.get("current_population", summary.get("population_size", 0))),
+         "population_schedule_identifier": summary.get(
+             "population_schedule_identifier", "lshade_linear_population_v1"),
+         "population_schedule_version": int(summary.get("population_schedule_version", 1)),
         "hard_max_budget": int(summary.get("hard_max_budget", requested)),
         "search_space_exhausted": bool(summary.get("search_space_exhausted", False)),
         "stop_reason": stop_reason,
@@ -232,8 +270,11 @@ def _lshade_record(backend, wiring, seed, budget, checkpoint_path,
         "checkpoint_trajectory_index": int(trajectory_index),
         "trajectory_semantics": "one_seed_one_trajectory",
         "disk_resume_used": bool(disk_resume_used),
-        "frequency_grid_version": int(backend.frequency_grid_version),
-        "frequency_grid_events": copy.deepcopy(frequency_events),
+         "frequency_grid_version": int(backend.frequency_grid_version),
+         "frequency_grid_events": copy.deepcopy(frequency_events),
+         "boundary_events": [],
+         "recovery_events": [],
+         "hard_bound_reached_by_variable": {},
         "checkpoint_state_summary": {
             "unique_evaluations": actual,
             "population_size": int(summary.get("population_size", 0)),
@@ -241,10 +282,24 @@ def _lshade_record(backend, wiring, seed, budget, checkpoint_path,
             "frequency_grid_version": int(backend.frequency_grid_version),
             "m_f": summary.get("m_f", []), "m_cr": summary.get("m_cr", []),
         },
-        "elapsed_s": time.time() - started_wall,
-        "cpu_time_s": time.process_time() - started_cpu,
-        "design_space_version": int(backend.design_space_version),
+         "elapsed_s": (
+             float(total_trial_wall_time_s)
+             if total_trial_wall_time_s is not None
+             else time.monotonic() - started_wall
+         ),
+         "cpu_time_s": time.process_time() - started_cpu,
+         "optimizer_wall_time_s": optimizer_wall_time_s,
+         "validation_wall_time_s": validation_wall_time_s,
+         "total_trial_wall_time_s": (
+             float(total_trial_wall_time_s)
+             if total_trial_wall_time_s is not None
+             else time.monotonic() - started_wall
+         ),
+         "design_space_version": int(backend.design_space_version),
     })
+    record = apply_checkpoint_evidence(
+        record, current_budget=requested, terminal_budget=terminal_budget
+    )
     return _safe_record(record)
 
 
@@ -267,9 +322,26 @@ def _lshade_trajectory_worker(payload):
     z0 = float(cfg.get("convergence", {}).get("impedance_ohm", 50.0))
     frequencies = np.unique(search_grid(cfg["spec"], cfg))
     evaluator = evaluator_factory(cfg, z0, wiring, frequencies)
-    terminal = max(budgets)
+    # Matched-protocol diagnostics may stop at an early observation budget
+    # while preserving the historical population-schedule horizon.  Keep the
+    # opt-in path explicit so ordinary trajectory callers retain their
+    # existing max(budgets) semantics.
+    matched_protocol = cfg.get("stage3_5_matched_protocol", {})
+    terminal = int(matched_protocol.get("terminal_horizon", max(budgets)))
+    diagnostic_stop = int(matched_protocol.get("diagnostic_stop", max(budgets)))
+    if max(budgets) != diagnostic_stop:
+        raise ValueError(
+            "matched-protocol diagnostic_stop must equal the trajectory stop"
+        )
+    if terminal < diagnostic_stop:
+        raise ValueError(
+            "matched-protocol terminal_horizon cannot precede diagnostic_stop"
+        )
+    active_bounds, hard_bounds = _backend_bounds(cfg)
+    lshade_cfg = _lshade_config(cfg, terminal)
+    lshade_cfg["hard_bounds"] = hard_bounds.tolist()
     backend = LShadeBackend(
-        BOUNDS, seed=int(seed), config=_lshade_config(cfg, terminal),
+        active_bounds, seed=int(seed), config=lshade_cfg,
         integer_indices=(1, 2, 3), comparator=DEFAULT_COMPARATOR,
         source_config_fingerprint=cfg.get("stage33_source_fingerprint"),
     )
@@ -285,30 +357,55 @@ def _lshade_trajectory_worker(payload):
     events = list(metadata.get("frequency_grid_events", []))
     last_completed = int(metadata.get("last_completed_budget", 0))
     records = []
-    started_wall = time.time()
+    started_wall = time.monotonic()
     started_cpu = time.process_time()
     for index, budget in enumerate(budgets):
         result_path = seed_dir / f"B{budget}.json"
         if disk_resume_used and last_completed >= budget and result_path.exists():
             records.append(json.loads(result_path.read_text(encoding="utf-8")))
             continue
+        optimizer_started = time.monotonic()
         if backend.unique_evaluations < budget:
             backend.advance_to_unique_budget(budget)
+        optimizer_wall_time_s = time.monotonic() - optimizer_started
+        # The historical B16000 artifact is a pre-exchange snapshot.  Capture
+        # the incumbent before the opt-in matched-protocol exchange so the
+        # diagnostic can compare the same semantic point without reevaluation.
+        pre_exchange_incumbent = (
+            copy.deepcopy(backend.incumbent())
+            if matched_protocol else None
+        )
+        validation_started = time.monotonic()
         event = lshade_exchange_at_checkpoint(
             backend, evaluator, cfg, wiring, z0, budget,
         )
+        validation_wall_time_s = time.monotonic() - validation_started
         events.append(event)
         last_completed = budget
         metadata = {
             "last_completed_budget": int(last_completed),
             "frequency_grid_events": events,
             "trajectory_semantics": "one_seed_one_trajectory",
+            "terminal_budget": int(backend.population_schedule_terminal_budget),
+            "current_budget": int(backend.unique_evaluations),
+            "initial_population": int(backend.initial_population_size),
+            "current_population": int(len(backend.population())),
+            "population_schedule_identifier": backend.population_schedule_identifier,
+            "population_schedule_version": int(backend.population_schedule_version),
         }
         record = _lshade_record(
             backend, wiring, seed, budget, checkpoint_path, events,
             started_wall, started_cpu, disk_resume_used=disk_resume_used,
             trajectory_index=index,
+            optimizer_wall_time_s=optimizer_wall_time_s,
+            validation_wall_time_s=validation_wall_time_s,
+            total_trial_wall_time_s=time.monotonic() - started_wall,
         )
+        if matched_protocol:
+            record["pre_exchange_snapshot"] = _safe_record(pre_exchange_incumbent or {})
+            record["pre_exchange_grid_version"] = int(
+                event.get("frequency_grid_version_before", 1)
+            )
         save(result_path, record)
         backend.save_checkpoint(checkpoint_path)
         save(metadata_path, metadata)
@@ -317,7 +414,7 @@ def _lshade_trajectory_worker(payload):
 
 
 def _lshade_worker(payload):
-    started_wall = time.time()
+    started_wall = time.monotonic()
     started_cpu = time.process_time()
     out, cfg, wiring, seed, budget, resume = payload
     out = Path(out)
@@ -330,8 +427,11 @@ def _lshade_worker(payload):
     z0 = float(cfg.get("convergence", {}).get("impedance_ohm", 50.0))
     frequencies = np.unique(search_grid(cfg["spec"], cfg))
     evaluator = evaluator_factory(cfg, z0, wiring, frequencies)
+    active_bounds, hard_bounds = _backend_bounds(cfg)
+    lshade_cfg = _lshade_config(cfg, budget)
+    lshade_cfg["hard_bounds"] = hard_bounds.tolist()
     backend = LShadeBackend(
-        BOUNDS, seed=int(seed), config=_lshade_config(cfg, budget),
+        active_bounds, seed=int(seed), config=lshade_cfg,
         integer_indices=(1, 2, 3), comparator=DEFAULT_COMPARATOR,
         source_config_fingerprint=cfg.get("stage33_source_fingerprint"),
     )
@@ -340,11 +440,22 @@ def _lshade_worker(payload):
         backend.set_evaluator(evaluator)
         if getattr(backend, "active_frequency_grid", []):
             evaluator.frequency_ref[0] = np.asarray(backend.active_frequency_grid, dtype=float)
+        # Stage 3.5 coordinates soft-bound expansion in its parent process.
+        # The worker receives the frozen expanded box on the next checkpoint;
+        # L-SHADE then uses its existing population re-normalization policy.
+        if not np.array_equal(backend.bounds, active_bounds):
+            backend.update_bounds(
+                active_bounds,
+                design_space_version=int(cfg.get("stage3_5_design_space_version", backend.design_space_version)),
+            )
     else:
         backend.initialize(evaluator)
         backend.set_frequency_grid(frequencies, version=1)
     frequency_events = []
+    optimizer_started = time.monotonic()
     summary = backend.advance_to_unique_budget(int(budget))
+    optimizer_wall_time_s = time.monotonic() - optimizer_started
+    validation_started = time.monotonic()
     if bool(cfg.get("stage3_3", {}).get("adaptive_frequency_exchange", True)) and backend.incumbent():
         incumbent_design = FilterDesign(**backend.incumbent()["design"])
         dense_f, (_dense_result, dense_net, _dense_sim) = dense(
@@ -368,33 +479,59 @@ def _lshade_worker(payload):
     backend.save_checkpoint(checkpoint_path)
     incumbent = record
     record = dict(incumbent)
+    validation_wall_time_s = time.monotonic() - validation_started
+    objective_calls = int(summary.get("proposals_total", backend.proposals_total))
+    duplicate_attempts = max(objective_calls - int(backend.unique_evaluations), 0)
+    terminal_budget = int(summary.get("terminal_budget", summary.get(
+        "population_schedule_terminal_budget", budget)))
     record.update({
         "backend": "lshade", "wiring": wiring, "seed": int(seed), "requested_unique_design_budget": int(budget),
          "unique_decoded_evaluations": int(backend.unique_evaluations),
         "actual_unique_design_evaluations": int(backend.unique_evaluations),
-        "objective_calls": int(backend.raw_offspring_count),
+        "objective_calls": objective_calls,
         "raw_offspring_count": int(backend.raw_offspring_count),
         "duplicate_decoded_count": int(backend.duplicate_count),
-        "duplicate_decoded_rate": float(backend.duplicate_count / max(backend.raw_offspring_count, 1)),
-         "cache_hits": int(backend.cache_hits), "population_size": int(len(backend.population())),
+        "duplicate_decoded_attempts": duplicate_attempts,
+        "duplicate_decoded_rate": float(duplicate_attempts / max(objective_calls, 1)),
+         "cache_hits": int(backend.cache_hits),
+         "cache_hit_rate": float(backend.cache_hits / max(objective_calls, 1)),
+         "population_size": int(len(backend.population())),
          "proposals_total": int(summary.get("proposals_total", backend.proposals_total)),
          "duplicate_rate": float(summary.get("duplicate_rate", 0.0)),
          "m_f": summary.get("m_f", []), "m_cr": summary.get("m_cr", []),
          "archive_size": int(summary.get("archive_size", 0)),
          "archive_trace": summary.get("archive_trace", []),
          "boundary_repair_counts": summary.get("boundary_repair_counts", {}),
-         "population_schedule_terminal_budget": int(summary.get("population_schedule_terminal_budget", budget)),
+          "population_schedule_terminal_budget": terminal_budget,
+          "terminal_budget": terminal_budget,
+          "current_budget": int(backend.unique_evaluations),
+          "initial_population": int(summary.get("initial_population", 0)),
+          "current_population": int(summary.get("current_population", len(backend.population()))),
+          "population_schedule_identifier": summary.get(
+              "population_schedule_identifier", "lshade_linear_population_v1"),
+          "population_schedule_version": int(summary.get("population_schedule_version", 1)),
          "hard_max_budget": int(summary.get("hard_max_budget", budget)),
          "search_space_exhausted": bool(summary.get("search_space_exhausted", False)),
          "best_so_far_trace": summary["best_so_far_trace"], "population_trace": summary["population_trace"],
         "checkpoint": str(checkpoint_path.relative_to(out)),
         "resume": {"used": bool(resume and checkpoint_path.exists())},
-        "frequency_grid_version": int(backend.frequency_grid_version),
-        "frequency_grid_events": frequency_events,
-        "elapsed_s": time.time() - started_wall,
-        "cpu_time_s": time.process_time() - started_cpu,
-        "design_space_version": int(backend.design_space_version),
+         "frequency_grid_version": int(backend.frequency_grid_version),
+         "frequency_grid_events": frequency_events,
+         "active_bounds": backend.active_bounds,
+         "hard_bounds": backend.hard_bounds.tolist(),
+         "boundary_events": list(cfg.get("stage3_5_boundary_events", [])),
+         "recovery_events": [],
+         "hard_bound_reached_by_variable": {},
+          "elapsed_s": time.monotonic() - started_wall,
+         "cpu_time_s": time.process_time() - started_cpu,
+         "optimizer_wall_time_s": optimizer_wall_time_s,
+         "validation_wall_time_s": validation_wall_time_s,
+         "total_trial_wall_time_s": time.monotonic() - started_wall,
+         "design_space_version": int(backend.design_space_version),
     })
+    record = apply_checkpoint_evidence(
+        record, current_budget=int(budget), terminal_budget=terminal_budget
+    )
     record = _safe_record(record)
     save(result_path, record)
     return record
@@ -410,17 +547,45 @@ def _legacy_worker(payload):
     trial_cfg.setdefault("optimizer", {})["max_unique_decoded_evaluations"] = int(budget)
     trial_cfg["optimizer"]["warm_resume"] = False
     trial_cfg.setdefault("convergence", {})["benchmark_early_stop"] = False
+    started = time.monotonic()
     record = optimize_one(
         algorithm_out, trial_cfg, float(cfg["convergence"]["impedance_ohm"]),
         float(cfg["convergence"]["impedance_ohm"]), int(seed), neighbor=None,
         wiring=wiring, mode="benchmark", run_label=f"{wiring}__B{int(budget)}",
         warm_resume=False,
     )
+    total_trial_wall_time_s = time.monotonic() - started
     record = dict(record)
     record["backend"] = "scipy_de_legacy"
-    record.setdefault("cpu_time_s", record.get("elapsed_s", 0.0))
-    record["duplicate_decoded_count"] = int(record.get("canonical_candidates_seen", 0) - record.get("unique_decoded_evaluations", 0))
-    record["duplicate_decoded_rate"] = float(max(0, record["duplicate_decoded_count"]) / max(record.get("objective_calls", 1), 1))
+    record["cpu_time_s"] = record.get("cpu_time_s", total_trial_wall_time_s)
+    cache_hits = int(record.get("cache_hits", 0))
+    objective_calls = int(record.get("objective_calls", 0))
+    record["cache_hit_rate"] = cache_hits / max(objective_calls, 1)
+    if "canonical_candidates_seen" in record:
+        duplicate_attempts = max(
+            int(record["canonical_candidates_seen"])
+            - int(record.get("unique_decoded_evaluations", 0)), 0
+        )
+        record["duplicate_decoded_count"] = duplicate_attempts
+        record["duplicate_decoded_attempts"] = duplicate_attempts
+        record["duplicate_decoded_rate"] = duplicate_attempts / max(
+            int(record["canonical_candidates_seen"]), 1
+        )
+    else:
+        record["duplicate_decoded_count"] = None
+        record["duplicate_decoded_attempts"] = None
+        record["duplicate_decoded_rate"] = None
+    record["terminal_budget"] = int(budget)
+    record["current_budget"] = int(record.get(
+        "actual_unique_design_evaluations",
+        record.get("unique_decoded_evaluations", 0),
+    ))
+    record["population_schedule_identifier"] = "legacy_de_fixed_population_v1"
+    record["population_schedule_version"] = 1
+    record["optimizer_wall_time_s"] = total_trial_wall_time_s
+    record["validation_wall_time_s"] = None
+    record["total_trial_wall_time_s"] = total_trial_wall_time_s
+    record["elapsed_s"] = total_trial_wall_time_s
     return _safe_record(record)
 
 
@@ -1166,6 +1331,12 @@ def main():
 _evaluator_factory = evaluator_factory
 _lshade_exchange_at_checkpoint = lshade_exchange_at_checkpoint
 _evaluate_promotion_gate = evaluate_promotion_gate
+
+# Public service names for cross-study orchestration.  Keep the historical
+# private implementations intact for compatibility with the Stage 3.3 path.
+lshade_worker = _lshade_worker
+lshade_trajectory_worker = _lshade_trajectory_worker
+run_workers = _run_workers
 
 
 if __name__ == "__main__":

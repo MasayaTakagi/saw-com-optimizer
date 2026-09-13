@@ -43,6 +43,11 @@ def _run_study(config_path, run_path, *, workers=None, resume=False,
         'stage3_2_dms_convergence': 'continuation',
         'optimizer_ab': 'optimizer_ab',
         'stage3_3_optimizer_ab': 'optimizer_ab',
+        'search_efficiency': 'search_efficiency',
+        'stage3_5_search_efficiency': 'search_efficiency',
+        'stage3_5_phase_c_supplement': 'phase_c_supplement',
+        'stage3_5_phase_c_final_confirmation': 'phase_c_final_confirmation',
+        'stage3_5_lshade_matched_protocol_parity': 'matched_protocol_parity',
         'preproduction': 'preproduction',
         'stage3_3_1_preproduction': 'preproduction',
     }
@@ -66,6 +71,18 @@ def _run_study(config_path, run_path, *, workers=None, resume=False,
         return run_stage33(run_path, normalize_convergence_config(cfg),
                            resume=resume, workers=workers,
                            run_parallelism=run_parallelism)
+    if kind == 'search_efficiency':
+        from .studies.search_efficiency import run_stage35
+        return run_stage35(config_path, run_path, resume=resume)
+    if kind == 'phase_c_supplement':
+        from .studies.phase_c_supplement import run_phase_c_supplement
+        return run_phase_c_supplement(config_path, run_path, resume=resume)
+    if kind == 'phase_c_final_confirmation':
+        from .studies.phase_c_final_confirmation import run_phase_c_final_confirmation
+        return run_phase_c_final_confirmation(config_path, run_path, resume=resume)
+    if kind == 'matched_protocol_parity':
+        from .studies.matched_protocol_parity import run_matched_protocol_parity
+        return run_matched_protocol_parity(config_path, run_path, resume=resume)
     from .studies.preproduction import run_preproduction
     return run_preproduction(config_path, run_path)
 
