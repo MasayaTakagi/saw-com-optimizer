@@ -1,0 +1,2 @@
+# Preserve the byte identity of the frozen S1 input used by provenance checks.
+artifacts/stage3_5/phase_a_revised/search_space_s1.yaml text eol=crlf

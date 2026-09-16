@@ -1,11 +1,20 @@
 """Search-budget and plateau-stop services."""
 from __future__ import annotations
 
+import math
+from fractions import Fraction
+
 import numpy as np
 
 
 def adaptive_budget_limits(total_budget, adaptive_rounds, fractions):
-    """Return cumulative total-budget limits for adaptive rounds."""
+    """Return cumulative total-budget limits for adaptive rounds.
+
+    Decimal representations of configured fractions are converted to exact
+    rational values before applying the cumulative ceiling.  This keeps an
+    allocation that is mathematically on an integer boundary independent of
+    the Python version's floating-point summation behavior.
+    """
     total_budget = int(total_budget)
     if total_budget <= 0:
         raise ValueError("max_unique_decoded_evaluations must be positive")
@@ -18,12 +27,13 @@ def adaptive_budget_limits(total_budget, adaptive_rounds, fractions):
     supplied = supplied[:round_count]
     if sum(supplied) <= 0:
         supplied = [1.0 / round_count] * round_count
-    total_fraction = sum(supplied)
+    exact_supplied = [Fraction(str(value)) for value in supplied]
+    total_fraction = sum(exact_supplied, Fraction(0, 1))
     limits = []
-    cumulative = 0.0
-    for fraction in supplied:
+    cumulative = Fraction(0, 1)
+    for fraction in exact_supplied:
         cumulative += total_budget * fraction / total_fraction
-        limits.append(min(total_budget, max(1, int(np.ceil(cumulative)))))
+        limits.append(min(total_budget, max(1, math.ceil(cumulative))))
     limits[-1] = total_budget
     return limits
 

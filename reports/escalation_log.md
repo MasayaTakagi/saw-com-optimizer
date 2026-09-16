@@ -84,3 +84,41 @@ identity and behavior.
 Implement only an explicit matched-protocol orchestration/configuration path,
 with the existing behavior preserved when the opt-in setting is absent. Add
 preflight and post-run guardrails before launching the one diagnostic run.
+
+## 2026-09-16 — CI cross-platform budget and frozen-fixture review
+
+### Packet
+
+- Scope: bounded review of GitHub Actions Run #12 failures after adding the
+  missing frozen S1 input.
+- Evidence: Python 3.11 CI returned `[8, 10, 10]` for
+  `_adaptive_budget_limits(10, 2, [.7, .2, .1])`, while Python 3.12 local
+  returned `[7, 9, 10]`; the raw frozen S1 hash also differed because Linux
+  checkout normalized CRLF to LF.
+- Constraints: no production experiment, objective, COM, search-space, or
+  comparison-condition changes; review budget semantics before source edits.
+- Requested reviewer: GPT-5.6 Sol, medium reasoning, one reviewer.
+
+### Decision
+
+- Root cause confirmed as Python-version-dependent floating-point summation at
+  integer ceiling boundaries.
+- Use `Fraction(str(value))` and exact rational cumulative ceilings rather than
+  an epsilon or `math.fsum`; this preserves the intended cumulative fraction
+  semantics and total-budget fairness.
+- The narrow `.gitattributes` rule
+  `artifacts/stage3_5/phase_a_revised/search_space_s1.yaml text eol=crlf` is
+  appropriate because the provenance contract hashes raw file bytes.
+- Retain the existing boundary test and add normalized/non-normalized,
+  non-divisible, and monotonicity regression coverage.
+
+### Luna action, verification, and outcome
+
+- Applied the exact rational allocation fix, regression tests, and the narrow
+  EOL rule. No production run was launched.
+- Full local verification is required before pushing the follow-up commit;
+  the GitHub Actions rerun must confirm both the Python 3.11 budget behavior
+  and the frozen S1 raw hash.
+- Backend model identity and actual internal reasoning effort were not
+  independently verified by the runtime; GPT-5.6 Sol and medium reasoning
+  were requested through the task API.
