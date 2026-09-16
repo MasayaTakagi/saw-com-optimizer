@@ -51,6 +51,7 @@ def _run_study(config_path, run_path, *, workers=None, resume=False,
         'stage3_6_phase_c1_c2_gate2a': 'stage3_6_gate2a',
         'stage3_6_gate2a_final_confirmation': 'stage3_6_gate2a_final_confirmation',
         'stage3_6_gate2b_a_asymmetric_impedance': 'stage3_6_gate2b_a',
+        'stage3_6_gate2b_b_asymmetric_impedance': 'stage3_6_gate2b_b',
         'preproduction': 'preproduction',
         'stage3_3_1_preproduction': 'preproduction',
     }
@@ -95,6 +96,9 @@ def _run_study(config_path, run_path, *, workers=None, resume=False,
     if kind == 'stage3_6_gate2b_a':
         from .studies.stage3_6_gate2b_a import run_stage36_gate2b_a
         return run_stage36_gate2b_a(config_path, run_path, resume=resume)
+    if kind == 'stage3_6_gate2b_b':
+        from .studies.stage3_6_gate2b_b import run_stage36_gate2b_b
+        return run_stage36_gate2b_b(config_path, run_path, resume=resume)
     from .studies.preproduction import run_preproduction
     return run_preproduction(config_path, run_path)
 

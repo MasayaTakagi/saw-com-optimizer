@@ -84,6 +84,7 @@ def execute_run(run_dir: Path, *, callback_runner: Callable[..., int] | None = N
                 "PHASE_C_SUPPLEMENT_COMPLETE_WAITING_FOR_REVIEW.txt",
                 "PHASE_C_FINAL_CONFIRMATION_COMPLETE_WAITING_FOR_REVIEW.txt",
                 "STAGE3_6_GATE2B_A_COMPLETE_WAITING_FOR_REVIEW.txt",
+                "STAGE3_6_GATE2B_B_COMPLETE_STOP.txt",
                 )
             )
         )
