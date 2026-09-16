@@ -50,6 +50,7 @@ def _run_study(config_path, run_path, *, workers=None, resume=False,
         'stage3_5_lshade_matched_protocol_parity': 'matched_protocol_parity',
         'stage3_6_phase_c1_c2_gate2a': 'stage3_6_gate2a',
         'stage3_6_gate2a_final_confirmation': 'stage3_6_gate2a_final_confirmation',
+        'stage3_6_gate2b_a_asymmetric_impedance': 'stage3_6_gate2b_a',
         'preproduction': 'preproduction',
         'stage3_3_1_preproduction': 'preproduction',
     }
@@ -91,6 +92,9 @@ def _run_study(config_path, run_path, *, workers=None, resume=False,
     if kind == 'stage3_6_gate2a_final_confirmation':
         from .studies.stage3_6_gate2a_final_confirmation import run_stage36_gate2a_final_confirmation
         return run_stage36_gate2a_final_confirmation(config_path, run_path, resume=resume)
+    if kind == 'stage3_6_gate2b_a':
+        from .studies.stage3_6_gate2b_a import run_stage36_gate2b_a
+        return run_stage36_gate2b_a(config_path, run_path, resume=resume)
     from .studies.preproduction import run_preproduction
     return run_preproduction(config_path, run_path)
 

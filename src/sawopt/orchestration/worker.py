@@ -81,8 +81,9 @@ def execute_run(run_dir: Path, *, callback_runner: Callable[..., int] | None = N
             and any(
                 (run_dir / marker).is_file()
                 for marker in (
-                    "PHASE_C_SUPPLEMENT_COMPLETE_WAITING_FOR_REVIEW.txt",
-                    "PHASE_C_FINAL_CONFIRMATION_COMPLETE_WAITING_FOR_REVIEW.txt",
+                "PHASE_C_SUPPLEMENT_COMPLETE_WAITING_FOR_REVIEW.txt",
+                "PHASE_C_FINAL_CONFIRMATION_COMPLETE_WAITING_FOR_REVIEW.txt",
+                "STAGE3_6_GATE2B_A_COMPLETE_WAITING_FOR_REVIEW.txt",
                 )
             )
         )
