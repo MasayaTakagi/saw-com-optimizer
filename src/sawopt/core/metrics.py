@@ -35,13 +35,46 @@ def feasibility_objective(metrics, violations):
     )
 
 def geometry(d,c):
-    length=d.wavelength_um*(2*d.io_idt_pairs+d.center_idt_pairs+d.reflector_electrodes+2*d.idt_gap_lambda+2*d.reflector_gap_lambda)
-    electrodes=4*d.io_idt_pairs+2*d.center_idt_pairs+2*d.reflector_electrodes
-    width=d.wavelength_um*d.metallization_ratio/2
-    gap=d.wavelength_um*(1-d.metallization_ratio)/2
-    v=[max(0,length/c['max_length_um']-1),max(0,d.aperture_um/c['max_width_um']-1),
-       max(0,c['min_electrode_width_um']/width-1),max(0,c['min_electrode_gap_um']/gap-1),max(0,electrodes/c['max_electrodes']-1)]
-    return dict(length_um=length,width_um=d.aperture_um,electrodes=electrodes),v
+    """Return manufacturing dimensions and normalized violations.
+
+    Legacy ``FilterDesign`` objects follow the historical scalar calculation
+    exactly.  Stage 3.6 release-space objects may expose a
+    ``section_geometry()`` method; that method supplies the same mirrored
+    nine-region chain with local wavelength/aperture values so section-wise
+    releases use the existing manufacturing limits without changing the
+    objective policy.
+    """
+    profile_fn = getattr(d, 'section_geometry', None)
+    if callable(profile_fn):
+        profile = list(profile_fn())
+        if not profile:
+            raise ValueError('section_geometry() must return at least one section')
+        active = [item for item in profile if item['region'] != 'gap']
+        length = float(sum(
+            float(item['length_lambda']) * float(item['wavelength_um'])
+            for item in profile
+        ))
+        electrodes = float(sum(
+            float(item.get('electrodes', 0.0)) for item in profile
+        ))
+        width = float(max(float(item['aperture_um']) for item in active))
+        feature_wavelengths = [float(item['wavelength_um']) for item in active]
+        if any(value <= 0 or not np.isfinite(value) for value in feature_wavelengths):
+            raise ValueError('section wavelengths must be finite and positive')
+        ratios = [float(item.get('metallization_ratio', d.metallization_ratio)) for item in active]
+        widths = [lam * ratio / 2 for lam, ratio in zip(feature_wavelengths, ratios)]
+        gaps = [lam * (1 - ratio) / 2 for lam, ratio in zip(feature_wavelengths, ratios)]
+        min_width = min(widths)
+        min_gap = min(gaps)
+    else:
+        length = d.wavelength_um*(2*d.io_idt_pairs+d.center_idt_pairs+d.reflector_electrodes+2*d.idt_gap_lambda+2*d.reflector_gap_lambda)
+        electrodes = 4*d.io_idt_pairs+2*d.center_idt_pairs+2*d.reflector_electrodes
+        width = d.aperture_um
+        min_width = d.wavelength_um*d.metallization_ratio/2
+        min_gap = d.wavelength_um*(1-d.metallization_ratio)/2
+    v=[max(0,length/c['max_length_um']-1),max(0,width/c['max_width_um']-1),
+       max(0,c['min_electrode_width_um']/min_width-1),max(0,c['min_electrode_gap_um']/min_gap-1),max(0,electrodes/c['max_electrodes']-1)]
+    return dict(length_um=length,width_um=width,electrodes=electrodes),v
 
 def _band_grid(band, max_step_mhz=None, fallback_points=181):
     """Build a deterministic grid for one band.
@@ -131,7 +164,20 @@ def measure(f,response,d,cfg):
     s=cfg['spec']; mhz=f/1e6; il=response['il']; vs=response['vswr']
     mask=(mhz>=s['passband'][0])&(mhz<=s['passband'][1])
     stops=[float(il[(mhz>=a)&(mhz<=b)].min()) for a,b,_ in s['stopbands']]
-    metrics=dict(worst_il_db=float(il[mask].max()),ripple_db=float(np.ptp(il[mask])),input_vswr=float(vs[mask,0].max()),output_vswr=float(vs[mask,1].max()),stop_attenuation_db=stops)
+    return_loss = response.get('return_loss_db')
+    if return_loss is None:
+        gamma = np.abs(np.diagonal(response['s'], axis1=1, axis2=2))
+        with np.errstate(divide='ignore'):
+            return_loss = -20*np.log10(gamma)
+    metrics=dict(
+        worst_il_db=float(il[mask].max()),
+        ripple_db=float(np.ptp(il[mask])),
+        input_vswr=float(vs[mask,0].max()),
+        output_vswr=float(vs[mask,1].max()),
+        source_return_loss_db_min=float(np.min(return_loss[mask,0])),
+        load_return_loss_db_min=float(np.min(return_loss[mask,1])),
+        stop_attenuation_db=stops,
+    )
     dims,gv=geometry(d,cfg['constraints']); metrics.update(dims)
     violations=dict(il=max(0,metrics['worst_il_db']/s['il']-1),ripple=max(0,metrics['ripple_db']/s['ripple']-1),
         input_vswr=max(0,metrics['input_vswr']/s['vswr']-1),output_vswr=max(0,metrics['output_vswr']/s['vswr']-1))

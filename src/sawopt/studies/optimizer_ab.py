@@ -303,6 +303,26 @@ def _lshade_record(backend, wiring, seed, budget, checkpoint_path,
     return _safe_record(record)
 
 
+def lshade_record(backend, wiring, seed, budget, checkpoint_path,
+                  frequency_events, started_wall, started_cpu,
+                  *, disk_resume_used, trajectory_index,
+                  optimizer_wall_time_s, validation_wall_time_s,
+                  total_trial_wall_time_s=None):
+    """Public record adapter for study-specific trajectory implementations.
+
+    The implementation remains centralized in the historical helper; this
+    public name keeps cross-study imports within the architecture contract.
+    """
+    return _lshade_record(
+        backend, wiring, seed, budget, checkpoint_path, frequency_events,
+        started_wall, started_cpu, disk_resume_used=disk_resume_used,
+        trajectory_index=trajectory_index,
+        optimizer_wall_time_s=optimizer_wall_time_s,
+        validation_wall_time_s=validation_wall_time_s,
+        total_trial_wall_time_s=total_trial_wall_time_s,
+    )
+
+
 def _lshade_trajectory_worker(payload):
     """Run one seed through all requested checkpoints in one process/state."""
     out, cfg, wiring, seed, budgets, resume = payload

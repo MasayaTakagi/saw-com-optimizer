@@ -1,0 +1,31 @@
+base_config: next_50ohm_center_outer_same_stage34b.yaml
+
+study:
+  type: stage3_6_gate2a_final_confirmation
+
+experiment_name: stage3_6_gate2a_final_confirmation
+
+# This compatibility section is consumed by the existing release worker.
+# The final-confirmation orchestration below selects the terminal horizon per arm.
+stage3_6_gate2a:
+  phase: final_confirmation
+  s1_path: artifacts/stage3_5/phase_a_revised/search_space_s1.yaml
+  seeds: [20260917, 20260918, 20260919]
+  screening_budget: 16000
+  promotion_budget: 32000
+  terminal_budget: 32000
+  workers: 3
+  reduced_baseline_run: runs/stage3_5_phase_c_revised
+  reduced_baseline_arm: D_S1_LSHADE
+  reduced_baseline_segment: phase_c1
+
+stage3_6_gate2a_final:
+  phase: final_confirmation
+  source_run: runs/stage3_6_gate2a_dof_release_50ohm
+  seeds: [20260917, 20260918, 20260919]
+  g1_g2_budget: 32000
+  g2_budget: 64000
+  workers: 3
+  optional_g1_g2_64k: true
+  promotion_relative_tolerance: 0.05
+  promotion_strong_relative_tolerance: 0.03

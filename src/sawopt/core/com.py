@@ -185,7 +185,7 @@ def simulate_filter(
 
 def acoustic_admittance(
     d, com_provider, f, regions, ports, return_diagnostics=False,
-    debug_diagnostics=False,
+    debug_diagnostics=False, section_geometries=None,
 ):
     """Connect finite sections with radiating external acoustic boundaries.
 
@@ -196,13 +196,18 @@ def acoustic_admittance(
     lam = d.wavelength_um*1e-6
     n = len(f)
     m = len(regions)
+    if section_geometries is not None:
+        if len(section_geometries) != m:
+            raise ValueError('section_geometries must match regions length')
     mat = np.broadcast_to(np.eye(2*m), (n, 2*m, 2*m)).astype(complex).copy()
     rhs = np.zeros((n, 2*m, ports), complex)
     blocks = []
 
     for j, (region, l, port) in enumerate(regions):
-        p = com_provider.parameters(region, d, f)
-        P = block(f, l*lam, lam, p, region == 'gap')
+        local_geometry = d if section_geometries is None else section_geometries[j]
+        local_lam = float(local_geometry.wavelength_um)*1e-6
+        p = com_provider.parameters(region, local_geometry, f)
+        P = block(f, l*local_lam, local_lam, p, region == 'gap')
         blocks.append(P)
         if j > 0:
             mat[:, 2*j:2*j+2, 2*j-1] -= P[:, :2, 0]
