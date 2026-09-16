@@ -1,5 +1,13 @@
 runs/
 artifacts/
+# The frozen S1 definition is a required, versioned input for studies and CI.
+!artifacts/
+artifacts/*
+!artifacts/stage3_5/
+artifacts/stage3_5/*
+!artifacts/stage3_5/phase_a_revised/
+artifacts/stage3_5/phase_a_revised/*
+!artifacts/stage3_5/phase_a_revised/search_space_s1.yaml
 __pycache__/
 *.egg-info/
 .codex/runtime/*

@@ -97,6 +97,21 @@ def test_adaptive_round_limits_share_one_total_budget():
     assert _adaptive_budget_limits(10, 2, [.7, .2, .1]) == [7, 9, 10]
 
 
+def test_adaptive_round_limits_are_exact_and_monotonic():
+    cases = [
+        (10, [.7, .2, .1], [7, 9, 10]),
+        (10, [7, 2, 1], [7, 9, 10]),
+        (10, [1, 1, 1], [4, 7, 10]),
+        (11, [.7, .2, .1], [8, 10, 11]),
+    ]
+    for total_budget, fractions, expected in cases:
+        limits = _adaptive_budget_limits(total_budget, 2, fractions)
+        assert limits == expected
+        assert limits == sorted(limits)
+        assert all(1 <= limit <= total_budget for limit in limits)
+        assert limits[-1] == total_budget
+
+
 def test_two_consecutive_budget_plateaus_are_required():
     rows = []
     for budget in (100, 200, 400):
