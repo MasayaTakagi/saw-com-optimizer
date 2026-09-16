@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import time
 from concurrent.futures import ProcessPoolExecutor
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 from zipfile import ZIP_DEFLATED, ZipFile
