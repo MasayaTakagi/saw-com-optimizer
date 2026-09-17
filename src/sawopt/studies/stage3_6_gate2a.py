@@ -181,6 +181,15 @@ def _extra_names(group: str) -> tuple[str, ...]:
     raise ValueError(f"unknown release group: {group}")
 
 
+def release_extra_names(group: str) -> tuple[str, ...]:
+    """Return experiment-owned extra variable names for a release group.
+
+    This public adapter keeps cross-study callers off the implementation
+    helper while preserving the frozen Gate 2A release schema.
+    """
+    return _extra_names(group)
+
+
 def _source_variable(extra_name: str) -> str:
     for name, source in _GROUP_EXTRA_SOURCES.values():
         if name == extra_name:
