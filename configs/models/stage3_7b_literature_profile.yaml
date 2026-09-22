@@ -1,0 +1,50 @@
+profile_id: LI2024_42YX_LT_T25
+substrate: 42YX-LiTaO3
+# The task targets Al, but the accessible body of the primary paper says only
+# "metal electrodes".  Keep this unresolved instead of importing Al from a
+# different paper.
+electrode_material: null
+target_electrode_material: Al
+electrode_material_status: BLOCKED
+temperature_c: 25.0
+wavelength_um: 2.16
+h_over_lambda: 0.08
+metallization_ratio: 0.65
+velocity_m_s: 4045.0
+kappa_p_percent: -18.96
+alpha_n_value: 92.566
+alpha_n_scale: 1.0e-5
+alpha_n_unit: "ohm^(-1/2)"
+capacitance_n_value: 52.80
+capacitance_n_scale: 1.0e-5
+capacitance_n_unit: "pF/um"
+gamma_p: 0.002684
+kappa_phase_rad: null
+alpha_phase_rad: null
+source_status: BLOCKED
+source:
+  title: "A New Method for Temperature Dependent COM Parameters Extraction and Its Application to Simulation of SAW Devices"
+  authors: "Lingqi Li; Qiaozhen Zhang; Baichuan Li; Yang Yang; Yahui Tian; Honglang Li"
+  venue: "Journal of Physics: Conference Series 2822, 012170"
+  year: 2024
+  doi: "10.1088/1742-6596/2822/1/012170"
+  table: "Table 2"
+  url: "https://doi.org/10.1088/1742-6596/2822/1/012170"
+  source_condition: "42°YX-LiTaO3, hIDT=172.8 nm, 25 °C"
+device_geometry:
+  idt_fingers: 60
+  reflector_gratings_each_side: 30
+  aperture_um: null
+  aperture_status: BLOCKED
+  dms_pitch_input_um: 1.08
+  dms_pitch_output_um: 1.073
+  dms_pitch_reflector_um: 1.1
+  dms_counts_status: BLOCKED
+normalization_definitions:
+  kappa_p: "kappa * lambda"
+  alpha_p: "alpha * lambda"
+  alpha_n: "alpha_p / sqrt(W / lambda)"
+  capacitance_n: "C * lambda / W"
+  gamma_p: "gamma * lambda"
+  status: BLOCKED
+  reason: "The primary article exposes the definitions through rendered equations; exact phase/reference and aperture convention require source-level confirmation before production use."

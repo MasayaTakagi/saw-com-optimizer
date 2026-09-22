@@ -1,0 +1,160 @@
+# Stage 3.7 literature audit registry.
+# This file intentionally contains no guessed production COM values.  A
+# profile may be promoted to a provider only after all fields and the mapping
+# gate in com_profile_mapping_notes.md are satisfied by one coherent source.
+
+profiles:
+  M0:
+    classification: CURRENT_BASELINE
+    com_source: configs/models/com_params_hypothetical.yaml
+    metadata:
+      substrate: hypothetical_baseline
+      electrode_material: unspecified_placeholder
+      h_over_lambda: 0.04
+      metallization_ratio: 0.5
+      frequency_context: "758-803 MHz target; hypothetical values, not literature-derived"
+      phasor_convention: "exp(+j omega t)"
+      x_direction: left_to_right
+      acoustic_normalization: "|R|^2 - |S|^2 power-flux normalization"
+      electrical_normalization: "peak voltage V; current into transducer"
+      parameter_definitions: "repository docs/conventions/com_convention.md"
+      normalization_convention: "repository FixedProvider: kappa_lambda plus dimensional alpha/C"
+      source_citation: "repository historical hypothetical configuration"
+      source_publication_metadata: "not a literature profile"
+    source: "configs/models/com_params_hypothetical.yaml"
+    audit_note: "Immutable current M0 snapshot; eligible as the parity control only."
+
+  M1:
+    classification: REFERENCE_ONLY
+    target:
+      substrate: 42YX_LiTaO3
+      electrode_material: Al
+      h_over_lambda: 0.04
+      metallization_ratio: 0.60
+      frequency_context: "700-800 MHz class"
+    source_citation:
+      - "https://doi.org/10.1109/IMS19712.2021.9574831"
+    source_publication_metadata:
+      title: "A Synthetic Wideband SAW Filter Using Parallel DMS"
+      authors: "Hao Xue; Yuandan Dong"
+      venue: "2021 IEEE MTT-S International Microwave Symposium"
+      year: 2021
+      doi: "10.1109/IMS19712.2021.9574831"
+    missing_fields:
+      - complete_complex_kappa
+      - alpha_in_repository_normalization
+      - distributed_capacitance
+      - attenuation_definition_and_value
+      - phase_reference
+      - complete_42YX_Al_stack_metadata
+    reason: "Accessible publication metadata supports a 42YX DMS geometry/frequency reference, not a complete COM set."
+
+  M2:
+    classification: REFERENCE_ONLY
+    target:
+      substrate: 42YX_LiTaO3
+      electrode_material: Al
+      h_over_lambda: 0.08
+      metallization_ratio: 0.65
+      frequency_context: "700-850 MHz equivalent"
+    source_citation:
+      - "https://doi.org/10.1109/ULTSYM.2002.1193426"
+      - "https://doi.org/10.3390/app12094547"
+    source_publication_metadata:
+      primary_title: "Optimized cut of LiTaO3 for resonator filters with improved performance"
+      primary_authors: "Natalya F. Naumenko; Benjamin Paul Abbott"
+      primary_venue: "2002 IEEE Ultrasonics Symposium"
+      primary_year: 2002
+      primary_doi: "10.1109/ULTSYM.2002.1193426"
+      mapping_title: "Fast Extraction of Coupling of Modes Parameters for Surface Acoustic Wave Devices Using Finite Element Method Based Simulation"
+      mapping_authors: "Xiaoxin Ma; Huaming Lei; Ping Cai; Xiaojun Ji"
+      mapping_venue: "Applied Sciences 12(9), 4547"
+      mapping_year: 2022
+      mapping_doi: "10.3390/app12094547"
+    missing_fields:
+      - complete_single_source_42YX_Al_kappa_alpha_C_loss_set
+      - phase_reference_for_kappa_and_alpha
+      - repository_power_normalization_mapping
+    reason: "The primary source reports/plots velocity, k2, reflection and propagation loss versus Al thickness, while the mapping source defines normalized COM extraction but is not the same 42YX-Al stack."
+
+  M3:
+    classification: REFERENCE_ONLY
+    target:
+      substrate: 42YX_LiTaO3
+      electrode_material: Al
+      h_over_lambda: 0.10
+      metallization_ratio: 0.50
+      frequency_context: "B28-scale reference only"
+    source_citation:
+      - "https://doi.org/10.1109/ULTSYM.2002.1193426"
+    source_publication_metadata:
+      title: "Optimized cut of LiTaO3 for resonator filters with improved performance"
+      authors: "Natalya F. Naumenko; Benjamin Paul Abbott"
+      venue: "2002 IEEE Ultrasonics Symposium"
+      year: 2002
+      doi: "10.1109/ULTSYM.2002.1193426"
+    missing_fields:
+      - complete_complex_kappa
+      - alpha_in_repository_normalization
+      - distributed_capacitance
+      - explicit_loss_conversion_to_repository_gamma
+    reason: "Useful thick-electrode reference trends, but not a production COM profile."
+
+reviewed_sources:
+  - id: XUE_DONG_2021_DMS
+    title: "A Synthetic Wideband SAW Filter Using Parallel DMS"
+    authors: "Hao Xue; Yuandan Dong"
+    year: 2021
+    venue: "2021 IEEE MTT-S International Microwave Symposium"
+    doi: "10.1109/IMS19712.2021.9574831"
+    url: "https://doi.org/10.1109/IMS19712.2021.9574831"
+    evidence: "42 degree Y-X LiTaO3; three-IDT DMS blocks with reflector pair; measured 753-818 MHz bandwidth in the accessible abstract."
+    geometry_reference:
+      frequency_band: "753-818 MHz"
+      dms_order: "three IDT blocks plus reflector pair"
+      wavelength_um: null
+      idt_pair_counts: null
+      reflector_finger_count: null
+      aperture_over_lambda: null
+      idt_gap_over_lambda: null
+      metallization_ratio: null
+      h_over_lambda: null
+    classification: REFERENCE_ONLY
+  - id: NAUMENKO_ABBOTT_2002
+    title: "Optimized cut of LiTaO3 for resonator filters with improved performance"
+    authors: "Natalya F. Naumenko; Benjamin Paul Abbott"
+    year: 2002
+    venue: "2002 IEEE Ultrasonics Symposium"
+    doi: "10.1109/ULTSYM.2002.1193426"
+    url: "https://doi.org/10.1109/ULTSYM.2002.1193426"
+    evidence: "42 degree YX LiTaO3 with Al grating; duty ratio 0.5; velocity, k2, reflection and propagation-loss trends are reported/ plotted versus thickness."
+    geometry_reference:
+      frequency_band: null
+      dms_order: "ladder resonator comparison; not the current three-IDT DMS"
+      wavelength_um: null
+      idt_pair_counts: null
+      reflector_finger_count: null
+      aperture_over_lambda: null
+      idt_gap_over_lambda: null
+      metallization_ratio: 0.5
+      h_over_lambda: 0.10
+    classification: REFERENCE_ONLY
+  - id: MA_LEI_CAI_JI_2022_MAPPING
+    title: "Fast Extraction of Coupling of Modes Parameters for Surface Acoustic Wave Devices Using Finite Element Method Based Simulation"
+    authors: "Xiaoxin Ma; Huaming Lei; Ping Cai; Xiaojun Ji"
+    year: 2022
+    venue: "Applied Sciences 12(9), 4547"
+    doi: "10.3390/app12094547"
+    url: "https://doi.org/10.3390/app12094547"
+    evidence: "Defines the same COM differential form and normalized alpha/C relationships used as a mapping reference; examples are not a complete 42YX-Al production profile."
+    geometry_reference:
+      frequency_band: null
+      dms_order: null
+      wavelength_um: null
+      idt_pair_counts: null
+      reflector_finger_count: null
+      aperture_over_lambda: null
+      idt_gap_over_lambda: null
+      metallization_ratio: null
+      h_over_lambda: null
+    classification: MAPPING_REFERENCE_ONLY

@@ -1,0 +1,6 @@
+base_config: ../base/b28_dms_baseline.yaml
+study:
+  type: stage3_7b_literature_com_reconstruction
+experiment_name: stage3_7b_literature_com_reconstruction
+literature_profile_file: ../models/stage3_7b_literature_profile.yaml
+primary_source_url: https://doi.org/10.1088/1742-6596/2822/1/012170

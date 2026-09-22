@@ -50,6 +50,15 @@ def _run_study(config_path, run_path, *, workers=None, resume=False,
         'stage3_5_lshade_matched_protocol_parity': 'matched_protocol_parity',
         'stage3_6_phase_c1_c2_gate2a': 'stage3_6_gate2a',
         'stage3_6_gate2a_final_confirmation': 'stage3_6_gate2a_final_confirmation',
+        'stage3_6_gate2b_a_asymmetric_impedance': 'stage3_6_gate2b_a',
+        'stage3_6_gate2b_b_asymmetric_impedance': 'stage3_6_gate2b_b',
+        'stage3_6_gate2c_joint_impedance_dof_fast_screening': 'stage3_6_gate2c',
+        'stage3_7_material_com_50ohm_sanity': 'stage3_7_material_com_sanity',
+        'stage3_7b_literature_com_reconstruction': 'stage3_7b_literature_com_reconstruction',
+        'stage3_7b_r1_normalized_literature_com_validation': 'stage3_7b_r1_normalized_literature_com_validation',
+        'stage3_7b_r2_stage3_7c_literature_com_b28_fast_screen': 'stage3_7b_r2_stage3_7c_literature_com_b28_fast_screen',
+        'stage3_7d_mlit_aperture_boundary_and_metadata': 'stage3_7d_mlit_aperture_boundary_and_metadata',
+        'stage3_8_dual_material_dms_topology_fast_screen': 'stage3_8_dual_material_dms_topology_fast_screen',
         'preproduction': 'preproduction',
         'stage3_3_1_preproduction': 'preproduction',
     }
@@ -91,6 +100,33 @@ def _run_study(config_path, run_path, *, workers=None, resume=False,
     if kind == 'stage3_6_gate2a_final_confirmation':
         from .studies.stage3_6_gate2a_final_confirmation import run_stage36_gate2a_final_confirmation
         return run_stage36_gate2a_final_confirmation(config_path, run_path, resume=resume)
+    if kind == 'stage3_6_gate2b_a':
+        from .studies.stage3_6_gate2b_a import run_stage36_gate2b_a
+        return run_stage36_gate2b_a(config_path, run_path, resume=resume)
+    if kind == 'stage3_6_gate2b_b':
+        from .studies.stage3_6_gate2b_b import run_stage36_gate2b_b
+        return run_stage36_gate2b_b(config_path, run_path, resume=resume)
+    if kind == 'stage3_6_gate2c':
+        from .studies.stage3_6_gate2c import run_stage36_gate2c
+        return run_stage36_gate2c(config_path, run_path, resume=resume)
+    if kind == 'stage3_7_material_com_sanity':
+        from .studies.stage3_7_material_com_sanity import run_stage37
+        return run_stage37(config_path, run_path, resume=resume)
+    if kind == 'stage3_7b_literature_com_reconstruction':
+        from .studies.stage3_7b_literature_com_reconstruction import run_stage37b
+        return run_stage37b(config_path, run_path, resume=resume)
+    if kind == 'stage3_7b_r1_normalized_literature_com_validation':
+        from .studies.stage3_7b_r1_normalized_literature_com_validation import run_stage37b_r1
+        return run_stage37b_r1(config_path, run_path, resume=resume)
+    if kind == 'stage3_7b_r2_stage3_7c_literature_com_b28_fast_screen':
+        from .studies.stage3_7b_r2_stage3_7c_literature_com_b28_fast_screen import run_stage37b_r2_stage37c
+        return run_stage37b_r2_stage37c(config_path, run_path, resume=resume)
+    if kind == 'stage3_7d_mlit_aperture_boundary_and_metadata':
+        from .studies.stage3_7d_mlit_aperture_boundary_and_metadata import run_stage37d
+        return run_stage37d(config_path, run_path, resume=resume)
+    if kind == 'stage3_8_dual_material_dms_topology_fast_screen':
+        from .studies.stage3_8_dual_material_dms_topology_fast_screen import run_stage38
+        return run_stage38(config_path, run_path, resume=resume)
     from .studies.preproduction import run_preproduction
     return run_preproduction(config_path, run_path)
 
