@@ -1,0 +1,60 @@
+profile_id: LI2024_42YX_LT_METAL_UNSPECIFIED_T25
+substrate: 42YX-LiTaO3
+electrode_material: unspecified_metal
+target_electrode_material: Al
+electrode_material_status: UNSPECIFIED_BY_2024_SOURCE
+temperature_c: 25.0
+wavelength_um: 2.16
+h_over_lambda: 0.08
+metallization_ratio: 0.65
+velocity_m_s: 4045.0
+kappa_p_percent: -18.96
+alpha_n_value: 92.566
+alpha_n_scale: 1.0e-5
+alpha_n_unit: "ohm^(-1/2)"
+capacitance_n_value: 52.80
+capacitance_n_scale: 1.0e-5
+capacitance_n_unit: "pF/um"
+gamma_p: 0.002684
+kappa_phase_rad: null
+alpha_phase_rad: null
+phase_policy: SIGNED_REAL_TABLE_ASSUMPTION
+loss_policy: AMPLITUDE_ATTENUATION_ASSUMPTION
+source_status: EVALUATION_ONLY_NORMALIZED_MAPPING
+source:
+  title: "A New Method for Temperature Dependent COM Parameters Extraction and Its Application to Simulation of SAW Devices"
+  authors: "Lingqi Li; Qiaozhen Zhang; Baichuan Li; Yang Yang; Yahui Tian; Honglang Li"
+  venue: "Journal of Physics: Conference Series 2822, 012170"
+  year: 2024
+  doi: "10.1088/1742-6596/2822/1/012170"
+  table: "Table 2"
+  url: "https://doi.org/10.1088/1742-6596/2822/1/012170"
+  role: numerical_source_only
+  source_condition: "42°YX-LiTaO3, hIDT=172.8 nm, 25 °C"
+definition_source:
+  title: "Full extraction of the COM parameters for Rayleigh type surface acoustic wave"
+  authors: "Xueping Sun; Shun Zhou; Jin Cheng; Dabin Lin; Weiguo Liu"
+  venue: "AIP Advances 12, 025007 (2022)"
+  doi: "10.1063/5.0079529"
+  url: "https://doi.org/10.1063/5.0079529"
+  role: normalization_definition_source_only
+  voltage_current_note: "The definition source describes V and I as half-power amplitude values; compatibility with the current peak-V solver is not an absolute-admittance claim."
+device_geometry:
+  idt_fingers: 60
+  idt_pairs_interpretation: 30
+  reflector_gratings_each_side: 30
+  reflector_helper_electrodes: 30
+  aperture_um: null
+  evaluation_aperture_um: 80.0
+  evaluation_aperture_not_source_geometry: true
+  dms_pitch_input_um: 1.08
+  dms_pitch_output_um: 1.073
+  dms_pitch_reflector_um: 1.1
+  dms_status: EXPLORATORY_ONLY_INCOMPLETE
+normalization_definitions:
+  kappa_p: "kappa * lambda"
+  alpha_p: "alpha * lambda"
+  alpha_n: "alpha_p / sqrt(W / lambda)"
+  capacitance_n: "C * lambda / W"
+  gamma_p: "gamma * lambda; amplitude-loss mapping is an explicit R1 assumption"
+  source_definition_status: "KAPPA_ALPHA_C_CONFIRMED_BY_2022_DEFINITION_SOURCE"

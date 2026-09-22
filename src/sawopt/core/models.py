@@ -1,5 +1,5 @@
 from dataclasses import dataclass, asdict
-from typing import Protocol
+from typing import Any, Mapping, Protocol
 import numpy as np
 
 
@@ -112,6 +112,99 @@ class FixedProvider:
             capacitance=capacitance,
             loss=loss_db_per_lambda*np.log(10)/20/lam,
         )
+
+
+class LiteratureProfileProvider:
+    """Select one complete, indivisible COM material profile.
+
+    This provider deliberately has no interpolation or fallback behavior.  A
+    production profile must carry its own metadata and all COM values required
+    by :class:`FixedProvider`; missing ``alpha``, capacitance, loss, or phase
+    information therefore fails at construction instead of being silently
+    borrowed from the hypothetical M0 profile.
+    """
+
+    REQUIRED_METADATA = (
+        'substrate', 'electrode_material', 'h_over_lambda',
+        'metallization_ratio', 'frequency_context', 'phasor_convention',
+        'x_direction', 'acoustic_normalization', 'electrical_normalization',
+        'parameter_definitions', 'normalization_convention',
+        'source_citation', 'source_publication_metadata',
+    )
+    ALLOWED_CLASSIFICATIONS = {
+        'CURRENT_BASELINE', 'DIRECT_COMPATIBLE', 'CONVERTIBLE_WITH_DERIVATION',
+    }
+    PROFILE_REGIONS = ('idt', 'reflector', 'gap')
+
+    def __init__(self, profiles: Mapping[str, Mapping[str, Any]], profile_id: str):
+        if not isinstance(profiles, Mapping):
+            raise TypeError('profiles must be a mapping of profile id to profile')
+        if profile_id not in profiles:
+            raise KeyError(f'Unknown COM profile {profile_id!r}')
+        profile = profiles[profile_id]
+        if not isinstance(profile, Mapping):
+            raise TypeError(f'COM profile {profile_id!r} must be a mapping')
+
+        metadata = profile.get('metadata')
+        missing = [key for key in self.REQUIRED_METADATA
+                   if not isinstance(metadata, Mapping) or not metadata.get(key)]
+        if missing:
+            raise ValueError(
+                f'Profile {profile_id!r} is missing required metadata: {missing}'
+            )
+        classification = str(profile.get('classification', ''))
+        if classification not in self.ALLOWED_CLASSIFICATIONS:
+            raise ValueError(
+                f'Profile {profile_id!r} is not production-eligible: '
+                f'{classification or "missing classification"}'
+            )
+        com = profile.get('com')
+        self._validate_com(profile_id, com)
+
+        self.profile_id = str(profile_id)
+        self.classification = classification
+        self.metadata = dict(metadata)
+        self.source = profile.get('source')
+        self._provider = FixedProvider(dict(com))
+
+    @classmethod
+    def _validate_com(cls, profile_id: str, com: Any) -> None:
+        if not isinstance(com, Mapping):
+            raise ValueError(f'Profile {profile_id!r} must contain a COM mapping')
+        if not np.isfinite(float(com.get('reference_aperture_um', np.nan))) or \
+                float(com.get('reference_aperture_um', 0.0)) <= 0:
+            raise ValueError(
+                f'Profile {profile_id!r} requires a positive reference_aperture_um'
+            )
+        if 'velocity_m_s' not in com and any(
+                'velocity_m_s' not in com.get(region, {})
+                for region in cls.PROFILE_REGIONS
+        ):
+            raise ValueError(
+                f'Profile {profile_id!r} requires velocity_m_s globally or per region'
+            )
+        if 'loss_db_per_lambda' not in com and any(
+                'loss_db_per_lambda' not in com.get(region, {})
+                for region in cls.PROFILE_REGIONS
+        ):
+            raise ValueError(
+                f'Profile {profile_id!r} requires explicit loss_db_per_lambda '
+                'globally or for every region'
+            )
+        for region in cls.PROFILE_REGIONS:
+            values = com.get(region)
+            if not isinstance(values, Mapping):
+                raise ValueError(f'Profile {profile_id!r} is missing region {region!r}')
+            if region != 'gap':
+                missing = [key for key in FixedProvider.REQUIRED_REGION_KEYS
+                           if key not in values]
+                if missing:
+                    raise ValueError(
+                        f'Profile {profile_id!r} region {region!r} is missing {missing}'
+                    )
+
+    def parameters(self, region, geometry, frequency, temperature_c=25):
+        return self._provider.parameters(region, geometry, frequency, temperature_c)
 
 
 class CalibratedProvider:

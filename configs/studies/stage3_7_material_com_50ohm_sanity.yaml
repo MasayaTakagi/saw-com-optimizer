@@ -1,0 +1,24 @@
+base_config: next_50ohm_center_outer_same_stage34b.yaml
+
+study:
+  type: stage3_7_material_com_50ohm_sanity
+
+experiment_name: stage3_7_material_com_50ohm_sanity
+
+stage3_7:
+  gate2b_b_run_dir: runs/stage3_6_gate2b_b_asymmetric_impedance
+  profile_registry: configs/models/stage3_7_literature_profiles.yaml
+  topology: current_3_idt_dms
+  wiring: center_outer_same
+  zin_ohm: 50.0
+  zout_ohm: 50.0
+  profiles: [M0, M1, M2, M3]
+  reoptimization:
+    optimizer: lshade
+    cold_start: true
+    budget: 8000
+    seeds: [20260917, 20260918]
+    checkpoints: [2000, 4000, 6000, 8000]
+    search_space: G1_G2
+    bound_expansion: false
+    dof_expansion: false

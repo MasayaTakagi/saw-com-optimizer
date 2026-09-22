@@ -1,0 +1,19 @@
+base_config: ../base/b28_dms_baseline.yaml
+
+study:
+  type: stage3_7d_mlit_aperture_boundary_and_metadata
+
+experiment_name: stage3_7d_mlit_aperture_boundary_and_metadata
+literature_profile_file: ../models/stage3_7b_r1_normalized_literature_profile.yaml
+
+stage3_7d:
+  source_run_dir: runs/stage3_7b_r2_stage3_7c_literature_com_b28_fast_screen_final_retry3
+  source_checkpoint_budget: 8000
+  seeds: [20260917, 20260918]
+  probe_apertures_um: [150.0, 165.0, 180.0, 200.0]
+  search_space_snapshot: artifacts/stage3_5/phase_a_revised/search_space_s1.yaml
+  topology: current_3_idt_dms
+  wiring: center_outer_same
+  zin_ohm: 50.0
+  zout_ohm: 50.0
+  optimizer_rerun: false

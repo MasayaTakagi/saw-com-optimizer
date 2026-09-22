@@ -44,6 +44,13 @@ def geometry(d,c):
     releases use the existing manufacturing limits without changing the
     objective policy.
     """
+    topology_geometry = getattr(d, 'topology_geometry', None)
+    if callable(topology_geometry):
+        # Parallel tracks need device-level width/length accounting rather
+        # than treating the tracks as one serial acoustic chain.  The design
+        # owns only geometry accounting; the violation/objective policy below
+        # remains unchanged.
+        return topology_geometry(c)
     profile_fn = getattr(d, 'section_geometry', None)
     if callable(profile_fn):
         profile = list(profile_fn())
