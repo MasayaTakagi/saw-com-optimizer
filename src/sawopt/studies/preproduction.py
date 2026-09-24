@@ -30,7 +30,10 @@ from ..core.models import BOUNDS
 from ..io.config import load_experiment_config, load_study_config
 from ..optimizers.lshade import LShadeBackend, parent_midpoint_repair, shade_success_memory
 from ..optimizers.selection import DEFAULT_COMPARATOR, time_to_target
-from ..reporting.review_bundle import _default_review_bundle_output
+from ..reporting.review_bundle import (
+    _default_review_bundle_output,
+    is_checkpoint_artifact,
+)
 from .convergence import normalize_convergence_config
 from .optimizer_ab import (
     evaluate_promotion_gate,
@@ -752,7 +755,8 @@ def create_preprod_bundle(repo: Path, run: Path):
         shutil.copy2(repo / "pyproject.toml", staging / "pyproject.toml")
         for source in sorted(run.rglob("*")):
             if (not source.is_file() or output == source or staging in source.parents
-                    or source.name == output.name):
+                    or source.name == output.name
+                    or is_checkpoint_artifact(source.relative_to(run))):
                 continue
             relative = source.relative_to(run)
             destination = (staging / relative

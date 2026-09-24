@@ -1,0 +1,19 @@
+{
+  "confirmation_type": "final_confirmation",
+  "full_suite_command": ".venv\\Scripts\\python.exe -m pytest -p no:cacheprovider -q",
+  "full_suite_duration_seconds": 99.64,
+  "full_suite_passed": 235,
+  "full_suite_status": "PASS",
+  "full_suite_subtests_passed": 14,
+  "production_candidate_fingerprint": "4465b7177b15ab44c10576a7c3d3bf0363c79a7dafa46ef8452a45626407824d",
+  "recorded_at_utc": "2026-09-23T17:35:41.249910+00:00",
+  "routing_policy_status": "PASS",
+  "schema_version": 1,
+  "source_config_fingerprint": "4465b7177b15ab44c10576a7c3d3bf0363c79a7dafa46ef8452a45626407824d",
+  "status": "PASS",
+  "study_revision": "R1.2",
+  "targeted_tests_command": ".venv\\Scripts\\python.exe -m pytest -p no:cacheprovider tests\\unit\\studies\\test_stage3_8c_r1_geometry_gate.py tests\\unit\\test_sol_review_routing_policy.py -q",
+  "targeted_tests_duration_seconds": 27.54,
+  "targeted_tests_passed": 22,
+  "targeted_tests_status": "PASS"
+}

@@ -48,6 +48,74 @@ identity and behavior.
   independently verified by the runtime; GPT-5.6 Sol and high reasoning were
   requested through the task API.
 
+## 2026-09-24 — Stage 3.8C-R1.1 initializer judgment
+
+### Packet
+
+- Scope: recommend a bounded geometry-aware initial-population sampler for
+  the R1.1 six-cell pilot; judgment only, no reviewer implementation.
+- Evidence: R1 used independent uniform proposals and geometry rejection;
+  T0/T2 rejection was 86–93%. The study already injects its initial
+  population into the generic L-SHADE backend.
+- Constraints: keep the feasible search space, all active bounds, geometry
+  limits, topology definitions, COM/network/evaluation/objective behavior,
+  comparator, L-SHADE update rule, budget, impedance, profiles, and validation
+  grid unchanged. No clamp or projection.
+- Requested reviewer: GPT-6 Sol (`gpt-6-sol`), one bounded judgment review.
+
+### Decision
+
+- Retain one study-level initializer interface and condition integer counts
+  on exact topology-specific electrode and acoustic-length budgets, reserving
+  minimum values for counts still to be sampled.
+- Continue validating every design with the existing decoder and geometry
+  evaluator; fail if derived constraints disagree.
+- The feasible support is retained, but the initializer distribution changes.
+  Record variable quantiles, geometry margins, and an independent-uniform
+  reference; interpret one-seed pilot performance as diagnostic only.
+
+### Luna action and outcome
+
+- Implemented a study-level conditional integer feasible-set initializer.
+  Generic L-SHADE, declared bounds, physical constraints, and comparator code
+  were left unchanged. Added all-cell deterministic/bounds/geometry/unique
+  population tests and active Sol policy regression coverage.
+- Targeted tests: 14 passed. Full repository suite: 227 passed and 14
+  subtests passed. Independent preflight: implementation PASS, fixed-design
+  sanity 6/6, known-seed preflight 6/6, and geometry-valid population 6/6.
+- R1.1 Pilot: `PASS_AWAITING_REVIEW`, 256 evaluations per cell, seed
+  20260917; all six cells had finite search/common metrics, successful physics
+  evaluations, and solved frequency points. Initial conditional-sampler
+  geometry rejection was 0/6 cells. The independent-uniform reference remained
+  close to the R1 rejection rates.
+- A post-pilot gate-only correction retains the legacy R1 90% rejection threshold and applies the R1.1 50% threshold; a regression test covers both. Saved Pilot data was not rerun or changed.
+- The 96k production run was not started. The R1.1 pass marker and review
+  bundle are provided for review; no production, Stage 3.9, hybrid, or
+  impedance-sweep work was started.
+- Requested model was `gpt-6-sol`; runtime-visible backend identity and
+  internal reasoning effort were not exposed and are not claimed as verified.
+
+## 2026-09-23 — Stage 3.8C-R1 post-review pilot outcome
+
+- Implemented the approved geometry-first study comparator, geometry-valid
+  initialization, explicit search/validation counters, common-grid finalist
+  reevaluation, and the MLIT 30–180 um user-directed aperture override.
+- Full regression passed: 224 tests and 14 subtests. Targeted R1 tests passed:
+  11.
+- The six-cell, 256-evaluation pilot reached physics with finite search and
+  common-grid metrics in all six cells. Stage 3.8 implementation validation,
+  six fixed-design sanity cases, known-seed preflight, and valid-population
+  preflight also passed.
+- The pilot gate returned `STAGE3_8C_R1_PILOT_FAIL_STOP`: geometry rejection
+  during initial population sampling was 93.27% for M0/T2 and 91.99% for
+  MLIT/T2, exceeding the specified 90% limit. Replay diagnostics indicate the
+  two dominant hard limits are maximum total acoustic length and maximum total
+  electrode count. No search-space or manufacturing limits were changed.
+- The 96,000-evaluation production rerun was not started. A bounded review of
+  the T2 initialization/search-space definition is required before a new pilot
+  or production launch. No Stage 3.9 work, hybrid run, or impedance sweep was
+  started.
+
 ## 2026-09-13 — Stage 3.5 matched-protocol configuration gate
 
 ### Packet
@@ -206,6 +274,68 @@ No Phase D optimizer run was launched.
   decoders, study/reporting layers, metadata, and tests. No production
   optimization or Stage 3.9/hybrid/impedance-sweep work is authorized by
   this escalation.
+- Backend model identity and actual reasoning effort were not independently
+  verified by the runtime; GPT-5.6 Sol and high reasoning were requested
+  through the task API.
+
+## 2026-09-23 — Stage 3.8C-R1 geometry gate and rerun
+
+### Packet
+
+- Scope: judgment-only review of the hard-geometry ranking correction,
+  geometry-valid L-SHADE initialization, auditable evaluation counters, common
+  validation-grid final selection, and aperture-bound provenance before any
+  Stage 3.8C-R1 pilot/main optimization.
+- Evidence: the old evaluator returns geometry-invalid records before COM and
+  mixes geometry with filter violations; `DEFAULT_COMPARATOR` then orders
+  infeasible records by one `max_violation`. The old 96k run has zero valid
+  physics evaluations and zero solved points in all 12 cells. The current R1
+  user handoff requests MLIT 30–180 um, while the archived Stage 3.7D record and
+  prior Stage 3.8 decision say 30–150 um.
+- Requested reviewer: GPT-5.6 Sol, high reasoning, judgment only, no edits or
+  tests.
+
+### Decision
+
+- **APPROVED WITH REQUIRED REVISIONS before the 96k rerun.** Keep changes
+  study-local: pass a geometry-first comparator to the existing L-SHADE backend;
+  preserve `DEFAULT_COMPARATOR` ordering for successful physics records; put
+  successful physics ahead of physics failures; and keep all geometry-valid
+  results ahead of geometry-invalid results. Use finite positive comparator
+  improvements because L-SHADE uses them for SHADE weights.
+- Use the same comparator throughout p-best ordering, replacement, shrink,
+  incumbent, trace, and final common-grid selection. Re-evaluate eligible
+  finalists on the frozen common grid instead of labeling search-grid records
+  as validated results.
+- Seed each population with the known fixed design, assert its active/hard
+  bounds and canonical round-trip, then boundedly sample unique geometry-valid
+  members. Keep sampling attempt counters outside the optimizer evaluation
+  budget and record a complete partition of attempts, geometry rejections,
+  duplicate rejections, and accepted draws.
+- At each checkpoint require
+  `unique_decoded_evaluations = geometry_invalid_evaluations + valid_physics_evaluations + physics_failure_evaluations`
+  and
+  `physics_attempted_evaluations = valid_physics_evaluations + physics_failure_evaluations`.
+  Count search-grid and common-grid validation work separately. Do not fill
+  missing counters with zero.
+- Run cold in a fresh run directory/fingerprint; do not resume old Stage 3.8
+  checkpoints because their incumbent, trace, counter, population, and bound
+  semantics are incompatible.
+- Follow the latest explicit R1 user handoff for MLIT 30–180 um, but record it
+  as an **R1 user-directed bound override**, not a Stage 3.7D recommendation.
+  Keep M0 at 30–150 um. Cross-material differences are confounded by the
+  unequal search spaces; within-material topology comparisons remain
+  interpretable.
+- Required gates before production: rank-path and finite-improvement tests,
+  counter identities, fixed-seed validation, a low-budget positive-physics
+  smoke, all-cell population preflight, and a detached launch with valid
+  callback manifest fields.
+
+### Outcome tracking
+
+- This implementation will preserve T0/T1/T2 physics and will not change the
+  global comparator or L-SHADE algorithm. Stage 3.9 and third-seed work remain
+  outside this run.
 - Backend model identity and actual reasoning effort were not independently
   verified by the runtime; GPT-5.6 Sol and high reasoning were requested
   through the task API.
@@ -371,3 +501,47 @@ confirmation or a separately approved FEM extraction is required.
 - Backend model identity and actual internal reasoning effort were not
   independently verified by the runtime; GPT-5.6 Sol and high reasoning were
   requested through the task API.
+
+## 2026-09-24 — Stage 3.8C-R1.2 initializer judgment
+
+### Packet and requested reviewer
+
+- Scope: judgment only on the initializer proposal law, rejection/uniqueness
+  semantics, attempt cap, diversity gates, and initializer-only distribution
+  regression before implementation.
+- Requested review target: `gpt-6-sol`, as required by the active project
+  policy. No fallback to GPT-5.6 Sol was requested.
+- Packet: `reports/stage3_8c_r1_2_initializer_escalation.md`.
+
+### Decision
+
+- Preserve the R1 law: independently draw each active real-valued coordinate
+  uniformly in its declared interval, then apply the existing
+  `_canonical_physical` integer rule (`floor(x + 0.5)`), then apply the hard
+  geometry test. Integer endpoints consequently have half the mass of an
+  interior integer coordinate when bounds are integral; replacing this with
+  categorical uniform integer draws would change the original law.
+- Keep one known valid fixed design as the explicit first member. Fill the
+  remaining slots with independent proposals, rejecting geometry-invalid
+  candidates and duplicate canonical designs. No invalid-candidate repair or
+  topology-dependent conditional resampling is allowed.
+- Use a finite cap `max(10000, 60 * N)` and fail explicitly with
+  `INITIALIZER_EXHAUSTED`. Record the full accounting identity and keep
+  rejection fraction diagnostic-only for R1.2.
+- Gate exact population size, 100% geometry validity, cap completion,
+  canonical uniqueness, reference-informed diversity, and measured practical
+  runtime. Compare initializer-only samples against a no-COM Monte Carlo
+  reference, including integer variables and total electrode/length metrics.
+- Pilot only: six material/topology cells, seed `20260917`, 256 evaluations
+  per cell. No production run or promotion is authorized by this judgment.
+
+### Luna action and outcome
+
+- Implemented the specified initializer, diagnostics, gates, and pilot-only
+  R1.2 path. Targeted tests passed (19); full repository regression passed
+  (232 tests and 14 subtests). The six-cell initializer-only preflight passed
+  distribution/diversity checks, and historical R1 seeded populations
+  replayed exactly.
+- Requested GPT-6 Sol review was accepted through the task routing. The
+  runtime did not expose resolved backend identity or internal reasoning
+  effort; neither is claimed as verified.

@@ -31,6 +31,7 @@ from ..optimizers.lshade import LShadeBackend
 from ..optimizers.selection import DEFAULT_COMPARATOR, rank
 from ..optimization.adaptive_frequency import critical_frequencies, new_frequency_points
 from ..runtime.parallel import single_blas_thread_environment
+from ..reporting.review_bundle import is_checkpoint_artifact
 from .convergence import normalize_convergence_config
 from .optimizer_ab import lshade_record
 from .stage3_6_gate2a import (
@@ -1154,7 +1155,7 @@ def _build_review_bundle(
     output = bundle_root / FINAL_BUNDLE_NAME
     with ZipFile(output, "w", compression=ZIP_DEFLATED) as archive:
         for path in sorted(staging.rglob("*")):
-            if path.is_file():
+            if path.is_file() and not is_checkpoint_artifact(path.relative_to(staging)):
                 archive.write(path, path.relative_to(staging).as_posix())
     return output
 

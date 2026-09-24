@@ -59,6 +59,7 @@ def _run_study(config_path, run_path, *, workers=None, resume=False,
         'stage3_7b_r2_stage3_7c_literature_com_b28_fast_screen': 'stage3_7b_r2_stage3_7c_literature_com_b28_fast_screen',
         'stage3_7d_mlit_aperture_boundary_and_metadata': 'stage3_7d_mlit_aperture_boundary_and_metadata',
         'stage3_8_dual_material_dms_topology_fast_screen': 'stage3_8_dual_material_dms_topology_fast_screen',
+        'stage3_8c_r1_geometry_gate': 'stage3_8c_r1_geometry_gate',
         'preproduction': 'preproduction',
         'stage3_3_1_preproduction': 'preproduction',
     }
@@ -127,6 +128,9 @@ def _run_study(config_path, run_path, *, workers=None, resume=False,
     if kind == 'stage3_8_dual_material_dms_topology_fast_screen':
         from .studies.stage3_8_dual_material_dms_topology_fast_screen import run_stage38
         return run_stage38(config_path, run_path, resume=resume)
+    if kind == 'stage3_8c_r1_geometry_gate':
+        from .studies.stage3_8c_r1_geometry_gate import run_stage38c_r1
+        return run_stage38c_r1(config_path, run_path, resume=resume)
     from .studies.preproduction import run_preproduction
     return run_preproduction(config_path, run_path)
 

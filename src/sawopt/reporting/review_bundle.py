@@ -55,6 +55,23 @@ def _copy_file(source, destination):
     shutil.copy2(source, destination)
 
 
+def is_checkpoint_artifact(path):
+    """Return whether a run artifact is a checkpoint payload.
+
+    Review bundles keep summaries and source code, but omit potentially large
+    restart/progress payloads. The path-based rule covers both dedicated
+    ``checkpoints`` directories and files such as ``optimizer_checkpoint`` or
+    ``session_checkpoint`` without excluding source files from the repository
+    snapshot.
+    """
+    return any('checkpoint' in part.casefold() for part in Path(path).parts)
+
+
+def ignore_checkpoint_entries(_directory, names):
+    """``shutil.copytree`` ignore callback for checkpoint payloads."""
+    return [name for name in names if is_checkpoint_artifact(name)]
+
+
 def _repository_root(module_path=None):
     """Resolve both the checkout layout and an extracted bundle layout."""
     module_path = Path(module_path or __file__).resolve()
@@ -100,7 +117,6 @@ def _required_run_artifacts(run, summary):
             'boundary_events.csv', 'design_space_versions.json',
             'stagnation_events.csv', 'parallel_benchmark.json',
             'benchmark_decision.json', 'environment/local_runtime.json',
-            'checkpoints/checkpoint_summary.json',
             'smoke/smoke_test.json',
         ])
     missing = [name for name in names if not (run / name).is_file()]
@@ -359,7 +375,6 @@ def create_review_bundle(run, output, *, include_history=False, include_npz=Fals
             copy_required(run / 'benchmark_decision.json', 'benchmark/benchmark_decision.json')
             copy_required(run / 'environment/local_runtime.json', 'environment/local_runtime.json')
             copy_required(run / 'smoke/smoke_test.json', 'results/smoke_test.json')
-            copy_required(run / 'checkpoints/checkpoint_summary.json', 'checkpoints/checkpoint_summary.json')
         for relative in trial_files:
             copy_required(run / relative, Path('trials') / Path(relative).name)
         copy_required(test_log, 'tests/unittest.txt' if stage32 else 'tests/pytest.txt')
@@ -419,10 +434,14 @@ def create_review_bundle(run, output, *, include_history=False, include_npz=Fals
 
         if include_history:
             for source in sorted(run.rglob('*.jsonl')):
+                if is_checkpoint_artifact(source.relative_to(run)):
+                    continue
                 destination = staging / 'optional/history' / source.relative_to(run)
                 _copy_file(source, destination)
         if include_npz:
             for source in sorted(run.rglob('*.npz')):
+                if is_checkpoint_artifact(source.relative_to(run)):
+                    continue
                 destination = staging / 'optional/responses' / source.relative_to(run)
                 _copy_file(source, destination)
 

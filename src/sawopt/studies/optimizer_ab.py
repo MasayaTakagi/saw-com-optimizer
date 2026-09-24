@@ -42,7 +42,7 @@ from ..optimizers.selection import DEFAULT_COMPARATOR, rank, time_to_target
 from ..problem.evaluator import dense, evaluate_design
 from ..optimization.adaptive_frequency import critical_frequencies, new_frequency_points
 from ..optimization.runner import optimize_one
-from ..reporting.review_bundle import _default_review_bundle_output
+from ..reporting.review_bundle import _default_review_bundle_output, is_checkpoint_artifact
 from .convergence_evidence import apply_checkpoint_evidence
 
 _cold_seeds = cold_seeds
@@ -1156,12 +1156,11 @@ def create_stage33_review_bundle(run):
                 shutil.copy2(source, destination)
         shutil.copy2(repo / "pyproject.toml", staging / "source" / "pyproject.toml")
         for source in sorted(run.rglob("*")):
-            if not source.is_file() or source.name == output.name:
+            if (not source.is_file() or source.name == output.name
+                    or is_checkpoint_artifact(source.relative_to(run))):
                 continue
             relative = source.relative_to(run)
             if relative.parts and relative.parts[0] == "trials":
-                if source.name == "optimizer_checkpoint.json":
-                    continue
                 destination = staging / "trials" / Path(*relative.parts[1:])
             elif source.suffix.lower() in {".json", ".csv", ".html"}:
                 destination = staging / "results" / relative

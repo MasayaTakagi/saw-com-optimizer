@@ -34,6 +34,7 @@ from ..optimizers.lshade import LShadeBackend
 from ..optimizers.selection import DEFAULT_COMPARATOR, rank
 from ..optimization.adaptive_frequency import critical_frequencies, new_frequency_points
 from ..runtime.parallel import single_blas_thread_environment
+from ..reporting.review_bundle import is_checkpoint_artifact
 from .convergence import normalize_convergence_config
 from .optimizer_ab import lshade_record
 from .stage3_6_gate2a import (
@@ -1176,7 +1177,7 @@ def _build_review_bundle(run: Path, summary: Mapping[str, Any], plot_paths: list
     output = bundle_root / FINAL_BUNDLE_NAME
     with ZipFile(output, "w", compression=ZIP_DEFLATED) as archive:
         for path in sorted(staging.rglob("*")):
-            if path.is_file():
+            if path.is_file() and not is_checkpoint_artifact(path.relative_to(staging)):
                 archive.write(path, path.relative_to(staging).as_posix())
     return output
 
@@ -1187,12 +1188,13 @@ def _build_audit_bundle(run: Path) -> Path:
     staging = run / "_gate2c_audit_bundle"
     staging.mkdir(parents=True, exist_ok=True)
     for source in sorted(run.glob("*")):
-        if source.is_file() and source.name != "stdout.log":
+        if (source.is_file() and source.name != "stdout.log"
+                and not is_checkpoint_artifact(source.name)):
             shutil.copy2(source, staging / source.name)
     output = bundle_root / "stage3_6_gate2c_dof_audit_review.zip"
     with ZipFile(output, "w", compression=ZIP_DEFLATED) as archive:
         for path in sorted(staging.rglob("*")):
-            if path.is_file():
+            if path.is_file() and not is_checkpoint_artifact(path.relative_to(staging)):
                 archive.write(path, path.relative_to(staging).as_posix())
     return output
 

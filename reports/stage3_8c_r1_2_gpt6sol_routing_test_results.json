@@ -1,0 +1,22 @@
+{
+  "requested_model": "gpt-6-sol",
+  "requested_model_alias": "gpt6sol",
+  "request_accepted": true,
+  "judgment_received": true,
+  "resolved_model": null,
+  "resolved_model_status": "NOT_VERIFIED_RUNTIME_DOES_NOT_EXPOSE_IDENTITY",
+  "silent_fallback_in_repository": false,
+  "external_fallback_behavior": "NOT_VERIFIED",
+  "review_scope": "initializer proposal law and pilot gates; judgment only",
+  "decision": "APPROVE_R1_COMPATIBLE_INDEPENDENT_REAL_UNIFORM_PROPOSAL_THEN_CANONICALIZE_AND_REJECT",
+  "policy_regression_test": "tests/unit/test_sol_review_routing_policy.py",
+  "policy_regression_test_status": "PASS",
+  "targeted_test_command": ".venv\\Scripts\\python.exe -m pytest -p no:cacheprovider tests\\unit\\studies\\test_stage3_8c_r1_geometry_gate.py tests\\unit\\test_sol_review_routing_policy.py -q",
+  "targeted_test_status": "PASS",
+  "targeted_test_count": 19,
+  "full_suite_command": ".venv\\Scripts\\python.exe -m pytest -p no:cacheprovider -q",
+  "full_suite_status": "PASS",
+  "full_suite_test_count": 232,
+  "full_suite_subtest_count": 14,
+  "full_suite_runtime_seconds": 98.07
+}

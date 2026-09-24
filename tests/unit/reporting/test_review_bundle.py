@@ -6,11 +6,20 @@ from zipfile import ZipFile
 
 from sawopt.reporting.review_bundle import (
     BundleValidationError, _default_review_bundle_output, _source_hash,
-    create_review_bundle,
+    create_review_bundle, ignore_checkpoint_entries, is_checkpoint_artifact,
 )
 
 
 class ReviewBundle(unittest.TestCase):
+    def test_checkpoint_artifacts_are_filtered(self):
+        self.assertTrue(is_checkpoint_artifact('checkpoints/seed1.json'))
+        self.assertTrue(is_checkpoint_artifact('session_checkpoint.json'))
+        self.assertFalse(is_checkpoint_artifact('results/convergence_summary.json'))
+        self.assertEqual(
+            ignore_checkpoint_entries('.', ['checkpoints', 'results', 'optimizer_checkpoint.json']),
+            ['checkpoints', 'optimizer_checkpoint.json'],
+        )
+
     def test_default_output_is_repository_artifacts_review_bundles(self):
         with tempfile.TemporaryDirectory() as temp:
             repo = Path(temp) / 'saw-com-optimizer'
@@ -66,6 +75,8 @@ class ReviewBundle(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             run = self._make_run(Path(temp) / 'run')
             (run / 'history.jsonl').write_text('{}\n', encoding='utf-8')
+            (run / 'checkpoints').mkdir()
+            (run / 'checkpoints' / 'checkpoint_history.jsonl').write_text('{}\n', encoding='utf-8')
             (run / 'response.npz').write_bytes(b'npz')
             output = Path(temp) / 'review.zip'
             create_review_bundle(run, output, include_history=True, include_npz=True)
@@ -74,6 +85,7 @@ class ReviewBundle(unittest.TestCase):
                 self.assertTrue(manifest['included_history'])
                 self.assertTrue(manifest['included_npz'])
                 self.assertTrue(any(item['path'] == 'REVIEW_ME.md' for item in manifest['files']))
+                self.assertFalse(any('checkpoint' in name.casefold() for name in archive.namelist()))
                 for item in manifest['files']:
                     self.assertEqual(len(archive.read(item['path'])), item['bytes'])
 

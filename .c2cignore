@@ -1,0 +1,27 @@
+# Python cache
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Large/generated temporary files
+tmp/
+cache/
+
+# Review archives / binary bundles
+runs/**/*.zip
+**/*.zip
+
+# Potentially large raw optimizer outputs
+runs/**/raw/
+
+# Local/private material
+private/
+secrets/
+credentials/
+
+# Licensed or redistribution-restricted references
+references/licensed/

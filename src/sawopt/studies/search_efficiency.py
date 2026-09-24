@@ -29,7 +29,7 @@ from ..io.serialization import save
 from ..optimization.convergence_policy import convergence_status, thresholds
 from ..optimizers.selection import rank
 from ..problem.evaluator import dense
-from ..reporting.review_bundle import _source_hash
+from ..reporting.review_bundle import _source_hash, is_checkpoint_artifact
 from .convergence import normalize_convergence_config
 from .continuation import (
     ContinuationTrajectory,
@@ -662,7 +662,8 @@ def _write_review_bundle(run: Path, *, phase: str, summary: Mapping[str, Any]) -
     (staging / "results").mkdir()
     (staging / "environment").mkdir()
     for path in run.rglob("*"):
-        if not path.is_file() or "_review_bundle" in path.parts:
+        if (not path.is_file() or "_review_bundle" in path.parts
+                or is_checkpoint_artifact(path.relative_to(run))):
             continue
         relative = path.relative_to(run)
         destination = staging / "results" / relative

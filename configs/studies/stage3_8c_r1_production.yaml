@@ -1,0 +1,191 @@
+base_config: ../base/b28_dms_baseline.yaml
+study:
+  type: stage3_8c_r1_geometry_gate
+stage3_8:
+  budget: 8000
+  checkpoints:
+  - 2000
+  - 4000
+  - 6000
+  - 8000
+  seeds:
+  - 20260917
+  - 20260918
+  impedance_ohm: 50.0
+  t1_reflector_electrodes: 40
+  t2_initial_main_offset_fraction: 0.01
+  common_validation_grid_metadata: runs/stage3_7b_r2_stage3_7c_literature_com_b28_fast_screen_final_retry3/metadata/validation_grid.json
+  materials:
+    M0:
+      profile_id: M0
+      com_file: configs/models/com_params_hypothetical.yaml
+      aperture_bounds_um:
+      - 30.0
+      - 150.0
+    MLIT:
+      profile_id: LI2024_42YX_LT_METAL_UNSPECIFIED_T25
+      profile_file: configs/models/stage3_7b_r1_normalized_literature_profile.yaml
+      aperture_bounds_um:
+      - 30.0
+      - 180.0
+  initial_designs:
+    M0: runs/stage3_7b_r2_stage3_7c_literature_com_b28_fast_screen_final_retry3/metadata/stage3_6_reference_design.json
+    MLIT: runs/stage3_7b_r2_stage3_7c_literature_com_b28_fast_screen_final_retry3/optimization/LI2024_42YX_LT_METAL_UNSPECIFIED_T25/seed20260917/B8000.json
+  topologies:
+    T0_CURRENT_3IDT:
+      dimension: 9
+      integer_indices:
+      - 1
+      - 2
+      - 3
+      bounds:
+        active:
+        - - 4.6
+          - 5.4
+        - - 8
+          - 100
+        - - 5
+          - 24
+        - - 40
+          - 160
+        - - 0.0
+          - 3.0
+        - - 0.0
+          - 3.0
+        - - 30.0
+          - 150.0
+        - - 4.6
+          - 5.4
+        - - 4.6
+          - 5.4
+        hard:
+        - - 4.6
+          - 5.4
+        - - 8
+          - 120
+        - - 5
+          - 100
+        - - 40
+          - 160
+        - - 0.0
+          - 3.0
+        - - 0.0
+          - 3.0
+        - - 30.0
+          - 180.0
+        - - 4.6
+          - 5.4
+        - - 4.6
+          - 5.4
+    T1_SYMMETRIC_5IDT:
+      dimension: 10
+      integer_indices:
+      - 4
+      - 5
+      - 6
+      bounds:
+        active:
+        - - 4.6
+          - 5.4
+        - - 4.6
+          - 5.4
+        - - 4.6
+          - 5.4
+        - - 4.6
+          - 5.4
+        - - 4
+          - 24
+        - - 4
+          - 24
+        - - 5
+          - 24
+        - - 0.0
+          - 3.0
+        - - 0.0
+          - 3.0
+        - - 30.0
+          - 150.0
+        hard:
+        - - 4.6
+          - 5.4
+        - - 4.6
+          - 5.4
+        - - 4.6
+          - 5.4
+        - - 4.6
+          - 5.4
+        - - 4
+          - 24
+        - - 4
+          - 24
+        - - 5
+          - 24
+        - - 0.0
+          - 3.0
+        - - 0.0
+          - 3.0
+        - - 30.0
+          - 180.0
+    T2_PARALLEL_3IDT_X2:
+      dimension: 10
+      integer_indices:
+      - 2
+      - 3
+      - 4
+      bounds:
+        active:
+        - - 4.6
+          - 5.4
+        - - 4.6
+          - 5.4
+        - - 8
+          - 100
+        - - 5
+          - 24
+        - - 40
+          - 160
+        - - 0.0
+          - 3.0
+        - - 0.0
+          - 3.0
+        - - 0.92
+          - 1.08
+        - - 0.9
+          - 1.1
+        - - 30.0
+          - 150.0
+        hard:
+        - - 4.6
+          - 5.4
+        - - 4.6
+          - 5.4
+        - - 8
+          - 120
+        - - 5
+          - 100
+        - - 40
+          - 160
+        - - 0.0
+          - 3.0
+        - - 0.0
+          - 3.0
+        - - 0.92
+          - 1.08
+        - - 0.9
+          - 1.1
+        - - 30.0
+          - 180.0
+stage3_8c_r1:
+  max_initial_population_attempts: 10000
+  common_grid_finalists: 16
+  mode: production
+  budget: 8000
+  checkpoints:
+  - 2000
+  - 4000
+  - 6000
+  - 8000
+  seeds:
+  - 20260917
+  - 20260918
+  pilot_run_dir: runs/stage3_8c_r1_pilot_20260923_retry1

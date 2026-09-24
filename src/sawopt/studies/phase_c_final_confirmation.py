@@ -29,7 +29,7 @@ from ..optimization.convergence_policy import thresholds
 from ..optimization.polish import mixed_variable_polish
 from ..optimizers.selection import rank
 from ..problem.evaluator import dense
-from ..reporting.review_bundle import _source_hash
+from ..reporting.review_bundle import _source_hash, is_checkpoint_artifact
 from .convergence import normalize_convergence_config
 from .convergence_evidence import apply_checkpoint_evidence
 from .continuation import run_stage32
@@ -472,7 +472,7 @@ def _write_bundle(run: Path, summary: Mapping[str, Any]) -> Path:
         if source.is_file():
             shutil.copy2(source, staging / "plots" / source.name)
     for source in (run / "diagnostics").rglob("*"):
-        if source.is_file() and source.name != "optimizer_checkpoint.json":
+        if source.is_file() and not is_checkpoint_artifact(source.relative_to(run / "diagnostics")):
             destination = staging / "diagnostics" / source.relative_to(run / "diagnostics")
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, destination)
@@ -489,7 +489,6 @@ def _write_bundle(run: Path, summary: Mapping[str, Any]) -> Path:
     )
     shutil.copy2(run / "REVIEW_ME.md", staging / "REVIEW_ME.md")
     shutil.copy2(run / "status.json", staging / "status.json")
-    shutil.copy2(run / "session_checkpoint.json", staging / "session_checkpoint.json")
     shutil.copy2(run / "PHASE_C_FINAL_CONFIRMATION_COMPLETE_WAITING_FOR_REVIEW.txt",
                  staging / "PHASE_C_FINAL_CONFIRMATION_COMPLETE_WAITING_FOR_REVIEW.txt")
     files = []

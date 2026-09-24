@@ -26,6 +26,7 @@ import numpy as np
 from ..io.config import load_experiment_config
 from ..io.run_store import initialize
 from ..io.serialization import save
+from ..reporting.review_bundle import ignore_checkpoint_entries
 from .convergence import normalize_convergence_config
 from .stage3_6_gate2a import (
     BASELINE_GROUP,
@@ -547,7 +548,8 @@ def _build_bundle(run: Path, summary: Mapping[str, Any], final_config: Path, pre
     for rel in ("results", "plots", "tests", "provenance", "references", "trajectories", "groups", "optional_g1_g2_64k"):
         source = run / rel
         if source.exists():
-            shutil.copytree(source, staging / rel, dirs_exist_ok=True)
+            shutil.copytree(source, staging / rel, dirs_exist_ok=True,
+                            ignore=ignore_checkpoint_entries)
     (staging / "configs").mkdir(parents=True, exist_ok=True)
     shutil.copy2(final_config, staging / "configs" / final_config.name)
     original = previous / "input_config.yaml"

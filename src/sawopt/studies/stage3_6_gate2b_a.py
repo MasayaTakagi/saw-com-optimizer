@@ -35,6 +35,7 @@ from ..optimizers.lshade import LShadeBackend
 from ..optimizers.selection import DEFAULT_COMPARATOR, rank
 from ..optimization.adaptive_frequency import critical_frequencies, new_frequency_points
 from ..runtime.parallel import single_blas_thread_environment
+from ..reporting.review_bundle import ignore_checkpoint_entries
 from .convergence import normalize_convergence_config
 from .optimizer_ab import lshade_record
 from .stage3_6_gate2a import (
@@ -773,7 +774,8 @@ def build_review_bundle(run: Path, cfg: Mapping[str, Any], s1: Mapping[str, Any]
     for relative in ("results", "plots", "conditions"):
         source = run / relative
         if source.exists():
-            shutil.copytree(source, staging / relative, dirs_exist_ok=True)
+            shutil.copytree(source, staging / relative, dirs_exist_ok=True,
+                            ignore=ignore_checkpoint_entries)
     _write_text(staging / "stage3_6_gate2b_a_summary.md", _summary_markdown(summary, aggregates, interaction_assessment))
     _write_text(staging / "test_summary.md", "# Test summary\n\nThe mandatory Zin/Zout preflight passed. See `preflight_termination.json`. Repository tests were run before production launch and their command/result are recorded in `reproduction_metadata.json`.\n")
     _write_text(staging / "git_status.txt", _git(["status", "--short"]))

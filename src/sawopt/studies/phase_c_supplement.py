@@ -433,7 +433,7 @@ def _write_review_bundle(run: Path, summary: Mapping[str, Any]) -> Path:
     if staging.exists():
         shutil.rmtree(staging)
     staging.mkdir(parents=True)
-    for directory in ("config", "results", "plots", "checkpoints", "tests", "environment"):
+    for directory in ("config", "results", "plots", "tests", "environment"):
         (staging / directory).mkdir()
     config_source = run / "config" / "stage3_5_phase_c_supplement.yaml"
     if config_source.is_file():
@@ -448,10 +448,6 @@ def _write_review_bundle(run: Path, summary: Mapping[str, Any]) -> Path:
     for source in (run / "plots").glob("*"):
         if source.is_file():
             shutil.copy2(source, staging / "plots" / source.name)
-    for source in (run / "production" / "C64_S0_LSHADE" / "trials").rglob("B*.json"):
-        destination = staging / "checkpoints" / source.relative_to(run / "production" / "C64_S0_LSHADE" / "trials")
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, destination)
     for source in (run / "tests").glob("*"):
         if source.is_file():
             shutil.copy2(source, staging / "tests" / source.name)

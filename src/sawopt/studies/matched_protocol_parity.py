@@ -26,7 +26,7 @@ from ..io.config import load_experiment_config
 from ..io.serialization import save
 from ..optimizers.selection import rank
 from ..problem.evaluator import dense
-from ..reporting.review_bundle import _source_hash
+from ..reporting.review_bundle import _source_hash, is_checkpoint_artifact
 from .convergence import normalize_convergence_config
 from .optimizer_ab import lshade_trajectory_worker, run_workers
 from .search_efficiency import arm_config, bounds_for_strategy, clean
@@ -455,7 +455,8 @@ def _write_bundle(run: Path) -> Path:
     output.parent.mkdir(parents=True, exist_ok=True)
     with ZipFile(output, "w", compression=ZIP_DEFLATED) as bundle:
         for path in sorted(run.rglob("*")):
-            if not path.is_file() or path.name == "optimizer_checkpoint.json" or "__pycache__" in path.parts:
+            if (not path.is_file() or is_checkpoint_artifact(path.relative_to(run))
+                    or "__pycache__" in path.parts):
                 continue
             bundle.write(path, path.relative_to(run).as_posix())
     return output

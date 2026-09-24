@@ -38,6 +38,7 @@ from ..optimizers.selection import DEFAULT_COMPARATOR, rank
 from ..optimization.adaptive_frequency import critical_frequencies, new_frequency_points
 from ..optimization.cache import IncrementalFrequencyCache
 from ..runtime.parallel import single_blas_thread_environment
+from ..reporting.review_bundle import ignore_checkpoint_entries
 from .convergence import normalize_convergence_config
 from .convergence_evidence import apply_checkpoint_evidence
 from .optimizer_ab import lshade_record
@@ -1027,8 +1028,9 @@ def build_review_bundle(run, cfg, s1, summary, rows, grid):
     for relative in ("results", "plots", "groups"):
         source = run / relative
         if source.exists():
-            shutil.copytree(source, staging / relative, dirs_exist_ok=True)
-    for source_name in ("screening_checkpoint_data.csv", "promotion_decision.json", "interaction_selection.json", "reused_baseline_manifest.json", "stage3_6_gate2a_manifest.json"):
+            shutil.copytree(source, staging / relative, dirs_exist_ok=True,
+                            ignore=ignore_checkpoint_entries)
+    for source_name in ("promotion_decision.json", "interaction_selection.json", "reused_baseline_manifest.json", "stage3_6_gate2a_manifest.json"):
         source = run / source_name
         if source.exists():
             shutil.copy2(source, staging / source_name)
