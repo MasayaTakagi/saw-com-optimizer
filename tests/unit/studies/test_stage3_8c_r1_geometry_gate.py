@@ -15,6 +15,15 @@ from sawopt.optimizers.selection import DEFAULT_COMPARATOR, GeometryFirstCompara
 from sawopt.studies import stage3_8c_r1_geometry_gate as r1
 
 
+def _load_r1_config(path):
+    cfg = load_experiment_config(path)
+    cfg["stage3_8"]["initial_designs"] = {
+        "M0": "tests/fixtures/stage3_8/m0_initial_design.json",
+        "MLIT": "tests/fixtures/stage3_8/mlit_initial_design.json",
+    }
+    return cfg
+
+
 def test_search_primitives_have_canonical_owners():
     assert r1.GeometryFirstComparator is GeometryFirstComparator
     assert r1.EvaluationCounters is GeometryGateCounters
@@ -187,7 +196,7 @@ def test_pilot_gate_keeps_legacy_threshold_and_applies_r11_threshold():
 
 
 def test_nonfinite_filter_metrics_are_reclassified_as_physics_failure(monkeypatch):
-    cfg = load_experiment_config("configs/studies/stage3_8c_r1_pilot.yaml")
+    cfg = _load_r1_config("configs/studies/stage3_8c_r1_pilot.yaml")
     design = r1.initial_design("M0", r1.T0, cfg)
     monkeypatch.setattr(
         r1,
@@ -237,7 +246,7 @@ def test_comparator_improvement_is_finite_and_positive_for_gate_transition():
 
 
 def test_population_sampling_is_deterministic_and_geometry_valid():
-    cfg = load_experiment_config("configs/studies/stage3_8c_r1_1_pilot.yaml")
+    cfg = _load_r1_config("configs/studies/stage3_8c_r1_1_pilot.yaml")
     for material in r1.MATERIALS:
         for topology in r1.TOPOLOGIES:
             active, hard, integer_indices = r1.material_bounds(cfg, material, topology)
@@ -317,7 +326,7 @@ def test_population_sampling_is_deterministic_and_geometry_valid():
 
 
 def test_r1_2_rejection_sampler_replays_and_matches_monte_carlo_reference():
-    cfg = load_experiment_config("configs/studies/stage3_8c_r1_2_pilot.yaml")
+    cfg = _load_r1_config("configs/studies/stage3_8c_r1_2_pilot.yaml")
     for material in r1.MATERIALS:
         for topology in r1.TOPOLOGIES:
             active, hard, integer_indices = r1.material_bounds(cfg, material, topology)
@@ -372,7 +381,7 @@ def test_r1_2_rejection_sampler_replays_and_matches_monte_carlo_reference():
 
 
 def test_r1_2_population_sampler_matches_pre_refactor_seeded_arrays():
-    cfg = load_experiment_config("configs/studies/stage3_8c_r1_2_pilot.yaml")
+    cfg = _load_r1_config("configs/studies/stage3_8c_r1_2_pilot.yaml")
     expected = {
         ("M0", r1.T0): ("6da57efa1c1f29db40365c0bd9d8f1c3fcef8419d1a857504a7025135120cc60", 44, 37),
         ("M0", r1.T1): ("a2838a5f0171c79cf15f868cd2e6f56fd1863f18da985ab7e9c36e667a587d36", 7, 0),
@@ -410,11 +419,11 @@ def test_r1_2_integer_canonicalization_preserves_half_mass_endpoint_law():
 
 
 def test_r1_2_distribution_regression_detects_r1_1_conditional_order_bias():
-    cfg = load_experiment_config("configs/studies/stage3_8c_r1_2_pilot.yaml")
+    cfg = _load_r1_config("configs/studies/stage3_8c_r1_2_pilot.yaml")
     material, topology = "M0", r1.T2
     active, hard, integer_indices = r1.material_bounds(cfg, material, topology)
     size = r1._population_size(cfg, topology, 256, hard)
-    conditional_cfg = load_experiment_config("configs/studies/stage3_8c_r1_1_pilot.yaml")
+    conditional_cfg = _load_r1_config("configs/studies/stage3_8c_r1_1_pilot.yaml")
     conditional, _stats = r1.sample_geometry_valid_population(
         conditional_cfg, material, topology, seed=20260917,
         population_size=size, max_attempts=10000,
@@ -434,7 +443,7 @@ def test_r1_2_distribution_regression_detects_r1_1_conditional_order_bias():
 
 
 def test_r1_2_rejects_invalid_proposal_without_repair(monkeypatch):
-    cfg = load_experiment_config("configs/studies/stage3_8c_r1_2_pilot.yaml")
+    cfg = _load_r1_config("configs/studies/stage3_8c_r1_2_pilot.yaml")
     active, _hard, integer_indices = r1.material_bounds(cfg, "M0", r1.T0)
     fixed = r1._design_vector(r1.initial_design("M0", r1.T0, cfg), r1.T0)
     invalid = np.asarray([5.0, 100, 24, 160, 1.0, 1.0, 100.0, 5.0, 5.0])
@@ -463,7 +472,7 @@ def test_r1_2_rejects_invalid_proposal_without_repair(monkeypatch):
 
 
 def test_r1_2_attempt_cap_fails_explicitly_with_accounting():
-    cfg = load_experiment_config("configs/studies/stage3_8c_r1_2_pilot.yaml")
+    cfg = _load_r1_config("configs/studies/stage3_8c_r1_2_pilot.yaml")
     with np.testing.assert_raises(r1.InitializerExhausted) as caught:
         r1.sample_independent_uniform_population(
             cfg, "M0", r1.T0, seed=20260917, population_size=2,
@@ -484,7 +493,7 @@ def test_r1_2_final_confirmation_and_production_candidate_fingerprints_match():
 
 
 def test_r1_2_final_confirmation_skips_repeated_distribution_reference():
-    cfg = load_experiment_config("configs/studies/stage3_8c_r1_2_final_confirmation.yaml")
+    cfg = _load_r1_config("configs/studies/stage3_8c_r1_2_final_confirmation.yaml")
     population, sampling, row = r1._population_preflight(
         cfg, "M0", r1.T2, 20260917, 256, 10000,
     )
@@ -497,7 +506,7 @@ def test_r1_2_final_confirmation_skips_repeated_distribution_reference():
 
 def test_r1_2_production_gate_requires_matching_final_confirmation(tmp_path):
     config_path = Path("configs/studies/stage3_8c_r1_2_production.yaml")
-    cfg = load_experiment_config(config_path)
+    cfg = _load_r1_config(config_path)
     confirmation_dir = tmp_path / "confirmation"
     confirmation_dir.mkdir()
     cfg["stage3_8c_r1"]["pilot_run_dir"] = str(confirmation_dir)
@@ -525,7 +534,7 @@ def test_r1_2_production_gate_requires_matching_final_confirmation(tmp_path):
 
 
 def test_conditional_integer_feasible_sets_include_geometry_limit_edges():
-    cfg = load_experiment_config("configs/studies/stage3_8c_r1_1_pilot.yaml")
+    cfg = _load_r1_config("configs/studies/stage3_8c_r1_1_pilot.yaml")
     cases = (
         # T0: R + 2I + C = 150 at 5 um gives exactly 750 um total length.
         ("M0", r1.T0, np.asarray([5.0, 43, 24, 40, 0.0, 0.0, 80.0, 5.0, 5.0]),

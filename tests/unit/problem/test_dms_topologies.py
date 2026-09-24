@@ -10,6 +10,15 @@ from sawopt.problem import dms_topologies as canonical
 from sawopt.studies import stage3_8_dual_material_dms_topology_fast_screen as legacy
 
 
+def _load_config_with_initial_design_fixtures(path):
+    cfg = load_experiment_config(path)
+    cfg["stage3_8"]["initial_designs"] = {
+        "M0": "tests/fixtures/stage3_8/m0_initial_design.json",
+        "MLIT": "tests/fixtures/stage3_8/mlit_initial_design.json",
+    }
+    return cfg
+
+
 class DmsTopologyParity(unittest.TestCase):
     def test_stage38_exports_are_compatibility_reexports(self):
         self.assertIs(legacy.FiveIdtDesign, canonical.FiveIdtDesign)
@@ -19,7 +28,7 @@ class DmsTopologyParity(unittest.TestCase):
         self.assertIs(legacy.decode_t2, canonical.decode_t2)
 
     def test_saved_fixed_design_response_matches_pre_move_reference(self):
-        cfg = load_experiment_config("configs/studies/stage3_8c_r1_2_pilot.yaml")
+        cfg = _load_config_with_initial_design_fixtures("configs/studies/stage3_8c_r1_2_pilot.yaml")
         frequencies = search_grid(cfg["spec"], cfg)
         provider, _metadata = legacy._provider("MLIT", cfg)
         reference = {
