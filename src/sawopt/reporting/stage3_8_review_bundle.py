@@ -8,30 +8,19 @@ metrics instead of inferring them from geometry-only objective values.
 from __future__ import annotations
 
 import csv
-import hashlib
 import json
 import shutil
 import subprocess
 import tempfile
 from collections import defaultdict
-from datetime import datetime, timezone
 from pathlib import Path
 from statistics import median
-from zipfile import ZIP_DEFLATED, ZipFile
 
-from .review_bundle import is_checkpoint_artifact
+from .review_bundle import is_checkpoint_artifact, write_review_bundle_archive
 
 
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_BUNDLE_NAME = "stage3_8_dual_material_dms_topology_fast_screen_review.zip"
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _read_json(path: Path):
@@ -482,36 +471,18 @@ def create_stage3_8_review_bundle(run: Path, output: Path | None = None) -> Path
             encoding="utf-8",
         )
 
-        files = []
-        for path in sorted(item for item in staging.rglob("*") if item.is_file() and item.name != "bundle_manifest.json"):
-            files.append({"path": path.relative_to(staging).as_posix(), "sha256": _sha256(path), "bytes": path.stat().st_size})
-        manifest = {
-            "bundle_format_version": 1,
-            "created_at_utc": datetime.now(timezone.utc).isoformat(),
-            "study": "stage3_8_dual_material_dms_topology_fast_screen",
-            "run_directory": str(run),
-            "optimizer_completed": True,
-            "callback_completed": bool(status.get("callback_completed")),
-            "files": files,
-        }
-        _write_json(staging / "bundle_manifest.json", manifest)
-        output.parent.mkdir(parents=True, exist_ok=True)
-        with ZipFile(output, "w", compression=ZIP_DEFLATED) as archive:
-            for path in sorted(staging.rglob("*")):
-                if path.is_file():
-                    archive.write(path, path.relative_to(staging).as_posix())
-
-    with ZipFile(output) as archive:
-        names = set(archive.namelist())
-        manifest = json.loads(archive.read("bundle_manifest.json").decode("utf-8"))
-        listed = {item["path"] for item in manifest["files"]}
-        if listed != names - {"bundle_manifest.json"}:
-            raise ValueError("Bundle manifest does not cover exactly the archive contents")
-        for item in manifest["files"]:
-            data = archive.read(item["path"])
-            if hashlib.sha256(data).hexdigest() != item["sha256"]:
-                raise ValueError(f"Bundle hash mismatch: {item['path']}")
-    return output
+        return write_review_bundle_archive(
+            staging,
+            output,
+            study_type="stage3_8_dual_material_dms_topology_fast_screen",
+            run_directory=run,
+            required_artifacts=("REVIEW_ME.md", "stage3_8_all_seed_results.csv"),
+            metadata={
+                "optimizer_completed": True,
+                "callback_completed": bool(status.get("callback_completed")),
+            },
+            repository_root=ROOT,
+        )
 
 
 __all__ = ["create_stage3_8_review_bundle"]

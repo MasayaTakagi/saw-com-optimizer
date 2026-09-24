@@ -1,0 +1,16 @@
+{
+  "design": {
+    "aperture_um": 103.91004463340342,
+    "center_aperture_um": null,
+    "center_idt_pairs": 15,
+    "center_wavelength_um": 4.966077212916747,
+    "idt_gap_lambda": 0.49322538625140866,
+    "io_idt_pairs": 8,
+    "metallization_ratio": 0.5,
+    "reflector_electrodes": 40,
+    "reflector_gap_lambda": 0.06595535489640948,
+    "reflector_wavelength_um": 5.188194959719801,
+    "thickness_over_lambda": 0.04,
+    "wavelength_um": 5.049790850422639
+  }
+}

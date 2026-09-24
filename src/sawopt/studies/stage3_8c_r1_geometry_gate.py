@@ -13,7 +13,6 @@ import json
 import math
 import subprocess
 import time
-import zipfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -30,9 +29,17 @@ from ..core.models import FixedProvider
 from ..core.network import evaluate
 from ..io.config import load_experiment_config
 from ..io.serialization import save
+from ..optimization.accounting import validate_checkpoint_lattice
+from ..optimization.counters import GeometryGateCounters as EvaluationCounters
+from ..optimization.counters import evaluation_status as _status
+from ..optimization.population import (
+    independent_uniform_candidate as _independent_uniform_candidate_primitive,
+    sample_independent_uniform_population as _sample_independent_uniform_rejection_population,
+)
 from ..optimizers.lshade import LShadeBackend
-from ..optimizers.selection import DEFAULT_COMPARATOR
+from ..optimizers.selection import GeometryFirstComparator
 from ..reporting.material_metadata import material_profile_metadata
+from ..reporting.review_bundle import write_review_bundle_archive
 from .optimizer_ab import lshade_record
 from .stage3_8_dual_material_dms_topology_fast_screen import (
     MATERIALS,
@@ -85,61 +92,6 @@ def _finite(value: Any, default: float = math.inf) -> float:
     return number if math.isfinite(number) else float(default)
 
 
-def _status(record: Mapping[str, Any]) -> str:
-    return str(record.get("evaluation_status", "PHYSICS_FAILED"))
-
-
-def _geometry_values(record: Mapping[str, Any]) -> tuple[float, float]:
-    values = record.get("geometry_violations", {})
-    if isinstance(values, Mapping):
-        normalized = [_finite(value) for value in values.values()]
-    else:
-        normalized = []
-    normalized = [max(0.0, value) for value in normalized]
-    return max(normalized, default=0.0), sum(normalized)
-
-
-class GeometryFirstComparator:
-    """Study-local rank policy with a strict geometry-feasibility prefix."""
-
-    def rank_key(self, record: Mapping[str, Any]) -> tuple[float, ...]:
-        status = _status(record)
-        if status == "PHYSICS_EVALUATED":
-            # Keep the existing filter semantics exactly for successful records.
-            return (0.0, 0.0, *DEFAULT_COMPARATOR.rank_key(record))
-        if status == "PHYSICS_FAILED":
-            # Geometry is confirmed valid, but no filter result may be ranked.
-            return (0.0, 1.0, math.inf, math.inf, math.inf, math.inf, math.inf)
-        maximum, total = _geometry_values(record)
-        # Geometry violation orders rejected candidates. No filter fields occur here.
-        return (1.0, 0.0, maximum, total, 0.0, 0.0, 0.0)
-
-    def better(self, left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
-        return self.rank_key(left) < self.rank_key(right)
-
-    def compare(self, left: Mapping[str, Any], right: Mapping[str, Any]) -> int:
-        lk, rk = self.rank_key(left), self.rank_key(right)
-        return -1 if lk < rk else (1 if lk > rk else 0)
-
-    def improvement(self, old: Mapping[str, Any], new: Mapping[str, Any]) -> float:
-        """Return a finite positive SHADE weight whenever ``new`` is better."""
-        if not self.better(new, old):
-            return 0.0
-        old_key, new_key = self.rank_key(old), self.rank_key(new)
-        for old_value, new_value in zip(old_key, new_key):
-            if old_value == new_value:
-                continue
-            if math.isfinite(old_value) and math.isfinite(new_value):
-                delta = abs(old_value - new_value)
-                return max(delta, np.finfo(float).eps)
-            return 1.0
-        return float(np.finfo(float).eps)
-
-    def quality(self, record: Mapping[str, Any]) -> float:
-        key = self.rank_key(record)
-        return _finite(key[2], 1.0e12)
-
-
 R1_COMPARATOR = GeometryFirstComparator()
 
 
@@ -183,52 +135,6 @@ def _load_common_grid(cfg: Mapping[str, Any]) -> tuple[np.ndarray, str, str]:
     if grid_id != metadata["grid_id"]:
         raise ValueError(f"validation-grid identity mismatch: {grid_id} != {metadata['grid_id']}")
     return grid, grid_id, str(metadata_path)
-
-
-@dataclass
-class EvaluationCounters:
-    geometry_rejections: int = 0
-    geometry_valid_candidates: int = 0
-    physics_attempted_evaluations: int = 0
-    valid_physics_evaluations: int = 0
-    physics_failures: int = 0
-    search_frequency_points: int = 0
-    validation_evaluations: int = 0
-    validation_physics_failures: int = 0
-    validation_solved_frequency_points: int = 0
-    initial_sampling: dict[str, int] = field(default_factory=dict)
-
-    @property
-    def solved_frequency_points(self) -> int:
-        return self.search_frequency_points + self.validation_solved_frequency_points
-
-    def observe_search(self, record: Mapping[str, Any], frequency_count: int) -> None:
-        status = _status(record)
-        if status == "GEOMETRY_REJECTED":
-            self.geometry_rejections += 1
-        else:
-            self.geometry_valid_candidates += 1
-            self.physics_attempted_evaluations += 1
-            if status == "PHYSICS_EVALUATED":
-                self.valid_physics_evaluations += 1
-                self.search_frequency_points += int(frequency_count)
-            else:
-                self.physics_failures += 1
-
-    def restore_from_cache(self, records: Sequence[Mapping[str, Any]], frequency_count: int) -> None:
-        self.geometry_rejections = 0
-        self.geometry_valid_candidates = 0
-        self.physics_attempted_evaluations = 0
-        self.valid_physics_evaluations = 0
-        self.physics_failures = 0
-        self.search_frequency_points = 0
-        for record in records:
-            self.observe_search(record, frequency_count)
-
-    def restore_validation(self, snapshot: Mapping[str, Any]) -> None:
-        self.validation_evaluations = int(snapshot.get("validation_evaluations", 0))
-        self.validation_physics_failures = int(snapshot.get("validation_physics_failures", 0))
-        self.validation_solved_frequency_points = int(snapshot.get("validation_frequency_points", 0))
 
 
 def _clean(value: Any):
@@ -681,15 +587,9 @@ def _independent_uniform_candidate(
     integer_indices: Sequence[int],
 ) -> np.ndarray:
     """Make one R1-compatible independent real-uniform proposal and canonicalize it."""
-    proposal = low + rng.random(len(low)) * (high - low)
-    if np.any(proposal < low) or np.any(proposal >= high):
-        raise AssertionError("uniform proposal escaped its declared half-open interval")
-    candidate = _canonical_physical(proposal, np.column_stack((low, high)), integer_indices)
-    for index in range(len(low)):
-        expected = math.floor(float(proposal[index]) + 0.5) if index in integer_indices else proposal[index]
-        if candidate[index] != expected:
-            raise AssertionError("canonicalization clipped or repaired an in-bounds proposal")
-    return candidate
+    return _independent_uniform_candidate_primitive(
+        rng, low, high, integer_indices, _canonical_physical,
+    )
 
 
 def _geometry_population_metrics(
@@ -869,29 +769,28 @@ def sample_independent_uniform_population(
         f"{SEMANTICS_VERSION}/r1_2_independent_rejection/{seed}/{material}/{topology}/initial_population".encode()
     ).digest()[:8], "big") % (2**32)
     rng = np.random.default_rng(rng_seed)
-    physical_population = [fixed_canonical.copy()]
-    random_population: list[np.ndarray] = []
-    seen = {tuple(float(value) for value in fixed_canonical)}
-    draws = geometry_rejections = duplicate_rejections = 0
-    reasons = {name: 0 for name in GEOMETRY_CONSTRAINT_NAMES}
     started = time.perf_counter()
-    while len(physical_population) < population_size and draws < max_attempts:
-        draws += 1
-        candidate = _independent_uniform_candidate(rng, low, high, integer_indices)
-        dims, violations, maximum = _geometry_status(decode_design(candidate, topology, cfg), cfg)
-        if not math.isfinite(maximum) or maximum > 0.0:
-            geometry_rejections += 1
-            for name, value in violations.items():
-                if value > 0.0:
-                    reasons[name] += 1
-            continue
-        key = tuple(float(value) for value in candidate)
-        if key in seen:
-            duplicate_rejections += 1
-            continue
-        seen.add(key)
-        physical_population.append(candidate)
-        random_population.append(candidate)
+    (
+        physical_population,
+        random_population,
+        draws,
+        geometry_rejections,
+        duplicate_rejections,
+        reasons,
+    ) = _sample_independent_uniform_rejection_population(
+        rng=rng,
+        low=low,
+        high=high,
+        integer_indices=integer_indices,
+        first_candidate=fixed_canonical,
+        population_size=population_size,
+        max_attempts=max_attempts,
+        reason_names=GEOMETRY_CONSTRAINT_NAMES,
+        candidate_proposer=_independent_uniform_candidate,
+        geometry_check=lambda candidate: _geometry_status(
+            decode_design(candidate, topology, cfg), cfg,
+        ),
+    )
     generation_time = float(time.perf_counter() - started)
     accepted_random = len(random_population)
     base_stats: dict[str, Any] = {
@@ -914,7 +813,7 @@ def sample_independent_uniform_population(
         "initial_sampling_duplicate_rejections": int(duplicate_rejections),
         "initial_sampling_rejection_reason_counts": reasons,
         "random_initial_accepts": int(accepted_random),
-        "unique_population_count": len(seen),
+        "unique_population_count": len(physical_population),
         "population_generation_time_s": generation_time,
         "geometry_rejection_fraction_is_diagnostic_only": True,
     }
@@ -2238,114 +2137,11 @@ def _audit_counter_accounting_rows(
     rows: Sequence[Mapping[str, Any]], *, materials: Sequence[str],
     topologies: Sequence[str], seeds: Sequence[int], checkpoints: Sequence[int],
 ) -> dict[str, Any]:
-    """Validate the full run/checkpoint accounting lattice for production."""
-    axes = (tuple(map(str, materials)), tuple(map(str, topologies)),
-            tuple(map(int, seeds)), tuple(map(int, checkpoints)))
-    axes_unique = all(len(axis) == len(set(axis)) for axis in axes)
-    expected_keys = {
-        (material, topology, seed, checkpoint)
-        for material in axes[0]
-        for topology in axes[1]
-        for seed in axes[2]
-        for checkpoint in axes[3]
-    }
-    observed: list[tuple[str, str, int, int] | None] = []
-    invalid_rows: list[dict[str, Any]] = []
-    key_counts: dict[tuple[str, str, int, int], int] = {}
-    required_flags = (
-        "counter_identity_pass",
-        "physics_partition_pass",
-        "valid_physics_within_geometry_valid",
-        "physics_attempt_identity_pass",
+    """Compatibility wrapper for the shared checkpoint accounting validator."""
+    return validate_checkpoint_lattice(
+        rows, materials=materials, topologies=topologies,
+        seeds=seeds, checkpoints=checkpoints,
     )
-    for index, row in enumerate(rows):
-        try:
-            key = (
-                str(row["material"]), str(row["topology"]),
-                int(row["seed"]), int(row["checkpoint_budget"]),
-            )
-        except (KeyError, TypeError, ValueError):
-            observed.append(None)
-            invalid_rows.append({"row": index, "reason": "missing or invalid run/checkpoint key"})
-            continue
-        observed.append(key)
-        key_counts[key] = key_counts.get(key, 0) + 1
-        failures = [name for name in required_flags
-                    if not _record_flag_is_true(row.get(name))]
-        try:
-            unique = int(row["unique_decoded_evaluations"])
-            rejected = int(row["geometry_rejections"])
-            geometry_valid = int(row["geometry_valid_candidates"])
-            valid_physics = int(row["valid_physics_evaluations"])
-            physics_failures = int(row["physics_failures"])
-            physics_attempted = int(row["physics_attempted_evaluations"])
-            if unique != rejected + geometry_valid:
-                failures.append("counter identity values disagree")
-            if geometry_valid != valid_physics + physics_failures:
-                failures.append("physics partition values disagree")
-            if valid_physics > geometry_valid:
-                failures.append("valid physics exceeds geometry-valid candidates")
-            if physics_attempted != valid_physics + physics_failures:
-                failures.append("physics attempt identity values disagree")
-            if unique != key[3]:
-                failures.append("checkpoint budget differs from unique evaluation count")
-        except (KeyError, TypeError, ValueError):
-            failures.append("missing or invalid numeric counter value")
-        if failures:
-            invalid_rows.append({"row": index, "key": list(key), "failures": failures})
-
-    duplicate_keys = sorted((list(key) for key, count in key_counts.items() if count > 1))
-    unexpected_keys = sorted((list(key) for key in key_counts if key not in expected_keys))
-    present_keys = set(key_counts)
-    missing_keys = sorted((list(key) for key in expected_keys - present_keys))
-    expected_rows = len(expected_keys)
-    run_keys = {(material, topology, seed) for material, topology, seed, _ in expected_keys}
-    observed_run_checkpoint_counts = {
-        key: sum(1 for observed_key in observed
-                 if observed_key is not None and observed_key[:3] == key)
-        for key in run_keys
-    }
-    complete_runs = all(
-        observed_run_checkpoint_counts[key] == len(axes[3])
-        and all((key[0], key[1], key[2], checkpoint) in present_keys for checkpoint in axes[3])
-        for key in run_keys
-    )
-    final_checkpoint = max(axes[3]) if axes[3] else None
-    final_checkpoint_rows = sum(
-        key[3] == final_checkpoint and key_counts.get(key, 0) == 1
-        for key in expected_keys
-    ) if final_checkpoint is not None else 0
-    passed = (
-        axes_unique
-        and len(rows) == expected_rows
-        and len(observed) == len(rows)
-        and not missing_keys
-        and not duplicate_keys
-        and not unexpected_keys
-        and not invalid_rows
-        and complete_runs
-        and final_checkpoint_rows == len(run_keys)
-    )
-    return {
-        "passed": passed,
-        "expected_rows": expected_rows,
-        "actual_rows": len(rows),
-        "unique_rows": len(key_counts),
-        "expected_seed_runs": len(run_keys),
-        "seed_runs_with_complete_checkpoints": sum(
-            observed_run_checkpoint_counts[key] == len(axes[3])
-            and all((key[0], key[1], key[2], checkpoint) in present_keys for checkpoint in axes[3])
-            for key in run_keys
-        ),
-        "checkpoints_per_seed_run": len(axes[3]),
-        "checkpoint_budgets": list(axes[3]),
-        "final_checkpoint_budget": final_checkpoint,
-        "final_checkpoint_rows": final_checkpoint_rows,
-        "missing_keys": missing_keys,
-        "duplicate_keys": duplicate_keys,
-        "unexpected_keys": unexpected_keys,
-        "invalid_rows": invalid_rows,
-    }
 
 
 def _record_flag_is_true(value: Any) -> bool:
@@ -4404,21 +4200,20 @@ def _write_r1_review_bundle(
 
     run_source_path = out / "metadata" / "run_source_metadata.json"
     run_source = json.loads(run_source_path.read_text(encoding="utf-8")) if run_source_path.is_file() else {}
-    manifest = {
-        "schema_version": 1,
-        "mode": mode,
-        "run_directory": str(out),
-        "source_config_fingerprint": run_source.get("source_config_fingerprint"),
-        "gate": _clean(gate),
-        "files": {},
-    }
-    for path in sorted(bundle.rglob("*")):
-        if path.is_file() and path.name != "bundle_manifest.json":
-            manifest["files"][str(path.relative_to(bundle)).replace("\\", "/")] = _sha256(path)
-    _write_json(bundle / "bundle_manifest.json", manifest)
     zip_path = artifact_root / f"{bundle.name}.zip"
-    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for path in sorted(bundle.rglob("*")):
-            if path.is_file():
-                archive.write(path, path.relative_to(bundle.parent))
+    write_review_bundle_archive(
+        bundle,
+        zip_path,
+        study_type=STUDY_TYPE,
+        run_directory=out,
+        required_artifacts=("REVIEW_ME.md",),
+        metadata={
+            "schema_version": 1,
+            "mode": mode,
+            "source_config_fingerprint": run_source.get("source_config_fingerprint"),
+            "gate": _clean(gate),
+        },
+        archive_prefix=bundle.name,
+        repository_root=ROOT,
+    )
     return bundle

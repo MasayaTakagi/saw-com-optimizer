@@ -6,6 +6,8 @@ import numpy as np
 
 from .core.models import FilterDesign
 from .io.config import load_experiment_config
+from .io.checkpoints import complete_study_run
+from .io.legacy_lifecycle import legacy_process_disposition
 from .optimization.runner import run, initialize, dense, save
 from .reporting.report import report
 
@@ -151,10 +153,15 @@ def main():
     args = p.parse_args()
 
     if args.command == 'run-study':
-        print(json.dumps(_run_study(
+        result = _run_study(
             args.config, args.run, workers=args.workers, resume=args.resume,
             run_parallelism=args.run_parallelism_benchmark,
-        ), ensure_ascii=False, indent=2))
+        )
+        complete_study_run(
+            args.run, result,
+            disposition=legacy_process_disposition(args.run, return_code=0),
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
         return
 
     if args.command == 'report':
@@ -165,14 +172,23 @@ def main():
         from .studies.convergence import _load_config
         from .studies.optimizer_ab import run_stage33
         cfg = _load_config(args.config)
-        print(json.dumps(run_stage33(args.run, cfg, resume=args.resume, workers=args.workers,
-                                     run_parallelism=args.run_parallelism_benchmark),
-                         ensure_ascii=False, indent=2))
+        result = run_stage33(args.run, cfg, resume=args.resume, workers=args.workers,
+                             run_parallelism=args.run_parallelism_benchmark)
+        complete_study_run(
+            args.run, result,
+            disposition=legacy_process_disposition(args.run, return_code=0),
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
         return
 
     if args.command == 'stage3_3_1_preprod':
         from .studies.preproduction import run_preproduction
-        print(json.dumps(run_preproduction(args.config, args.run), ensure_ascii=False, indent=2))
+        result = run_preproduction(args.config, args.run)
+        complete_study_run(
+            args.run, result,
+            disposition=legacy_process_disposition(args.run, return_code=0),
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
         return
 
     path = Path(args.config)

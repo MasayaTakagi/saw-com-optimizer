@@ -30,9 +30,12 @@ from ..core.com import acoustic_admittance, validate_admittance, block
 from ..core.metrics import geometry, search_grid, validation_grid, measure
 from ..core.models import BOUNDS, NAMES, FilterDesign, FixedProvider, SimulationResult, decode
 from ..core.network import evaluate
+from ..io.checkpoints import complete_study_run
+from ..io.legacy_lifecycle import legacy_process_disposition
 from ..io.config import load_experiment_config
 from ..io.run_store import initialize
 from ..io.serialization import save
+from ..optimizers.checkpoint_session import LShadeCheckpointSession
 from ..optimizers.lshade import LShadeBackend
 from ..optimizers.selection import DEFAULT_COMPARATOR, rank
 from ..optimization.adaptive_frequency import critical_frequencies, new_frequency_points
@@ -451,7 +454,7 @@ def _release_exchange(backend, evaluator, cfg, group, wiring, z0, checkpoint_bud
 
 
 def _checkpoint_guard(path: Path, group: str, bounds: np.ndarray) -> None:
-    state = _json(path)
+    state = path if isinstance(path, Mapping) else _json(path)
     saved = np.asarray(state.get("bounds", []), dtype=float)
     if saved.shape != bounds.shape or not np.array_equal(saved, bounds):
         raise ValueError("release checkpoint bounds/schema dimension mismatch; cold start is required")
@@ -467,16 +470,23 @@ def _release_worker(payload):
     active_bounds, hard_bounds, integer_indices = release_bounds(group, s1)
     seed_dir = out / "groups" / group / "trials" / "lshade" / WIRING / f"seed{int(seed)}"
     seed_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint_path = seed_dir / "optimizer_checkpoint.json"
+    legacy_checkpoint_path = seed_dir / "optimizer_checkpoint.json"
+    checkpoint_session = LShadeCheckpointSession(
+        seed_dir / "checkpoints", run_directory=out,
+        legacy_path=legacy_checkpoint_path, resume=resume,
+        state_validator=lambda state: _checkpoint_guard(state, group, active_bounds),
+    )
+    checkpoint_path = checkpoint_session.reference_metadata
     metadata_path = seed_dir / "trajectory_metadata.json"
     disk_resume_used = False
-    if resume and checkpoint_path.exists():
+    if resume and checkpoint_session.has_checkpoint:
         if not metadata_path.exists():
             raise ValueError("release checkpoint metadata is missing")
         metadata = _json(metadata_path)
         if metadata.get("release_schema") != schema:
             raise ValueError("release checkpoint schema mismatch; cold start is required")
-        _checkpoint_guard(checkpoint_path, group, active_bounds)
+        if checkpoint_session.legacy_mode:
+            _checkpoint_guard(checkpoint_path, group, active_bounds)
         disk_resume_used = True
     else:
         metadata = {}
@@ -495,7 +505,7 @@ def _release_worker(payload):
         source_config_fingerprint=fingerprint,
     )
     if disk_resume_used:
-        backend.load_checkpoint(checkpoint_path)
+        checkpoint_session.load(backend)
         backend.set_evaluator(evaluator)
         if getattr(backend, "active_frequency_grid", []):
             evaluator.frequency_ref[0] = np.asarray(backend.active_frequency_grid, dtype=float)
@@ -544,7 +554,7 @@ def _release_worker(payload):
         record["pre_exchange_snapshot"] = _clean(pre_exchange or {})
         record = _clean(record)
         save(result_path, record)
-        backend.save_checkpoint(checkpoint_path)
+        checkpoint_session.save(backend)
         save(metadata_path, metadata)
         records.append(record)
     return records
@@ -1147,7 +1157,12 @@ def main():
     parser.add_argument("--run", required=True, type=Path)
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
-    print(json.dumps(run_stage36_gate2a(args.config, args.run, resume=args.resume), ensure_ascii=False, indent=2))
+    result = run_stage36_gate2a(args.config, args.run, resume=args.resume)
+    complete_study_run(
+        args.run, result,
+        disposition=legacy_process_disposition(args.run, return_code=0),
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

@@ -545,3 +545,146 @@ confirmation or a separately approved FEM extraction is required.
 - Requested GPT-6 Sol review was accepted through the task routing. The
   runtime did not expose resolved backend identity or internal reasoning
   effort; neither is claimed as verified.
+
+## 2026-09-24 — Stage 3.8.5 architecture boundary review
+
+### Packet
+
+- Scope: bounded architecture-risk review before structural edits; judgment only.
+- Decision requested: define safe boundaries for additive fingerprint v2 and generic review bundles, DMS topology extraction, and comparator/counter/accounting/sampler ownership.
+- Constraints: no source edits by reviewer, no optimizer or Stage 3.8 reruns, preserve the Stage 3.8 legacy fingerprint/gates/artifacts, and avoid numerical, comparator, accounting, or RNG behavior changes.
+- Inventory: existing canonical candidates are `reporting/review_bundle.py`, `optimization/counters.py`, `optimization/population.py`, `optimizers/selection.py`, and `io/run_store.py`; Stage 3.8 R1 combines its fingerprint, geometry-first comparator, counters, sampler, and checkpoint validator in the study module. T0 imports its released design and simulator from Stage 3.6.
+- Requested reviewer: `gpt-6-sol`, high reasoning effort requested through the task API. Runtime-visible backend identity and actual reasoning effort were not independently exposed.
+
+### Decision
+
+- Add `io/provenance.py` as an opt-in schema-v2 API using explicit, sorted dependency manifests. Keep `run_store.initialize`, Stage 3.8 `_source_fingerprint`, persisted v1 fields, and v1 gates untouched. The mixed Stage 3.8 study file must not be included in a future computation dependency set if reporting-only edits are to remain isolated.
+- Preserve the legacy `create_review_bundle` API/CLI and its Stage 3.1/3.2 behavior. Factor content-agnostic packaging primitives; add declarative new-study bundle specifications. Bundle generation must consume saved run artifacts and must not import a study runner or optimizer. Do not substitute current source for a historical source snapshot.
+- Extract pure DMS structures, section construction, topology simulation, and decoders into `problem/dms_topologies.py`; retain old imports as re-exports. Keep config/material-dependent initialization in the Stage adapter. T0's Stage 3.6 dependency remains an extraction boundary to resolve without importing a study from `problem`.
+- Move geometry-first comparison verbatim to `optimizers/selection.py` as a distinct comparator; it is not semantically interchangeable with `FeasibilityFirstComparator`. Keep R1 counters distinct from the existing generic counters. Move checkpoint validation verbatim behind a compatibility adapter. Move the R1.2 sampler only after fixed-seed array and statistics replay coverage.
+- Preserve legacy current-source verification for old bundle creation. A new generic v2 bundle must carry the run's recorded/snapshotted source evidence and must not rewrite the historical manifest.
+- Recommended sequence: additive fingerprint v2; generic bundle APIs; comparator/counter/accounting extraction; sampler last; DMS extraction; deterministic parity and smoke checks.
+
+### Luna action, verification, and outcome
+
+- Accepted the boundary recommendations. Implementation remains limited to structural moves and additive v2 APIs; Stage 3.8 historical run artifacts will not be rewritten and no optimizer is being rerun.
+- Baseline full tests: 242 passed, 1 warning, 14 subtests passed. See `reports/stage3_8_5_baseline.md`.
+- Final verification: targeted structural/parity/fingerprint/bundle regressions passed; final full suite passed **256 tests, 1 warning, 14 subtests** in 106.59 s. The warning remains the existing pytest cache permission warning.
+- A deterministic MLIT/T1 smoke (seed `385085`, 8 evaluations) passed, including repeatable population/incumbent replay, result persistence, schema-v2 fingerprints, independent saved-run bundle generation, and archive hash validation. It is not a performance comparison.
+- No Stage 3.8 Production/Pilot/8k/96k/Monte Carlo optimizer rerun was performed. No Stage 3.8 historical artifacts were rewritten. The Stage 3.8 legacy fingerprint implementation and `run_store.initialize` remain unchanged; schema v2 is additive for future runs.
+- Review bundle: `artifacts/review_bundles/stage3_8_5_architecture_cleanup_review.zip`.
+
+## 2026-09-24 — Stage 3.8.6 checkpoint lifecycle architecture review
+
+### Packet
+
+- Scope: bounded high-risk architecture judgment before checkpoint storage lifecycle edits; judgment only.
+- Decision requested: canonical owner/API, safe fallback behavior, success-gated finalization, coverage of L-SHADE and custom continuation checkpoints, and generic review-bundle metadata integration.
+- Constraints: preserve optimizer state payload and all numerical/RNG semantics; no Stage 3.8 or historical-run cleanup; no fingerprint schema v3; keep reporting separate from lifecycle deletion.
+- Inventory: no lifecycle owner exists; L-SHADE writes raw JSON at several study call sites; continuation writes per-milestone population snapshots without a matching load path; buffered JSONL history already exists; generic review bundle filters every path component containing `checkpoint`.
+- Requested reviewer: `gpt-6-sol`, high reasoning effort requested through the task API. Runtime-visible backend identity and actual reasoning effort were not independently exposed.
+
+### Decision
+
+- Use `sawopt.io.checkpoints` as the canonical owner of per-stream atomic rolling stores. New call sites provide their existing serializer callback; do not change optimizer state payloads. Keep direct L-SHADE file APIs for legacy single-file compatibility.
+- Validate staged JSON before rotation. Resume newest-to-oldest and fall back to `previous` after validation/load failure using a fresh backend/trajectory instance, never a partially mutated instance. Preserve legacy loading and leave old runs unmigrated.
+- Finalize idempotently only after a durable successful completion marker. Promote the newest valid payload to `final`; remove runtime files only after that succeeds. Failed or incomplete direct runs retain recovery state.
+- Continuation may use the same filesystem retention lifecycle, but its snapshots are not exact RNG-resume states. Preserve lightweight milestone accounting without asserting removed full snapshots still exist.
+- Keep checkpoint metadata at a neutral path such as `metadata/recovery_policy.json` so the generic bundle's checkpoint filter does not omit it. Keep deletion and rotation out of reporting.
+
+### Luna action, verification, and outcome
+
+- Implemented a shared rolling checkpoint store, L-SHADE compatibility adapter,
+  success-gated finalization, lightweight continuation accounting, and compact
+  Review Bundle metadata handling. Stage 3.8C-R1 and the hashed Stage 3.8 topology
+  source callsites were left on their prior checkpoint path to preserve their
+  legacy gate inputs; rolling retention there is deferred.
+- Targeted checkpoint, continuation, review-bundle, and worker tests passed
+  (40 passed); final checkpoint/worker regression after the prior-final
+  preservation adjustment passed (20 passed). Final full regression passed
+  (273 passed, 14 subtests; one existing pytest cache-permission warning).
+- A deterministic synthetic 64-evaluation L-SHADE smoke matched uninterrupted
+  and resumed optimizer state, retained four history rows, reduced four
+  old-style milestone payloads (132,936 bytes) to two runtime generations
+  (88,253 bytes), then finalized to one state. The generic review bundle
+  validated all manifest hashes and sizes.
+- Review bundle: `artifacts/review_bundles/stage3_8_6_checkpoint_retention_cleanup_review.zip`.
+
+## 2026-09-24 — Stage 3.8.6 checkpoint-retention correction review
+
+### Packet
+
+- Scope: bounded architecture judgment for runtime checkpoint references,
+  explicit run disposition, and historical marker compatibility.
+- Decision requested: keep a future `final.json` out of active result metadata;
+  remove Stage marker names and outcome inference from the generic checkpoint
+  core; define safe handling for missing and unknown dispositions.
+- Constraints: preserve checkpoint payloads and optimizer/RNG semantics, keep
+  Stage 3.8 historical source and artifacts protected, and do not launch an
+  optimizer run.
+- Requested reviewer target: `gpt-6-sol`; the runtime did not expose verified
+  backend identity or actual reasoning effort.
+
+### Decision
+
+- Use a shared `RunDisposition` type with `COMPLETED`, `REVIEW_WAITING`,
+  `FAILED`, and `UNKNOWN`; generic finalization requires explicit
+  `COMPLETED`. Missing or unknown values preserve runtime checkpoints.
+- Move the four historically recognized review markers to a compatibility
+  adapter. Keep scientific gate pass/fail separate from execution lifecycle.
+  Legacy clean process returns may establish execution completion; marker-based
+  review waiting overrides it.
+- Managed result records identify a rolling checkpoint stream and policy.
+  Legacy direct-file mode keeps its physical path. Do not point active records
+  at a future final checkpoint.
+- Run-level discovery accepts only validated `retention.json` files directly
+  inside managed `checkpoints/` directories. A later review release requires
+  an explicit reviewed-closeout action; callback or `REVIEWED` state alone does
+  not finalize.
+
+### Luna action and verification
+
+- Accepted the recommendations. No optimizer algorithm, state payload,
+  fingerprint schema, or Stage 3.8 historical runner change was made.
+- Targeted and full regression outcomes will be recorded after verification.
+
+### Supplemental decision — legacy run fingerprint boundary
+
+- Finding: historical `run_store.initialize` v1 hashes every Python source file
+  and rejects a changed source tree before legacy checkpoint loading can occur.
+- Decision: preserve that v1 contract. Do not bypass or migrate its manifest.
+  Legacy checkpoint-format loading and read-only review remain supported; a
+  legacy run cannot resume under changed source without its matching historical
+  checkout. This is a compatibility boundary, not a successful legacy run
+  resume claim. Existing dirty Stage 3.8.5 source edits may also affect saved
+  hashes, so mismatches are not attributed exclusively to Stage 3.8.6.
+- Reviewer: `gpt-6-sol` requested through the project escalation workflow;
+  the runtime did not expose resolved backend identity or reasoning effort.
+
+### Supplemental decision — scoped review-bundle Git diff
+
+- Finding: the generic builder's default Git snapshot included the entire dirty
+  worktree diff, which would put unrelated pre-existing edits in this correction
+  bundle despite the instruction to include a scoped diff.
+- Reviewer judgment: add an optional literal `git_diff_paths` scope for staged
+  and unstaged patches; keep HEAD, branch, and full `git status --short`. Record
+  the scope in the manifest, reject absolute/traversing/glob/pathspec-magic
+  entries, and use Git's literal pathspec mode. Untracked relevant files remain
+  available in the source snapshot and scoped baseline patch.
+- Outcome: implemented and covered by a temporary Git-repository test,
+  including full-status retention and staged/unstaged scope. No computation
+  fingerprint or numerical behavior changed.
+- Reviewer: `gpt-6-sol` requested through the project escalation workflow;
+  runtime-visible backend identity and internal reasoning effort were not
+  independently exposed.
+
+### Final verification
+
+- Targeted checkpoint, worker, provenance/fingerprint-v2, and bundle tests
+  passed (49); after the final bundle-scope adjustments, the bundle module's
+  targeted tests passed again (14).
+- Final full regression passed: 288 tests and 14 subtests in 115.96 s, with one
+  existing pytest cache-permission warning.
+- Resume parity and RNG continuation matched the uninterrupted fixed-seed
+  L-SHADE run. No production optimizer run was started.
+- Review bundle: `artifacts/review_bundles/stage3_8_6_checkpoint_retention_correction_review.zip`.
