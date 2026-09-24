@@ -8,6 +8,63 @@ decision, Luna's action, verification, and outcome. Requested model and
 reasoning effort must be kept separate from independently observed backend
 identity and behavior.
 
+## 2026-09-25 — Historical cleanup architecture boundary
+
+### Packet
+
+- Scope: choose the smallest ownership map to remove current Stage 3.8/3.8C
+  imports from historical Stage modules without changing numerical or record
+  semantics.
+- Evidence and constraints: `problem/dms_topologies.py` already owns T0/T1/T2;
+  Stage 3.8 still imports the released design/simulator and `lshade_record`
+  from Stage 3.6/3.3 modules. Stage 3.8C imports helpers from the Stage 3.8
+  module and hashes historical files. No COM, optimizer, objective, bounds,
+  RNG, budget, checkpoint, or saved-run changes; no production rerun.
+- Requested reviewer: GPT-6 Sol (`gpt-6-sol`), high reasoning, judgment only.
+- Full packet: `reports/historical_cleanup_architecture_escalation.md`.
+
+### Decision
+
+- Move `ReleaseSection`, `ReleasedFilterDesign`, and the unchanged released
+  filter simulator into the existing problem-layer DMS module (or a small
+  problem-layer sibling if needed). Keep Stage 3.6 release groups, schema,
+  bounds, and vector decoding study-owned.
+- Give the Stage 3.8 study a fixed `G1_G2` T0 decoder; its current imports of
+  Stage 3.6 `release_schema` and `release_bounds` are unused.
+- Move the exact L-SHADE record assembly and JSON-cleaning helper into a small
+  study-level record module that may depend on `convergence_evidence`; retain
+  old imports until remaining historical callers are removed.
+- Extract only the Stage 3.8 helpers consumed by Stage 3.8C into a current
+  study adapter. Preserve old run metadata and manifests; write new source
+  fingerprints honestly after the source move.
+- Gate removal with old/new design and section equality, T0 response parity,
+  Stage 3.8 helper parity, L-SHADE record JSON equality under controlled
+  timing, and import-boundary checks. Production optimization is unnecessary.
+
+### Luna action and outcome
+
+- Decision accepted. The repository freeze and 288-test baseline are recorded
+  in `reports/historical_cleanup_freeze_20260925.md`.
+- Moved the unchanged released DMS design/simulator into
+  `src/sawopt/problem/released_dms.py`; Stage 3.6 keeps its release schema,
+  bounds, and decoder. Stage 3.8 now decodes its fixed G1+G2 release locally.
+- Extracted L-SHADE record serialization to
+  `src/sawopt/studies/lshade_records.py` and current DMS study helpers to
+  `src/sawopt/studies/dms_topology_common.py`. Stage 3.8C no longer imports the
+  Stage 3.8 runner.
+- Removed Stage 3.8C runtime reads/copies of historical reports and handoff
+  files. Its source fingerprint now hashes the current study, topology,
+  released-design, and record modules. The historical test-gate JSON was copied
+  under the saved Final Confirmation run's metadata and the active configs now
+  point there; the saved run outputs were otherwise untouched.
+- Focused characterization/regression set: 63 passed. No COM equation,
+  optimizer, objective, bounds, RNG, evaluation budget, or saved optimization
+  result changed, and no production optimization was launched. Historical
+  module/config/test removal remains in progress.
+- The runtime exposes the requested reviewer/model setting but does not
+  independently expose backend identity or actual internal reasoning effort;
+  neither is claimed as verified.
+
 ## 2026-09-13 — Stage 3.5 L-SHADE parity root-cause review
 
 ### Packet

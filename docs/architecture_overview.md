@@ -17,10 +17,14 @@ candidate selection. Study modules compose those pieces and own experiment
 configuration. Reporting consumes saved runs and result metadata.
 
 `src/sawopt/problem/dms_topologies.py` is the canonical T0/T1/T2 DMS topology
-module. The former Stage 3.8 module re-exports the design classes, decoders,
-section builders, topology constants, and simulator for old imports. Its
-Stage-specific config, material selection, initializer setup, and reports stay
-in the study adapter.
+module. `src/sawopt/problem/released_dms.py` owns the released T0 design record
+and its simulator; Stage 3.6 keeps only its release schema and decoder.
+`src/sawopt/studies/dms_topology_common.py` owns current study helpers for
+design decoding, provider selection, evaluation, and geometry checks. The
+Stage 3.8C study imports these canonical modules directly rather than importing
+another Stage's runner. L-SHADE checkpoint record serialization lives in
+`src/sawopt/studies/lshade_records.py`; `optimizer_ab.py` temporarily re-exports
+it while historical study removal is in progress.
 
 ## Provenance
 

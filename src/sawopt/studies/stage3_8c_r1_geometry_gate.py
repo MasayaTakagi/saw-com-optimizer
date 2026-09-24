@@ -23,9 +23,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 
-from ..core.literature_com import profile_from_mapping
 from ..core.metrics import geometry, measure, search_grid
-from ..core.models import FixedProvider
 from ..core.network import evaluate
 from ..io.config import load_experiment_config
 from ..io.serialization import save
@@ -38,21 +36,17 @@ from ..optimization.population import (
 )
 from ..optimizers.lshade import LShadeBackend
 from ..optimizers.selection import GeometryFirstComparator
-from ..reporting.material_metadata import material_profile_metadata
 from ..reporting.review_bundle import write_review_bundle_archive
-from .optimizer_ab import lshade_record
-from .stage3_8_dual_material_dms_topology_fast_screen import (
+from ..problem.dms_topologies import T0, T1, T2, TOPOLOGIES, simulate_topology
+from .dms_topology_common import (
     MATERIALS,
-    T0,
-    T1,
-    T2,
-    TOPOLOGIES,
     decode_design,
     fixed_design_sanity,
     implementation_validation,
     initial_design,
-    simulate_topology,
+    provider_for_material as _provider,
 )
+from .lshade_records import lshade_record
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -93,20 +87,6 @@ def _finite(value: Any, default: float = math.inf) -> float:
 
 
 R1_COMPARATOR = GeometryFirstComparator()
-
-
-def _provider(material: str, cfg: Mapping[str, Any]):
-    section = cfg["stage3_8"]["materials"][material]
-    if material == "M0":
-        values = yaml.safe_load((ROOT / section["com_file"]).read_text(encoding="utf-8"))
-        return FixedProvider(values), material_profile_metadata(profile_id="M0")
-    profile_path = ROOT / section["profile_file"]
-    profile_data = yaml.safe_load(profile_path.read_text(encoding="utf-8")) or {}
-    provider = profile_from_mapping(profile_data)
-    return provider, material_profile_metadata(
-        profile_data, profile_id=provider.profile_id,
-        com_parameter_source=str(profile_path),
-    )
 
 
 def _backend_config(cfg: Mapping[str, Any], topology: str, budget: int,
@@ -1074,7 +1054,10 @@ def _source_fingerprint(raw_config: str) -> str:
     hasher.update(SEMANTICS_VERSION.encode("utf-8"))
     for path in (
         Path(__file__),
-        Path(__file__).with_name("stage3_8_dual_material_dms_topology_fast_screen.py"),
+        Path(__file__).with_name("dms_topology_common.py"),
+        ROOT / "src" / "sawopt" / "problem" / "dms_topologies.py",
+        ROOT / "src" / "sawopt" / "problem" / "released_dms.py",
+        ROOT / "src" / "sawopt" / "studies" / "lshade_records.py",
     ):
         hasher.update(path.read_bytes())
     return hasher.hexdigest()
@@ -1529,10 +1512,6 @@ def _geometry_rejection_fraction(counters: Mapping[str, Any]) -> float:
     return float(counters.get("geometry_rejections", 0) / unique) if unique else 0.0
 
 
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
 def _material_metadata_snapshot(cfg: Mapping[str, Any]) -> dict[str, Any]:
     snapshot = {}
     for material in MATERIALS:
@@ -1596,13 +1575,6 @@ def _write_source_snapshots(out: Path, cfg: Mapping[str, Any], raw_config: str,
     (out / "input_config.yaml").write_text(raw_config, encoding="utf-8")
     revision = str(cfg.get("stage3_8c_r1", {}).get("revision", "R1")).upper()
     git_metadata = _git_state()
-    if revision == "R1.1":
-        baseline_path = ROOT / "reports" / "stage3_8c_r1_1_pre_work_git_state.json"
-        if not baseline_path.is_file():
-            raise FileNotFoundError("R1.1 pre-work Git state snapshot is required")
-        git_metadata["pre_r1_1_work_baseline"] = json.loads(
-            baseline_path.read_text(encoding="utf-8")
-        )
     _write_json(metadata_dir / "run_source_metadata.json", {
         "study_type": STUDY_TYPE,
         "study_revision": revision,
@@ -1636,10 +1608,8 @@ def _write_source_snapshots(out: Path, cfg: Mapping[str, Any], raw_config: str,
             "classification": "R1 user-directed bound override",
             "archived_stage3_7d_recommendation": "30-150 um; STAGE3_8_READY_APERTURE_150",
             "archived_recommendation_csv": "runs/stage3_7d_mlit_aperture_boundary_and_metadata_final/stage3_8_aperture_bound_recommendation.csv",
-            "archived_recommendation_sha256": _sha256(ROOT / "runs/stage3_7d_mlit_aperture_boundary_and_metadata_final/stage3_8_aperture_bound_recommendation.csv"),
-            "r1_handoff": "docs/handoff/stage3_8c_r1_geometry_gate_correction_topology_rerun_codex_task.md",
-            "r1_handoff_sha256": _sha256(ROOT / "docs/handoff/stage3_8c_r1_geometry_gate_correction_topology_rerun_codex_task.md"),
-            "prior_review": "reports/escalation_log.md; Stage 3.8 decision recorded 30-150 um",
+            "archived_recommendation_sha256": "902F1BCFCA963CA7DFD42B9B2B4FD13FBA2E82D759E73412CE74F1AA854925A3",
+            "historical_decision_record": "docs/history/experiment_register.md#stage-37-literature-com-and-aperture-study",
             "cross_material_comparison_limitation": "M0/MLIT results have unequal aperture search spaces and cannot isolate material-only effects.",
         },
     })
@@ -3873,21 +3843,6 @@ def _write_r1_review_bundle(
                         bundle / "stage3_8c_r1_pilot_gate.json")
         _copy_if_exists(pilot_dir / "stage3_8c_r1_pilot_summary.md",
                         bundle / "stage3_8c_r1_pilot_summary.md")
-    source_summary = (ROOT / "reports" / "stage3_8c_r1_topology_fast_screen_summary.md")
-    if mode == "production" and source_summary.is_file():
-        _copy_if_exists(source_summary, bundle / "stage3_8c_r1_topology_fast_screen_summary.md")
-    _copy_if_exists(ROOT / "reports" / "stage3_8c_r1_geometry_gate_root_cause.md",
-                    bundle / "stage3_8c_r1_geometry_gate_root_cause.md")
-    _copy_if_exists(ROOT / "reports" / "stage3_8c_r1_geometry_ranking_tests.md",
-                    bundle / "stage3_8c_r1_geometry_ranking_tests.md")
-    test_summary_source = {
-        "R1.1": ROOT / "reports" / "stage3_8c_r1_1_test_summary.md",
-        "R1.2": ROOT / "reports" / "stage3_8c_r1_2_test_summary.md",
-    }.get(revision, ROOT / "reports" / "test_summary.md")
-    _copy_if_exists(test_summary_source, bundle / "test_summary.md")
-    if not (bundle / "test_summary.md").exists():
-        (bundle / "test_summary.md").write_text("Test summary will be populated after the R1 regression gates.\n", encoding="utf-8")
-
     metadata_out = bundle / "metadata"
     metadata_out.mkdir(exist_ok=True)
     metadata_src = out / "metadata"
@@ -3915,14 +3870,6 @@ def _write_r1_review_bundle(
     (bundle / "run" / "run_directory.txt").parent.mkdir(parents=True, exist_ok=True)
     (bundle / "run" / "run_directory.txt").write_text(str(out) + "\n", encoding="utf-8")
     _write_r1_plots(bundle, cell_rows, response_rows)
-    for report_name in ("gpt6sol_migration_report.md", "gpt6sol_routing_test_results.json"):
-        _copy_if_exists(ROOT / "reports" / report_name, bundle / report_name)
-    if revision == "R1.2":
-        _copy_if_exists(
-            ROOT / "reports" / "stage3_8c_r1_2_gpt6sol_routing_test_results.json",
-            bundle / "gpt6sol_routing_test_results.json",
-        )
-
     if mode == "pilot":
         summary_path = bundle / f"stage3_8c_{revision_suffix}_pilot_summary.md"
         if not summary_path.exists():
@@ -3939,7 +3886,7 @@ def _write_r1_review_bundle(
             f"4. Physics failures: {gate.get('physics_failures', 0)}.\n"
             f"5. Final Confirmation fingerprint: `{gate.get('final_confirmation_fingerprint')}`; production config was gated against that fingerprint.\n"
             "6. Counter accounting, per-seed results, paired seed comparison, validated responses, and boundary diagnostics are included.\n"
-            "7. Final Confirmation summary/gate and tests are included.\n"
+            "7. Final Confirmation summary and gate are included when available from run artifacts.\n"
             "8. Topology/material ranking is not promoted by this run; Stage 3.9 is NOT STARTED.\n"
             "9. Production conditions retain the approved R1.2 search space, COM profiles, geometry constraints, topology, objective, optimizer, 8,000-evaluation budget, and two configured seeds.\n"
         )
@@ -4082,10 +4029,8 @@ def _write_r1_review_bundle(
             f"5. Geometry-valid initial populations: {sum(int(row.get('geometry_valid_members', 0)) == int(row.get('population_size', 0)) for row in population_preflight)}/6.\n"
             f"6. Physics-valid cells with finite search/common metrics: {physics_cells}/6.\n"
             f"7. Fixed-design sanity: {fixed_passes}/6 PASS.\n"
-            "8. Full repository test results are in `test_summary.md`.\n"
-            "9. GPT-6 Sol route: see `gpt6sol_routing_test_results.json`; the request was accepted, hidden backend identity is NOT VERIFIED.\n"
-            "10. Production: NOT STARTED. R1.2 is pilot-only and stops for review.\n"
-            "11. Limitations: one seed and 256 evaluations are diagnostic only; `promotion_eligible=false`, `seed_consistency=N/A_single_seed`. M0 aperture is 30–150 um and MLIT aperture is 30–180 um, so cross-material differences are confounded. R1.1 and R1.2 use different initial distributions, so performance changes are not optimizer regressions.\n\n"
+            "8. Production: NOT STARTED. R1.2 is pilot-only and stops for review.\n"
+            "9. Limitations: one seed and 256 evaluations are diagnostic only; `promotion_eligible=false`, `seed_consistency=N/A_single_seed`. M0 aperture is 30–150 um and MLIT aperture is 30–180 um, so cross-material differences are confounded. R1.1 and R1.2 use different initial distributions, so performance changes are not optimizer regressions.\n\n"
             "Rejection fraction is diagnostic, not a PASS/FAIL gate. The hard geometry and all other study conditions remain unchanged.\n"
         )
     else:
@@ -4101,10 +4046,6 @@ def _write_r1_review_bundle(
     if revision == "R1.1":
         reproducibility = bundle / "reproducibility"
         reproducibility.mkdir(parents=True, exist_ok=True)
-        _copy_if_exists(
-            ROOT / "reports" / "stage3_8c_r1_1_pre_work_git_state.json",
-            reproducibility / "pre_work_git_state.json",
-        )
         def git_output(*args: str) -> str:
             completed = subprocess.run(
                 ["git", *args], cwd=ROOT, text=True, encoding="utf-8", errors="replace",
@@ -4119,19 +4060,25 @@ def _write_r1_review_bundle(
             "cached_diff_stat": git_output("diff", "--cached", "--stat"),
         })
         snapshot_files = (
-            "AGENTS.md",
             "configs/studies/stage3_8c_r1_1_pilot.yaml",
             "src/sawopt/studies/stage3_8c_r1_geometry_gate.py",
-            "src/sawopt/studies/stage3_8_dual_material_dms_topology_fast_screen.py",
+            "src/sawopt/studies/dms_topology_common.py",
+            "src/sawopt/problem/dms_topologies.py",
+            "src/sawopt/problem/released_dms.py",
+            "src/sawopt/studies/lshade_records.py",
             "tests/unit/studies/test_stage3_8c_r1_geometry_gate.py",
-            "tests/unit/test_sol_review_routing_policy.py",
-            "reports/escalation_log.md",
+            "docs/history/experiment_register.md",
+            "docs/history/current_baseline.md",
         )
         source_snapshot = bundle / "source_snapshot"
         for relative in snapshot_files:
             _copy_if_exists(ROOT / relative, source_snapshot / relative)
         scoped = subprocess.run(
-            ["git", "diff", "--", "AGENTS.md", "reports/escalation_log.md"],
+            ["git", "diff", "--", "src/sawopt/studies/stage3_8c_r1_geometry_gate.py",
+             "src/sawopt/studies/dms_topology_common.py",
+             "src/sawopt/problem/dms_topologies.py",
+             "src/sawopt/problem/released_dms.py",
+             "src/sawopt/studies/lshade_records.py"],
             cwd=ROOT, text=True, encoding="utf-8", errors="replace",
             capture_output=True, check=False,
         )
@@ -4142,16 +4089,6 @@ def _write_r1_review_bundle(
     if revision == "R1.2":
         reproducibility = bundle / "reproducibility"
         reproducibility.mkdir(parents=True, exist_ok=True)
-        if mode == "production":
-            _copy_if_exists(
-                ROOT / "reports" / "stage3_8c_r1_2_final_confirmation_source_freeze.json",
-                reproducibility / "final_confirmation_source_freeze.json",
-            )
-        else:
-            _copy_if_exists(
-                ROOT / "reports" / "stage3_8c_r1_2_pre_work_git_state.json",
-                reproducibility / "pre_work_git_state.json",
-            )
         def git_output(*args: str) -> str:
             completed = subprocess.run(
                 ["git", *args], cwd=ROOT, text=True, encoding="utf-8", errors="replace",
@@ -4166,20 +4103,17 @@ def _write_r1_review_bundle(
             "cached_diff_stat": git_output("diff", "--cached", "--stat"),
         })
         snapshot_files = (
-            "AGENTS.md",
             "configs/studies/stage3_8c_r1_2_pilot.yaml",
             "configs/studies/stage3_8c_r1_2_final_confirmation.yaml",
             "configs/studies/stage3_8c_r1_2_production.yaml",
             "src/sawopt/studies/stage3_8c_r1_geometry_gate.py",
-            "src/sawopt/studies/stage3_8_dual_material_dms_topology_fast_screen.py",
+            "src/sawopt/studies/dms_topology_common.py",
+            "src/sawopt/problem/dms_topologies.py",
+            "src/sawopt/problem/released_dms.py",
+            "src/sawopt/studies/lshade_records.py",
             "tests/unit/studies/test_stage3_8c_r1_geometry_gate.py",
-            "tests/unit/test_sol_review_routing_policy.py",
-            "reports/stage3_8c_r1_2_initializer_escalation.md",
-            "reports/stage3_8c_r1_2_test_summary.md",
-            "reports/stage3_8c_r1_2_final_confirmation_test_gate.json",
-            "reports/stage3_8c_r1_2_final_confirmation_source_freeze.json",
-            "reports/stage3_8c_r1_2_gpt6sol_routing_test_results.json",
-            "reports/escalation_log.md",
+            "docs/history/experiment_register.md",
+            "docs/history/current_baseline.md",
         )
         source_snapshot = bundle / "source_snapshot"
         for relative in snapshot_files:
@@ -4189,8 +4123,11 @@ def _write_r1_review_bundle(
              "configs/studies/stage3_8c_r1_2_final_confirmation.yaml",
              "configs/studies/stage3_8c_r1_2_production.yaml",
              "src/sawopt/studies/stage3_8c_r1_geometry_gate.py",
-             "tests/unit/studies/test_stage3_8c_r1_geometry_gate.py",
-             "reports/escalation_log.md"],
+             "src/sawopt/studies/dms_topology_common.py",
+             "src/sawopt/problem/dms_topologies.py",
+             "src/sawopt/problem/released_dms.py",
+             "src/sawopt/studies/lshade_records.py",
+             "tests/unit/studies/test_stage3_8c_r1_geometry_gate.py"],
             cwd=ROOT, text=True, encoding="utf-8", errors="replace",
             capture_output=True, check=False,
         )

@@ -1,4 +1,5 @@
 import unittest
+from dataclasses import asdict
 
 import numpy as np
 
@@ -6,6 +7,7 @@ from sawopt.core.metrics import geometry, measure, search_grid
 from sawopt.core.network import evaluate
 from sawopt.io.config import load_experiment_config
 from sawopt.problem import dms_topologies as canonical
+from sawopt.studies.stage3_6_gate2a import decode_release
 from sawopt.studies import stage3_8_dual_material_dms_topology_fast_screen as legacy
 
 
@@ -19,6 +21,14 @@ def _load_config_with_initial_design_fixtures(path):
 
 
 class DmsTopologyParity(unittest.TestCase):
+    def test_stage38_t0_decoder_matches_g1_g2_release_contract(self):
+        cfg = load_experiment_config("configs/studies/stage3_8_dual_material_dms_topology_fast_screen.yaml")
+        vector = [5.0, 24.0, 16.0, 40.0, .5, .5, 80.0, 5.2, 4.9]
+        self.assertEqual(
+            asdict(legacy.decode_design(vector, canonical.T0, cfg)),
+            asdict(decode_release(vector, "G1_G2")),
+        )
+
     def test_stage38_exports_are_compatibility_reexports(self):
         self.assertIs(legacy.FiveIdtDesign, canonical.FiveIdtDesign)
         self.assertIs(legacy.ParallelThreeIdtDesign, canonical.ParallelThreeIdtDesign)
