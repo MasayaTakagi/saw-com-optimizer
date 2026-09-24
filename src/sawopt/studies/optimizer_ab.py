@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Mapping
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict
 from pathlib import Path
@@ -31,12 +32,15 @@ import numpy as np
 
 from ..core.metrics import geometry, search_grid, validation_grid
 from ..core.models import BOUNDS, FilterDesign, NAMES, decode
+from ..io.checkpoints import complete_study_run
+from ..io.legacy_lifecycle import legacy_process_disposition
 from ..io.config import cold_seeds, load_study_config
 from ..io.run_store import initialize
 from ..io.serialization import save
 from ..runtime.parallel import single_blas_thread_environment
 from ..optimizers.base import backend_name
 from .convergence import normalize_convergence_config
+from ..optimizers.checkpoint_session import LShadeCheckpointSession
 from ..optimizers.lshade import LShadeBackend
 from ..optimizers.selection import DEFAULT_COMPARATOR, rank, time_to_target
 from ..problem.evaluator import dense, evaluate_design
@@ -265,7 +269,6 @@ def _lshade_record(backend, wiring, seed, budget, checkpoint_path,
         "stop_reason": stop_reason,
         "best_so_far_trace": summary.get("best_so_far_trace", []),
         "population_trace": summary.get("population_trace", []),
-        "checkpoint": str(checkpoint_path),
         "checkpoint_budget": requested,
         "checkpoint_trajectory_index": int(trajectory_index),
         "trajectory_semantics": "one_seed_one_trajectory",
@@ -300,6 +303,11 @@ def _lshade_record(backend, wiring, seed, budget, checkpoint_path,
     record = apply_checkpoint_evidence(
         record, current_budget=requested, terminal_budget=terminal_budget
     )
+    if isinstance(checkpoint_path, Mapping):
+        record.update(checkpoint_path)
+    elif checkpoint_path is not None:
+        # Compatibility for historical direct-file checkpoint records.
+        record["checkpoint"] = str(checkpoint_path)
     return _safe_record(record)
 
 
@@ -332,11 +340,16 @@ def _lshade_trajectory_worker(payload):
         raise ValueError("trajectory budgets must be positive")
     seed_dir = out / "trials" / "lshade" / str(wiring) / f"seed{int(seed)}"
     seed_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint_path = seed_dir / "optimizer_checkpoint.json"
+    legacy_checkpoint_path = seed_dir / "optimizer_checkpoint.json"
+    checkpoint_session = LShadeCheckpointSession(
+        seed_dir / "checkpoints", run_directory=out,
+        legacy_path=legacy_checkpoint_path, resume=resume,
+    )
+    checkpoint_path = checkpoint_session.reference_metadata
     metadata_path = seed_dir / "trajectory_metadata.json"
     metadata = {}
     disk_resume_used = False
-    if resume and checkpoint_path.exists():
+    if resume and checkpoint_session.has_checkpoint:
         metadata = json.loads(metadata_path.read_text(encoding="utf-8")) if metadata_path.exists() else {}
         disk_resume_used = True
     z0 = float(cfg.get("convergence", {}).get("impedance_ohm", 50.0))
@@ -366,7 +379,7 @@ def _lshade_trajectory_worker(payload):
         source_config_fingerprint=cfg.get("stage33_source_fingerprint"),
     )
     if disk_resume_used:
-        backend.load_checkpoint(checkpoint_path)
+        checkpoint_session.load(backend)
         backend.set_evaluator(evaluator)
         if getattr(backend, "active_frequency_grid", []):
             evaluator.frequency_ref[0] = np.asarray(backend.active_frequency_grid, dtype=float)
@@ -427,7 +440,7 @@ def _lshade_trajectory_worker(payload):
                 event.get("frequency_grid_version_before", 1)
             )
         save(result_path, record)
-        backend.save_checkpoint(checkpoint_path)
+        checkpoint_session.save(backend)
         save(metadata_path, metadata)
         records.append(record)
     return records
@@ -441,7 +454,12 @@ def _lshade_worker(payload):
     seed_dir = out / "trials" / "lshade" / str(wiring) / f"seed{int(seed)}"
     seed_dir.mkdir(parents=True, exist_ok=True)
     result_path = seed_dir / f"B{int(budget)}.json"
-    checkpoint_path = seed_dir / "optimizer_checkpoint.json"
+    legacy_checkpoint_path = seed_dir / "optimizer_checkpoint.json"
+    checkpoint_session = LShadeCheckpointSession(
+        seed_dir / "checkpoints", run_directory=out,
+        legacy_path=legacy_checkpoint_path, resume=resume,
+    )
+    checkpoint_path = checkpoint_session.reference_metadata
     if result_path.exists() and resume:
         return json.loads(result_path.read_text(encoding="utf-8"))
     z0 = float(cfg.get("convergence", {}).get("impedance_ohm", 50.0))
@@ -455,8 +473,8 @@ def _lshade_worker(payload):
         integer_indices=(1, 2, 3), comparator=DEFAULT_COMPARATOR,
         source_config_fingerprint=cfg.get("stage33_source_fingerprint"),
     )
-    if resume and checkpoint_path.exists():
-        backend.load_checkpoint(checkpoint_path)
+    if resume and checkpoint_session.has_checkpoint:
+        checkpoint_session.load(backend)
         backend.set_evaluator(evaluator)
         if getattr(backend, "active_frequency_grid", []):
             evaluator.frequency_ref[0] = np.asarray(backend.active_frequency_grid, dtype=float)
@@ -496,7 +514,7 @@ def _lshade_worker(payload):
                                      "frequency_grid_version": version, "unique_designs_charged": 0,
                                      "frequencies_hz": [float(value) for value in added]})
     record = backend.incumbent() or {}
-    backend.save_checkpoint(checkpoint_path)
+    checkpoint_session.save(backend)
     incumbent = record
     record = dict(incumbent)
     validation_wall_time_s = time.monotonic() - validation_started
@@ -533,8 +551,7 @@ def _lshade_worker(payload):
          "hard_max_budget": int(summary.get("hard_max_budget", budget)),
          "search_space_exhausted": bool(summary.get("search_space_exhausted", False)),
          "best_so_far_trace": summary["best_so_far_trace"], "population_trace": summary["population_trace"],
-        "checkpoint": str(checkpoint_path.relative_to(out)),
-        "resume": {"used": bool(resume and checkpoint_path.exists())},
+        "resume": {"used": bool(resume and checkpoint_session.has_checkpoint)},
          "frequency_grid_version": int(backend.frequency_grid_version),
          "frequency_grid_events": frequency_events,
          "active_bounds": backend.active_bounds,
@@ -552,6 +569,7 @@ def _lshade_worker(payload):
     record = apply_checkpoint_evidence(
         record, current_budget=int(budget), terminal_budget=terminal_budget
     )
+    record.update(checkpoint_path)
     record = _safe_record(record)
     save(result_path, record)
     return record
@@ -1260,7 +1278,9 @@ def run_stage33(out, cfg, *, resume=False, workers=None, run_parallelism=False):
                 )
                 for seed_records in trajectory_records:
                     for record in seed_records:
-                        trial_files.append(record.get("checkpoint"))
+                        trial_files.append(
+                            record.get("checkpoint") or record.get("checkpoint_stream")
+                        )
                         rows.append(_row(
                             record, algorithm, wiring,
                             int(record["requested_unique_design_budget"]),
@@ -1341,8 +1361,13 @@ def main():
     parser.add_argument("--run-parallelism-benchmark", action="store_true")
     args = parser.parse_args()
     cfg = normalize_convergence_config(load_study_config(args.config))
-    print(json.dumps(run_stage33(args.run, cfg, resume=args.resume, workers=args.workers,
-                                 run_parallelism=args.run_parallelism_benchmark), ensure_ascii=False, indent=2))
+    result = run_stage33(args.run, cfg, resume=args.resume, workers=args.workers,
+                         run_parallelism=args.run_parallelism_benchmark)
+    complete_study_run(
+        args.run, result,
+        disposition=legacy_process_disposition(args.run, return_code=0),
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 # Historical private names remain available to the old import path and to

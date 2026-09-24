@@ -1,0 +1,160 @@
+"""Versioned fingerprints for computation and reporting provenance.
+
+The historical :mod:`sawopt.io.run_store` fingerprint remains unchanged. New
+experiments can opt into schema v2 and declare the source dependencies that
+affect their numerical computation separately from their reporting code.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path, PurePosixPath
+from typing import Any, Mapping, Sequence
+
+
+FINGERPRINT_SCHEMA_VERSION = 2
+
+
+def _canonical_json(value: Any) -> bytes:
+    try:
+        return json.dumps(
+            value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Fingerprint input is not canonical JSON data: {exc}") from exc
+
+
+def _dependency_manifest(repository_root: Path, paths: Sequence[str]) -> list[dict[str, Any]]:
+    root = Path(repository_root).resolve()
+    normalized: list[str] = []
+    for value in paths:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("Fingerprint dependency paths must be non-empty strings")
+        relative = value.replace("\\", "/")
+        pure = PurePosixPath(relative)
+        if pure.is_absolute() or any(part in ("", ".", "..") for part in pure.parts):
+            raise ValueError(f"Fingerprint dependency must be repository-relative: {value!r}")
+        normalized.append(pure.as_posix())
+    if len(normalized) != len(set(normalized)):
+        raise ValueError("Fingerprint dependency paths must not contain duplicates")
+
+    manifest = []
+    for relative in sorted(normalized):
+        path = (root / Path(*PurePosixPath(relative).parts)).resolve()
+        if not path.is_relative_to(root):
+            raise ValueError(f"Fingerprint dependency escapes repository root: {relative}")
+        if not path.is_file():
+            raise FileNotFoundError(f"Fingerprint dependency does not exist: {relative}")
+        data = path.read_bytes()
+        manifest.append({
+            "path": relative,
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "bytes": len(data),
+        })
+    return manifest
+
+
+def build_fingerprint_metadata(
+    repository_root: str | Path,
+    configuration: Mapping[str, Any],
+    *,
+    computation_paths: Sequence[str],
+    reporting_paths: Sequence[str],
+) -> dict[str, Any]:
+    """Create schema-v2 fingerprints from explicit source dependency sets.
+
+    Configuration is included only in the computation fingerprint. Callers
+    must list every source file that can affect the experiment result in
+    ``computation_paths`` and reporting-only source files in
+    ``reporting_paths``. The dependency manifest itself is part of each hash,
+    so adding or removing a listed file changes that fingerprint.
+    """
+    root = Path(repository_root).resolve()
+    computation_manifest = _dependency_manifest(root, computation_paths)
+    reporting_manifest = _dependency_manifest(root, reporting_paths)
+    if set(item["path"] for item in computation_manifest) & set(
+        item["path"] for item in reporting_manifest
+    ):
+        raise ValueError("A source path cannot be both a computation and reporting dependency")
+
+    computation_payload = {
+        "fingerprint_schema_version": FINGERPRINT_SCHEMA_VERSION,
+        "configuration": configuration,
+        "dependencies": computation_manifest,
+    }
+    reporting_payload = {
+        "fingerprint_schema_version": FINGERPRINT_SCHEMA_VERSION,
+        "dependencies": reporting_manifest,
+    }
+    return {
+        "fingerprint_schema_version": FINGERPRINT_SCHEMA_VERSION,
+        "computation_fingerprint": hashlib.sha256(
+            _canonical_json(computation_payload)
+        ).hexdigest(),
+        "reporting_fingerprint": hashlib.sha256(
+            _canonical_json(reporting_payload)
+        ).hexdigest(),
+        "dependency_manifest": {
+            "computation": computation_manifest,
+            "reporting": reporting_manifest,
+        },
+    }
+
+
+def read_fingerprint_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize v2 metadata or expose a legacy v1 fingerprint without edits."""
+    version = metadata.get("fingerprint_schema_version", metadata.get("schema_version"))
+    if version == FINGERPRINT_SCHEMA_VERSION:
+        computation = metadata.get("computation_fingerprint")
+        reporting = metadata.get("reporting_fingerprint")
+        manifest = metadata.get("dependency_manifest")
+        if not isinstance(computation, str) or not isinstance(reporting, str):
+            raise ValueError("Schema-v2 metadata requires both fingerprints")
+        if not isinstance(manifest, Mapping):
+            raise ValueError("Schema-v2 metadata requires a dependency manifest")
+        return {
+            "fingerprint_schema_version": FINGERPRINT_SCHEMA_VERSION,
+            "computation_fingerprint": computation,
+            "reporting_fingerprint": reporting,
+            "dependency_manifest": manifest,
+        }
+
+    # Historical Stage 3.x run manifests used either `fingerprint` or a
+    # study-specific source/config fingerprint. Preserve the value verbatim.
+    legacy = metadata.get("fingerprint") or metadata.get("source_config_fingerprint")
+    if version not in (None, 1):
+        raise ValueError(f"Unsupported fingerprint schema version: {version}")
+    if not isinstance(legacy, str) or not legacy:
+        raise ValueError("Legacy metadata does not contain a readable fingerprint")
+    return {
+        "fingerprint_schema_version": 1,
+        "legacy_fingerprint": legacy,
+        "source_hash": metadata.get("source_hash"),
+    }
+
+
+def computation_gate_matches(
+    expected_metadata: Mapping[str, Any], actual_metadata: Mapping[str, Any],
+) -> bool:
+    """Compare computation provenance while ignoring schema-v2 report edits.
+
+    V1 metadata is comparable only to v1 metadata and only by its original
+    combined fingerprint. A v1 value is never silently interpreted as a v2
+    computation fingerprint.
+    """
+    expected = read_fingerprint_metadata(expected_metadata)
+    actual = read_fingerprint_metadata(actual_metadata)
+    if expected["fingerprint_schema_version"] != actual["fingerprint_schema_version"]:
+        return False
+    if expected["fingerprint_schema_version"] == FINGERPRINT_SCHEMA_VERSION:
+        return expected["computation_fingerprint"] == actual["computation_fingerprint"]
+    return expected["legacy_fingerprint"] == actual["legacy_fingerprint"]
+
+
+__all__ = [
+    "FINGERPRINT_SCHEMA_VERSION",
+    "build_fingerprint_metadata",
+    "computation_gate_matches",
+    "read_fingerprint_metadata",
+]

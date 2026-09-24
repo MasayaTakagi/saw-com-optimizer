@@ -27,9 +27,12 @@ import numpy as np
 
 from ..core.metrics import geometry, search_grid
 from ..core.models import FixedProvider
+from ..io.checkpoints import complete_study_run
+from ..io.legacy_lifecycle import legacy_process_disposition
 from ..io.config import load_experiment_config
 from ..io.run_store import initialize
 from ..io.serialization import save
+from ..optimizers.checkpoint_session import LShadeCheckpointSession
 from ..optimizers.lshade import LShadeBackend
 from ..optimizers.selection import DEFAULT_COMPARATOR, rank
 from ..optimization.adaptive_frequency import critical_frequencies, new_frequency_points
@@ -52,6 +55,12 @@ from .stage3_6_gate2a import (
 
 
 ROOT = Path(__file__).resolve().parents[3]
+
+
+def _validate_checkpoint_bounds(state: Mapping[str, Any], active: np.ndarray) -> None:
+    saved = np.asarray(state.get("bounds", []), dtype=float)
+    if saved.shape != active.shape or not np.array_equal(saved, active):
+        raise ValueError("Gate 2C checkpoint bounds mismatch")
 STUDY_TYPE = "stage3_6_gate2c_joint_impedance_dof_fast_screening"
 S0_GROUP = "G1_G2"
 S1_GROUP = "G1_G2_G3"
@@ -353,17 +362,21 @@ def _worker(payload):
     active, hard, integer_indices = release_bounds(group, s1)
     seed_dir = out / "conditions" / condition / "groups" / group / "trials" / "lshade" / WIRING / f"seed{int(seed)}"
     seed_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint_path = seed_dir / "optimizer_checkpoint.json"
+    legacy_checkpoint_path = seed_dir / "optimizer_checkpoint.json"
+    checkpoint_session = LShadeCheckpointSession(
+        seed_dir / "checkpoints", run_directory=out,
+        legacy_path=legacy_checkpoint_path, resume=resume,
+        state_validator=lambda state: _validate_checkpoint_bounds(state, active),
+    )
+    checkpoint_path = checkpoint_session.reference_metadata
     metadata_path = seed_dir / "trajectory_metadata.json"
-    disk_resume_used = bool(resume and checkpoint_path.exists())
+    disk_resume_used = bool(resume and checkpoint_session.has_checkpoint)
     if disk_resume_used:
         metadata = _json(metadata_path) if metadata_path.exists() else {}
         if metadata.get("release_schema") != schema:
             raise ValueError("Gate 2C checkpoint schema mismatch")
-        state = _json(checkpoint_path)
-        saved = np.asarray(state.get("bounds", []), dtype=float)
-        if saved.shape != active.shape or not np.array_equal(saved, active):
-            raise ValueError("Gate 2C checkpoint bounds mismatch")
+        if checkpoint_session.legacy_mode:
+            _validate_checkpoint_bounds(_json(checkpoint_path), active)
     else:
         metadata = {"last_completed_budget": 0, "frequency_grid_events": []}
     frequencies = np.unique(search_grid(cfg["spec"], cfg))
@@ -379,7 +392,7 @@ def _worker(payload):
         source_config_fingerprint=fingerprint,
     )
     if disk_resume_used:
-        backend.load_checkpoint(checkpoint_path)
+        checkpoint_session.load(backend)
         backend.set_evaluator(evaluator)
         if getattr(backend, "active_frequency_grid", []):
             evaluator.frequency_ref[0] = np.asarray(backend.active_frequency_grid, dtype=float)
@@ -430,7 +443,7 @@ def _worker(payload):
         })
         record = _clean(record)
         save(result_path, record)
-        backend.save_checkpoint(checkpoint_path)
+        checkpoint_session.save(backend)
         save(metadata_path, {
             "last_completed_budget": int(budget), "frequency_grid_events": events,
             "trajectory_semantics": "one_seed_one_release_trajectory",
@@ -1395,7 +1408,12 @@ def main() -> None:
     parser.add_argument("--run", required=True, type=Path)
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
-    print(json.dumps(run_stage36_gate2c(args.config, args.run, resume=args.resume), ensure_ascii=False, indent=2))
+    result = run_stage36_gate2c(args.config, args.run, resume=args.resume)
+    complete_study_run(
+        args.run, result,
+        disposition=legacy_process_disposition(args.run, return_code=0),
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

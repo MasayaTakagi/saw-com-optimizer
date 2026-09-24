@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Callable
 
 from .codex_callback import run_codex_callback
+from ..io.checkpoints import complete_study_run, finalize_run_checkpoints
+from ..io.legacy_lifecycle import legacy_process_disposition
+from ..io.lifecycle import RunDisposition
 from .run_manager import (
     callback_lock_path,
     exclusive_lock,
@@ -74,26 +77,29 @@ def execute_run(run_dir: Path, *, callback_runner: Callable[..., int] | None = N
     except BaseException as exc:
         _append_exception(run_dir, exc)
         transition(run_dir, "FAILED", exit_code=None, error=str(exc))
+        complete_study_run(run_dir, disposition=RunDisposition.FAILED)
         exit_code = None
     else:
-        review_waiting = bool(
-            exit_code == 0
-            and any(
-                (run_dir / marker).is_file()
-                for marker in (
-                "PHASE_C_SUPPLEMENT_COMPLETE_WAITING_FOR_REVIEW.txt",
-                "PHASE_C_FINAL_CONFIRMATION_COMPLETE_WAITING_FOR_REVIEW.txt",
-                "STAGE3_6_GATE2B_A_COMPLETE_WAITING_FOR_REVIEW.txt",
-                "STAGE3_6_GATE2B_B_COMPLETE_STOP.txt",
-                )
-            )
-        )
+        disposition = legacy_process_disposition(run_dir, return_code=exit_code)
         transition(
             run_dir,
-            "REVIEW_WAITING" if review_waiting else ("COMPLETED" if exit_code == 0 else "FAILED"),
+            disposition.value,
             exit_code=exit_code,
             error=None if exit_code == 0 else f"optimizer exited with code {exit_code}",
         )
+        complete_study_run(run_dir, disposition=disposition)
+        if disposition is RunDisposition.COMPLETED:
+            try:
+                finalization = finalize_run_checkpoints(run_dir)
+            except Exception as exc:
+                # Optimizer completion remains authoritative. Retain recovery
+                # files and make lifecycle failure visible for later repair.
+                update_status_fields(run_dir, checkpoint_finalization={
+                    "status": "FAILED",
+                    "error": f"{type(exc).__name__}: {exc}",
+                })
+            else:
+                update_status_fields(run_dir, checkpoint_finalization=finalization)
 
     if manifest.callback_enabled and manifest.review_after_completion:
         claimed = False

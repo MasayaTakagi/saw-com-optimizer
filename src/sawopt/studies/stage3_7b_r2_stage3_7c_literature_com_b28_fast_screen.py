@@ -26,6 +26,7 @@ from ..core.network import evaluate
 from ..io.config import load_experiment_config
 from ..io.run_store import initialize
 from ..io.serialization import save
+from ..optimizers.checkpoint_session import LShadeCheckpointSession
 from ..optimizers.lshade import LShadeBackend
 from ..optimizers.selection import DEFAULT_COMPARATOR, rank
 from ..optimization.convergence_metrics import last_significant_improvement
@@ -331,9 +332,14 @@ def _optimize_seed(
     schema = release_schema(RELEASE_GROUP, s1)
     seed_dir = out / "optimization" / provider_id / f"seed{int(seed)}"
     seed_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint_path = seed_dir / "optimizer_checkpoint.json"
+    legacy_checkpoint_path = seed_dir / "optimizer_checkpoint.json"
+    checkpoint_session = LShadeCheckpointSession(
+        seed_dir / "checkpoints", run_directory=out,
+        legacy_path=legacy_checkpoint_path, resume=resume,
+    )
+    checkpoint_path = checkpoint_session.reference_metadata
     trajectory_path = seed_dir / "trajectory_metadata.json"
-    resume_used = bool(resume and checkpoint_path.exists())
+    resume_used = bool(resume and checkpoint_session.has_checkpoint)
     if resume_used:
         metadata = json.loads(trajectory_path.read_text(encoding="utf-8"))
         if metadata.get("release_schema") != schema:
@@ -357,7 +363,7 @@ def _optimize_seed(
         source_config_fingerprint=fingerprint,
     )
     if resume_used:
-        backend.load_checkpoint(checkpoint_path)
+        checkpoint_session.load(backend)
         backend.set_evaluator(evaluator)
         if getattr(backend, "active_frequency_grid", []):
             evaluator.frequency_ref[0] = np.asarray(backend.active_frequency_grid, dtype=float)
@@ -411,7 +417,7 @@ def _optimize_seed(
         })
         record = clean_value(record)
         save(result_path, record)
-        backend.save_checkpoint(checkpoint_path)
+        checkpoint_session.save(backend)
         metadata = {
             "last_completed_budget": int(budget),
             "provider_id": provider_id,

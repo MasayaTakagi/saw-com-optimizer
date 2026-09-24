@@ -25,6 +25,8 @@ from scipy.optimize import differential_evolution
 
 from ..core.metrics import geometry, search_grid, validation_grid
 from ..core.models import BOUNDS, FilterDesign, NAMES, decode
+from ..io.checkpoints import CheckpointStore, complete_study_run
+from ..io.legacy_lifecycle import legacy_process_disposition
 from ..io.config import cold_seeds, load_study_config
 from ..io.run_store import initialize
 from ..io.serialization import save
@@ -1166,6 +1168,12 @@ def run_stage32(out, cfg, *, run_parallelism=False):
             seed: ContinuationTrajectory(out / "trajectory", cfg, z0, seed, wiring, state)
             for seed in seeds
         }
+        checkpoint_stores = {
+            seed: CheckpointStore(
+                out / "checkpoints" / wiring / f"seed{seed}", run_directory=out,
+            )
+            for seed in seeds
+        }
         rows_for_wiring = []
         pressure_history = {}
         recovery_pending_by_seed = {}
@@ -1213,19 +1221,23 @@ def run_stage32(out, cfg, *, run_parallelism=False):
             budgets_for_wiring.append(int(budget))
             trial_dir = out / "trials"
             trial_dir.mkdir(parents=True, exist_ok=True)
-            checkpoint_dir = out / "checkpoints" / wiring
-            checkpoint_dir.mkdir(parents=True, exist_ok=True)
             for seed, record in checkpoint_records.items():
                 record["design_space_version"] = version
                 trial_path = trial_dir / f"{wiring}__B{budget}__seed{seed}.json"
                 save(trial_path, record)
                 trial_files.append(trial_path.relative_to(out).as_posix())
-                checkpoint_path = checkpoint_dir / f"seed{seed}__B{budget}__v{version}.json"
-                trajectories[seed].save_checkpoint(record, checkpoint_path)
+                store = checkpoint_stores[seed]
+                store.write(
+                    lambda path, trajectory=trajectories[seed], item=record:
+                        trajectory.save_checkpoint(item, path)
+                )
                 checkpoint_summary.append({
                     "wiring": wiring, "seed": int(seed), "budget": int(budget),
                     "design_space_version": version,
-                    "path": checkpoint_path.relative_to(out).as_posix(),
+                    "path": None,
+                    "checkpoint_stream": store.directory.relative_to(out).as_posix(),
+                    "full_state_retained_as_milestone": False,
+                    "retention_class": "runtime_recovery",
                     "requested_unique_design_budget": int(record["requested_unique_design_budget"]),
                     "actual_unique_design_evaluations": int(record["actual_unique_design_evaluations"]),
                 })
@@ -1375,9 +1387,9 @@ def run_stage32(out, cfg, *, run_parallelism=False):
             for seed, record in checkpoint_records.items():
                 trial_path = out / "trials" / f"{wiring}__B{budget}__seed{seed}.json"
                 save(trial_path, record)
-                trajectories[seed].save_checkpoint(
-                    record, out / "checkpoints" / wiring /
-                    f"seed{seed}__B{budget}__v{version}.json"
+                checkpoint_stores[seed].write(
+                    lambda path, trajectory=trajectories[seed], item=record:
+                        trajectory.save_checkpoint(item, path)
                 )
             status, evidence = _continuation_status(rows_for_wiring, thresholds, version)
             unresolved_hard = False
@@ -1499,7 +1511,7 @@ def run_stage32(out, cfg, *, run_parallelism=False):
     _write_csv(out / "boundary_events.csv", boundary_events)
     _write_csv(out / "stagnation_events.csv", stagnation_events)
     save(out / "design_space_versions.json", design_versions)
-    save(out / "checkpoints" / "checkpoint_summary.json", checkpoint_summary)
+    save(out / "history" / "milestone_accounting.json", checkpoint_summary)
     _write_csv(out / "convergence_trials.csv", all_rows)
     elapsed = time.time() - started
     runtime_end = local_runtime_metadata(
@@ -1595,6 +1607,10 @@ def main():
         result = run_smoke_test(args.run, cfg)
     else:
         result = run_stage32(args.run, cfg, run_parallelism=args.run_parallelism_benchmark)
+    complete_study_run(
+        args.run, result,
+        disposition=legacy_process_disposition(args.run, return_code=0),
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
