@@ -6,6 +6,7 @@ small dependency-free module makes it usable by all backends and reports.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
@@ -87,6 +88,63 @@ class FeasibilityFirstComparator:
 
 
 DEFAULT_COMPARATOR = FeasibilityFirstComparator()
+
+
+def _evaluation_status(record: Mapping[str, Any]) -> str:
+    return str(record.get("evaluation_status", "PHYSICS_FAILED"))
+
+
+def _geometry_violation_values(record: Mapping[str, Any]) -> tuple[float, float]:
+    values = record.get("geometry_violations", {})
+    if isinstance(values, Mapping):
+        normalized = [_finite(value) for value in values.values()]
+    else:
+        normalized = []
+    normalized = [max(0.0, value) for value in normalized]
+    return max(normalized, default=0.0), sum(normalized)
+
+
+@dataclass(frozen=True)
+class GeometryFirstComparator:
+    """Stage-independent owner of the historical geometry-first rank policy.
+
+    Its geometry prefix and status handling are intentionally distinct from
+    :class:`FeasibilityFirstComparator` and preserve the R1 ordering exactly.
+    """
+
+    def rank_key(self, record: Mapping[str, Any]) -> tuple[float, ...]:
+        status = _evaluation_status(record)
+        if status == "PHYSICS_EVALUATED":
+            return (0.0, 0.0, *DEFAULT_COMPARATOR.rank_key(record))
+        if status == "PHYSICS_FAILED":
+            return (0.0, 1.0, math.inf, math.inf, math.inf, math.inf, math.inf)
+        maximum, total = _geometry_violation_values(record)
+        return (1.0, 0.0, maximum, total, 0.0, 0.0, 0.0)
+
+    def better(self, left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+        return self.rank_key(left) < self.rank_key(right)
+
+    def compare(self, left: Mapping[str, Any], right: Mapping[str, Any]) -> int:
+        left_key, right_key = self.rank_key(left), self.rank_key(right)
+        return -1 if left_key < right_key else (1 if left_key > right_key else 0)
+
+    def improvement(self, old: Mapping[str, Any], new: Mapping[str, Any]) -> float:
+        """Return a finite positive SHADE weight whenever ``new`` is better."""
+        if not self.better(new, old):
+            return 0.0
+        old_key, new_key = self.rank_key(old), self.rank_key(new)
+        for old_value, new_value in zip(old_key, new_key):
+            if old_value == new_value:
+                continue
+            if math.isfinite(old_value) and math.isfinite(new_value):
+                delta = abs(old_value - new_value)
+                return max(delta, np.finfo(float).eps)
+            return 1.0
+        return float(np.finfo(float).eps)
+
+    def quality(self, record: Mapping[str, Any]) -> float:
+        key = self.rank_key(record)
+        return _finite(key[2], 1.0e12)
 
 
 def rank_key(record: Mapping[str, Any], *, comparator: FeasibilityFirstComparator = DEFAULT_COMPARATOR):

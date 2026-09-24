@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from sawopt.optimization.accounting import validate_checkpoint_lattice
 from sawopt.studies.stage3_8c_r1_geometry_gate import _audit_counter_accounting_rows
 
 
@@ -50,6 +51,15 @@ def test_complete_48_checkpoint_rows_pass_and_expected_count_is_derived():
     assert result["expected_seed_runs"] == 12
     assert result["seed_runs_with_complete_checkpoints"] == 12
     assert result["final_checkpoint_rows"] == 12
+
+
+def test_historical_checkpoint_audit_is_a_compatibility_wrapper():
+    rows = _valid_counter_rows()
+    shared = validate_checkpoint_lattice(
+        rows, materials=MATERIALS, topologies=TOPOLOGIES,
+        seeds=SEEDS, checkpoints=CHECKPOINTS,
+    )
+    assert _audit(rows) == shared
 
 
 def test_legacy_12_run_count_cannot_pass_as_checkpoint_row_count():

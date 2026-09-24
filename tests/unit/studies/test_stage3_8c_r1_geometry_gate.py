@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -8,9 +9,15 @@ import numpy as np
 
 from sawopt.core.metrics import search_grid
 from sawopt.io.config import load_experiment_config
+from sawopt.optimization.counters import GeometryGateCounters
 from sawopt.optimizers.lshade import LShadeBackend
-from sawopt.optimizers.selection import DEFAULT_COMPARATOR
+from sawopt.optimizers.selection import DEFAULT_COMPARATOR, GeometryFirstComparator
 from sawopt.studies import stage3_8c_r1_geometry_gate as r1
+
+
+def test_search_primitives_have_canonical_owners():
+    assert r1.GeometryFirstComparator is GeometryFirstComparator
+    assert r1.EvaluationCounters is GeometryGateCounters
 
 
 def _invalid(geometry_violation: float):
@@ -362,6 +369,27 @@ def test_r1_2_rejection_sampler_replays_and_matches_monte_carlo_reference():
                 design = r1.decode_design(vector, topology, cfg)
                 _dims, violations = r1.geometry(design, cfg["constraints"])
                 assert max(violations, default=0.0) == 0.0
+
+
+def test_r1_2_population_sampler_matches_pre_refactor_seeded_arrays():
+    cfg = load_experiment_config("configs/studies/stage3_8c_r1_2_pilot.yaml")
+    expected = {
+        ("M0", r1.T0): ("6da57efa1c1f29db40365c0bd9d8f1c3fcef8419d1a857504a7025135120cc60", 44, 37),
+        ("M0", r1.T1): ("a2838a5f0171c79cf15f868cd2e6f56fd1863f18da985ab7e9c36e667a587d36", 7, 0),
+        ("M0", r1.T2): ("8f0ec06dc346c5be76bf13b7a28256ac996fb777443e95844ea951bb44237843", 71, 64),
+        ("MLIT", r1.T0): ("d2e18573f15548676632c0dee059492dcb6cd1bfc365abdb790b0e6da93cadc1", 81, 74),
+        ("MLIT", r1.T1): ("b7abdfa134fa2ea0588d05de53e06e5b189ce6fd966686376da860b105aa2c78", 7, 0),
+        ("MLIT", r1.T2): ("5fba39b30cc795da08c977d92a4905927cbf1ce5663210909175051ec46a72bf", 131, 124),
+    }
+    for (material, topology), (expected_hash, expected_draws, expected_rejections) in expected.items():
+        population, stats = r1.sample_independent_uniform_population(
+            cfg, material, topology, seed=20260917, population_size=8,
+            max_attempts=10000, reference_proposals=0, bootstrap_replicates=0,
+        )
+        actual_hash = hashlib.sha256(np.asarray(population, dtype="<f8").tobytes()).hexdigest()
+        assert actual_hash == expected_hash
+        assert stats["total_candidate_draws"] == expected_draws
+        assert stats["initial_sampling_geometry_rejections"] == expected_rejections
 
 
 def test_r1_2_integer_canonicalization_preserves_half_mass_endpoint_law():
