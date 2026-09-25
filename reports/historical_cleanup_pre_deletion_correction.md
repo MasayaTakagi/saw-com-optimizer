@@ -6,8 +6,9 @@ Date: 2026-09-25
 
 - Branch: `codex-historical-cleanup`
 - Starting HEAD: `baed01c365a5a7d0f87ae03344475037d9e476b8`
-- Ending HEAD: `baed01c365a5a7d0f87ae03344475037d9e476b8` (correction remains
-  in the worktree; no commit was created)
+- Correction changes were subsequently committed and pushed on
+  `codex-historical-cleanup`; Git history is the canonical source for the
+  resulting commit SHA. This report does not pin its own final HEAD SHA.
 - Freeze tag: `archive/pre-historical-cleanup-2026-09-25`
 - Freeze target: `444d3a430797d32d688f74bb76ffda615cddfba0`
 - Remote verification: a successful `git ls-remote --tags origin` check
