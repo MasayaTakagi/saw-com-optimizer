@@ -5,8 +5,8 @@ gitignored `runs/` paths while retaining the exact saved validation grid and
 initial design inputs. The inputs preserve provenance from the historical
 Stage 3.8C study; they are reference data for the current role-based workflow.
 
-- `common_validation_grid_hz.csv` has 9,113 points and file SHA-256
-  `84afd1e7ecf7c66ce937e7dc265a31f2ae4017ab08f7242b25577dd80279ffab`.
+- `common_validation_grid_hz.csv` has 9,113 points and canonical LF-content
+  SHA-256 `54c1daf67dd2bb9242f95e638d7bd801db536acc2c7d6f00c1f62a788bead554`.
   Its grid identity is
   `2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f`.
   The source run file and metadata hashes are recorded in

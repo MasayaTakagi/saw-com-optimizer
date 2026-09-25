@@ -78,7 +78,11 @@ def _load_common_grid(cfg: Mapping[str, Any]) -> tuple[np.ndarray, str, str, dic
     grid_path = Path(metadata["source"])
     if not grid_path.is_absolute():
         grid_path = ROOT / grid_path
-    if hashlib.sha256(grid_path.read_bytes()).hexdigest() != metadata["sha256"]:
+    # Git stores this reference CSV with LF endings; normalize CRLF worktrees
+    # before checking the content hash so Windows and Linux validate the same
+    # immutable bytes.
+    grid_bytes = grid_path.read_bytes().replace(b"\r\n", b"\n")
+    if hashlib.sha256(grid_bytes).hexdigest() != metadata["sha256"]:
         raise ValueError("common validation grid file hash does not match its metadata")
     grid = np.loadtxt(grid_path, delimiter=",", skiprows=1).astype(float)
     grid_id = hashlib.sha256(np.asarray(grid, dtype="<f8").tobytes()).hexdigest()

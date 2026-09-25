@@ -36,7 +36,9 @@ Current source, tests, scripts, and execution documentation contain no imports o
 ## Verification
 
 - Focused regression: `59 passed in 63.27s`
-- Full regression: `165 passed, 11 subtests passed in 63.63s`
+- Targeted common-grid hash regression after portability fix: `1 passed in 0.98s`
+- Full regression: `165 passed, 11 subtests passed in 66.83s`
+- The common validation grid content hash is line-ending independent across Windows and Linux checkouts.
 - The CI workflow triggers on pushes to `main`/`master` and on pull requests; a direct push to this branch does not trigger it.
 
 ## Numerical impact
