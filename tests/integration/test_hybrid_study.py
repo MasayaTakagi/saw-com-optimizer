@@ -2,7 +2,7 @@ import json,tempfile,unittest
 from pathlib import Path
 import yaml
 import numpy as np
-from sawopt.optimization.hybrid_study import optimize_case
+from sawopt.studies.hybrid import optimize_case
 
 class HybridStudy(unittest.TestCase):
     def test_hybrid_seed_reproducibility_and_reuse(self):

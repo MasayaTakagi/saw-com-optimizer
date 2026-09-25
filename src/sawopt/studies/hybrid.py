@@ -1,11 +1,4 @@
-"""Hybrid DMS + resonator optimization with impedance and adaptive-grid plumbing.
-
-Stage 2A reference implementation. It intentionally keeps the existing
-Differential Evolution / topology architecture and COM physics. Stage 2B
-(successive-halving across all topology x wiring combinations and independent
-impedance coarse passes) is specified in CODEX_STAGE2_TASK.md rather than
-silently changing the study semantics here.
-"""
+"""Hybrid DMS and resonator optimization with impedance and adaptive-grid support."""
 import argparse, json, time
 from pathlib import Path
 from dataclasses import asdict

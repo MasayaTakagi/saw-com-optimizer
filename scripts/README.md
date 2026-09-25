@@ -17,17 +17,13 @@ python -m pip install -e .
 
 - `common/`: すべてのPowerShellランチャーが共有する環境設定とPython起動処理
 - `launchers/`: 解析・試行ごとの利用者向け起動ファイル
-- `analysis/`: 保存結果の解析と探索品質ベンチマーク
-- `maintenance/`: 過去runの監査メタデータを更新する一度限りの保守処理
+- `analysis/`: 保存結果の解析
 
 通常利用する入口は次の3つ。
 
 - `launchers/base-study.ps1`: 基本COMシミュレーションとインピーダンススイープ
 - `launchers/hybrid-50ohm.ps1`: 50 Ω固定のDMS＋ラダー探索
-- `launchers/stage2-study.ps1`: 構成・結線・インピーダンスの共同探索
 
-新しい実験は仮想環境を有効にした上で、`PYTHONPATH=src python -m sawopt
-run-study --config experiments/<name>/experiment.yaml --run runs/<name>` を使う。上記 launcher と
-旧 Stage module invocation は既存 workflow の互換入口である。
-
-`maintenance/` のスクリプトは通常の試行には使用しない。
+現在のDMS topology studyは `python -m sawopt run-study --config
+configs/studies/dms_topology_screening.yaml --run runs/<name>` から実行します。
+30分以上かかる本番runは `python -m sawopt.orchestration.cli launch` を使います。

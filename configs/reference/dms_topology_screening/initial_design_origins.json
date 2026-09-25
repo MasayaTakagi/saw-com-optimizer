@@ -1,0 +1,10 @@
+{
+  "M0": {
+    "sha256": "4b3c84a0dc230e4922b9a8a9565f4cf3562dd17ebdae512c4969d7ec2d5d8c26",
+    "source": "runs\\stage3_7b_r2_stage3_7c_literature_com_b28_fast_screen_final_retry3\\metadata\\stage3_6_reference_design.json"
+  },
+  "MLIT": {
+    "sha256": "db7b21ff44f023d7be106d2db84a8b9021c37aebd82e0068d6d90a12f4f76e02",
+    "source": "runs\\stage3_7b_r2_stage3_7c_literature_com_b28_fast_screen_final_retry3\\optimization\\LI2024_42YX_LT_METAL_UNSPECIFIED_T25\\seed20260917\\B8000.json"
+  }
+}

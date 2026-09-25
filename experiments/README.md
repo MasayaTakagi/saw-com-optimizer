@@ -1,19 +1,17 @@
-# Config-driven experiments
+# Experiment lifecycle
 
-実行時はプロジェクト直下の `.venv` を使用します。PowerShellでは、先に
-`.\.venv\Scripts\Activate.ps1` を実行してください。レビュー用ZIPはワークスペース
-プロジェクトroot直下の `artifacts/review_bundles/` に保存します。
+Experiment-specific configuration and orchestration live with the active
+study. Reusable topology definitions belong in `problem/`, reusable search
+and accounting services in `optimization/`, and result packaging in
+`reporting/`.
 
-Each experiment declares a reusable protocol in `experiment.yaml` and may
-reference an existing resolved study configuration. Run one with:
+Run the current DMS topology study through
+`configs/studies/dms_topology_screening.yaml` and the `dms_topology_screening`
+study adapter. The hybrid workflow uses
+`configs/studies/hybrid_50ohm.yaml` and `sawopt.studies.hybrid`.
 
-```powershell
-$env:PYTHONPATH = "./src"
-python -m sawopt run-study --config experiments/stage3_2_continuation/experiment.yaml --run runs/stage3_2-continuation
-```
-
-The selected protocol is an explicit `study.type` value. Existing configs and
-the historical Stage commands remain supported as compatibility aliases.
-
-`stage3_1_convergence/` is a documented, intentionally non-executable
-migration placeholder because its exact legacy fragment is missing.
+When a study closes, record its conditions, results, decision, limits, and raw
+artifact locations in `docs/history/experiment_register.md`. Update
+`docs/history/current_baseline.md` only when the result changes an adopted
+assumption. Then remove study-only code, configuration, and tests when they no
+longer serve an active workflow.

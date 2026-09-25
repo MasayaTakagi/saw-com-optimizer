@@ -1,3 +1,0 @@
-base_config: ../../configs/studies/stage3_3_1_preprod.yaml
-study:
-  type: preproduction

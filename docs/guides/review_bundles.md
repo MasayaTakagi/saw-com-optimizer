@@ -61,5 +61,5 @@ spec = ReviewBundleSpec(
 build_review_bundle("runs/my_saved_run", "artifacts/review_bundles/my_saved_run_review.zip", spec)
 ```
 
-The legacy CLI without `--spec` continues to use the Stage 3.1/3.2 bundle
-contract.
+The CLI requires a `ReviewBundleSpec`; there is no study-specific bundle
+contract in the reporting module.

@@ -5,10 +5,6 @@ import unittest
 
 
 SRC = Path(__file__).parents[2] / 'src' / 'sawopt'
-COMPATIBILITY_MODULES = {
-    'hybrid_study.py', 'stage2_study.py', 'convergence_study.py',
-    'stage32_study.py', 'stage33_study.py', 'stage331_preprod.py',
-}
 
 
 def _absolute_import(package, node):
@@ -23,7 +19,6 @@ def _architecture_violations(module, path_name, source):
     parts = module.split('.')
     package = '.'.join(parts[:-1])
     owner = parts[1] if len(parts) > 1 else ''
-    is_compatibility = owner == 'optimization' and path_name in COMPATIBILITY_MODULES
     violations = []
     tree = ast.parse(source, filename=path_name)
     for node in ast.walk(tree):
@@ -36,7 +31,7 @@ def _architecture_violations(module, path_name, source):
                 violations.append(f'{module} imports {imported}')
             if owner == 'problem' and imported.startswith('sawopt.studies'):
                 violations.append(f'{module} imports {imported}')
-            if owner == 'optimization' and not is_compatibility and imported.startswith('sawopt.studies'):
+            if owner == 'optimization' and imported.startswith('sawopt.studies'):
                 violations.append(f'{module} imports {imported}')
             if owner == 'studies' and imported.startswith('sawopt.studies') and imported_name and imported_name.startswith('_'):
                 violations.append(f'{module} imports private {imported}.{imported_name}')
@@ -68,3 +63,9 @@ class ArchitectureBoundaries(unittest.TestCase):
         self.assertTrue(absolute)
         self.assertIn('sawopt.studies.other._private_helper', relative[0])
         self.assertIn('sawopt.studies.other._private_helper', absolute[0])
+
+    def test_live_study_adapters_are_role_named(self):
+        modules = {path.stem for path in (SRC / 'studies').glob('*.py')}
+        self.assertIn('dms_topology_screening', modules)
+        self.assertIn('hybrid', modules)
+        self.assertFalse(any(name.startswith(('stage', 'phase_c')) for name in modules))

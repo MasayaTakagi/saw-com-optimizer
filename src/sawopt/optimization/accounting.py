@@ -16,11 +16,10 @@ def validate_checkpoint_lattice(
     seeds: Sequence[int],
     checkpoints: Sequence[int],
 ) -> dict[str, Any]:
-    """Validate the full material/topology/seed/checkpoint accounting grid.
+    """Validate a complete material/topology/seed/checkpoint accounting grid.
 
-    This is the canonical Stage 3.8-compatible validator. Its key coercions,
-    counter identities, final-checkpoint rule, and return fields preserve the
-    historical R1 audit contract for compatibility callers.
+    The validator checks unique run/checkpoint keys, counter partitions, and
+    the presence of every configured final checkpoint.
     """
     axes = (tuple(map(str, materials)), tuple(map(str, topologies)),
             tuple(map(int, seeds)), tuple(map(int, checkpoints)))

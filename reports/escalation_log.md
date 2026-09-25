@@ -8,6 +8,63 @@ decision, Luna's action, verification, and outcome. Requested model and
 reasoning effort must be kept separate from independently observed backend
 identity and behavior.
 
+## 2026-09-25 — Historical cleanup architecture boundary
+
+### Packet
+
+- Scope: choose the smallest ownership map to remove current Stage 3.8/3.8C
+  imports from historical Stage modules without changing numerical or record
+  semantics.
+- Evidence and constraints: `problem/dms_topologies.py` already owns T0/T1/T2;
+  Stage 3.8 still imports the released design/simulator and `lshade_record`
+  from Stage 3.6/3.3 modules. Stage 3.8C imports helpers from the Stage 3.8
+  module and hashes historical files. No COM, optimizer, objective, bounds,
+  RNG, budget, checkpoint, or saved-run changes; no production rerun.
+- Requested reviewer: GPT-6 Sol (`gpt-6-sol`), high reasoning, judgment only.
+- Full packet: `reports/historical_cleanup_architecture_escalation.md`.
+
+### Decision
+
+- Move `ReleaseSection`, `ReleasedFilterDesign`, and the unchanged released
+  filter simulator into the existing problem-layer DMS module (or a small
+  problem-layer sibling if needed). Keep Stage 3.6 release groups, schema,
+  bounds, and vector decoding study-owned.
+- Give the Stage 3.8 study a fixed `G1_G2` T0 decoder; its current imports of
+  Stage 3.6 `release_schema` and `release_bounds` are unused.
+- Move the exact L-SHADE record assembly and JSON-cleaning helper into a small
+  study-level record module that may depend on `convergence_evidence`; retain
+  old imports until remaining historical callers are removed.
+- Extract only the Stage 3.8 helpers consumed by Stage 3.8C into a current
+  study adapter. Preserve old run metadata and manifests; write new source
+  fingerprints honestly after the source move.
+- Gate removal with old/new design and section equality, T0 response parity,
+  Stage 3.8 helper parity, L-SHADE record JSON equality under controlled
+  timing, and import-boundary checks. Production optimization is unnecessary.
+
+### Luna action and outcome
+
+- Decision accepted. The repository freeze and 288-test baseline are recorded
+  in `reports/historical_cleanup_freeze_20260925.md`.
+- Moved the unchanged released DMS design/simulator into
+  `src/sawopt/problem/released_dms.py`; Stage 3.6 keeps its release schema,
+  bounds, and decoder. Stage 3.8 now decodes its fixed G1+G2 release locally.
+- Extracted L-SHADE record serialization to
+  `src/sawopt/studies/lshade_records.py` and current DMS study helpers to
+  `src/sawopt/studies/dms_topology_common.py`. Stage 3.8C no longer imports the
+  Stage 3.8 runner.
+- Removed Stage 3.8C runtime reads/copies of historical reports and handoff
+  files. Its source fingerprint now hashes the current study, topology,
+  released-design, and record modules. The historical test-gate JSON was copied
+  under the saved Final Confirmation run's metadata and the active configs now
+  point there; the saved run outputs were otherwise untouched.
+- Focused characterization/regression set: 63 passed. No COM equation,
+  optimizer, objective, bounds, RNG, evaluation budget, or saved optimization
+  result changed, and no production optimization was launched. Historical
+  module/config/test removal remains in progress.
+- The runtime exposes the requested reviewer/model setting but does not
+  independently expose backend identity or actual internal reasoning effort;
+  neither is claimed as verified.
+
 ## 2026-09-13 — Stage 3.5 L-SHADE parity root-cause review
 
 ### Packet
@@ -688,3 +745,95 @@ confirmation or a separately approved FEM extraction is required.
 - Resume parity and RNG continuation matched the uninterrupted fixed-seed
   L-SHADE run. No production optimizer run was started.
 - Review bundle: `artifacts/review_bundles/stage3_8_6_checkpoint_retention_correction_review.zip`.
+
+## 2026-09-25 — Historical cleanup pre-deletion convergence evidence review
+
+### Packet and decision
+
+- Packet: `reports/historical_cleanup_convergence_evidence_escalation.md`.
+- Scope: canonical ownership of optimizer-independent checkpoint evidence,
+  temporary compatibility behavior, and minimum parity gates. The correction
+  instructions prohibit historical bulk deletion and numerical changes in
+  this pass.
+- Judgment requested from `gpt-6-sol`: whether
+  `optimization/convergence_evidence.py` is the appropriate owner, whether
+  old study callers need an interim import path, and what checks should gate
+  the move. The runtime did not expose independently verified backend identity
+  or actual reasoning effort.
+- Decision: `sawopt.optimization.convergence_evidence` is the appropriate
+  canonical location because evidence derivation is optimizer-independent.
+  Move the reusable L-SHADE record caller now, retain the studies path as a
+  temporary re-export for historical callers, and remove that shim with the
+  historical runners in the deletion phase. Gate with fixed expected evidence
+  fixtures covering events, incomplete telemetry and missing fields,
+  checkpoint selection/overrides, and numeric/trace fallbacks; also compare a
+  controlled L-SHADE serialization fixture while normalizing volatile timing.
+- Outcome: implemented the ownership move and compatibility re-export. The
+  moved implementation preserves its behavior; public helper names were
+  exposed at the DMS common-helper boundary so downstream imports no longer
+  depend on private names. No optimizer algorithm, serialized record meaning,
+  COM, network, objective, or experiment condition changed.
+
+### Verification
+
+- Focused historical-cleanup characterization command passed: 72 tests in
+  31.54 s. This covered architecture boundaries, convergence evidence,
+  L-SHADE serialization, checkpoints, T0/T1/T2 topology behavior, released DMS
+  field/geometry/S-parameter/metric parity, and Stage 3.8C closeout regressions.
+- Full regression passed: `297 passed, 14 subtests passed` in 106.24 s using
+  `.venv\Scripts\python.exe -m pytest -p no:cacheprovider -q`.
+- No production optimizer or historical optimization run was started.
+
+## 2026-09-25 — Historical cleanup deletion-phase boundary review
+
+### Packet and decision
+
+- The temporary Sol review packet was consolidated into this decision record
+  after implementation and verification.
+- Scope: the boundary between the completed, Stage-named 3.8C R1.2 gate
+  sequence and the cleanup plan's living DMS topology study, plus safe deletion
+  order for historical runners and their configs/tests/shims.
+- Judgment requested from `gpt-6-sol`. Runtime-visible backend identity and
+  reasoning effort were not independently exposed.
+- Decision: preserve the R1.2 numerical study capability by moving its
+  behavior to a role-based DMS topology study module. Treat the completed R1,
+  R1.1, and R1.2 approval/gate sequence, exact production config, separate
+  Stage 3.8 fast-screen runner, and Stage 2 topology study as historical. Keep
+  geometry-first ranking, independent-uniform rejection sampling,
+  per-material/per-seed T0/T1/T2 evaluation, deterministic RNG, unique
+  evaluation/checkpoint accounting, common-grid evaluation, and result fields.
+  Do not change canonical physics or optimizer code.
+- The old R1.2 production YAML is not a reusable current config: it reads
+  prior runs for validation grid and initial designs, compares R1/R1.1 runs,
+  and depends on one-time pilot/report gates. Build a clean role-based config
+  from explicit current inputs; preserve exact grid/design values and their
+  historical origin where they remain necessary. Omit one-time gates and
+  comparators. Do not claim numerical equivalence for future runs without
+  evidence.
+- Split work into verified waves: (1) cut over the current study adapter,
+  config, dispatch, and focused tests; (2) remove historical Stage 2–3.7
+  runners/configs/descriptors/shims/aliases and matching tests; (3) remove the
+  separate Stage 3.8 fast screen plus the old Stage 3.8C runner/revision
+  configs/closeout tests/report builder; (4) prune completed handoffs and
+  temporary reports, then run the final gates. Keep runs and review bundles
+  intact. Existing source snapshots, recorded fingerprints, old paths, and
+  SHA strings remain immutable historical evidence.
+
+### Implementation status
+
+- Preserved the R1.2 numerical capability in the role-based
+  `studies/dms_topology_screening.py` adapter and a clean role-based config.
+  The dispatch now accepts only that current protocol. The common released-DMS
+  representation and numerical behavior remain in canonical problem/optimizer
+  modules; no COM physics, objective, optimizer algorithm, or experiment
+  conditions were changed.
+- Removed Stage 2–3.8 historical runners, shims, experiment configs and
+  descriptors, Stage-specific tests/report builders, completed tracked
+  handoffs, and temporary reports. Updated the current README and history
+  register. Kept `runs/`, review bundles, the annotated pre-deletion tag, and
+  the two untracked user-provided handoff documents.
+- Focused migration suite passed: `88 passed, 1 subtest passed` in 57.60 s.
+- Full regression passed: `165 passed, 11 subtests passed` in 72.04 s using
+  `.venv\Scripts\python.exe -m pytest -p no:cacheprovider -q`.
+- Static Python import search found no references to removed modules. The
+  architecture boundary test passed. No production optimizer was launched.
