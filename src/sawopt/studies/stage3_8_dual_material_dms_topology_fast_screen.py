@@ -50,7 +50,9 @@ from ..problem.released_dms import ReleasedFilterDesign, simulate_released_filte
 from ..reporting.material_metadata import material_profile_metadata
 from .lshade_records import lshade_record
 from .dms_topology_common import (
-    MATERIALS, _array_hash, _clean, _invalid_record, _provider, _write_csv,
+    MATERIALS, array_hash as _array_hash, clean_value as _clean,
+    invalid_record as _invalid_record, provider_for_material as _provider,
+    write_csv as _write_csv,
     decode_design, evaluate_topology_design, fixed_design_sanity,
     implementation_validation, initial_design,
 )

@@ -88,6 +88,9 @@ This is the current decision state after the registered experiments. Read
 - `studies/dms_topology_common.py`: current DMS study adapter helpers. It does
   not import a Stage 3.6 or Stage 3.8 runner.
 - `studies/lshade_records.py`: shared L-SHADE checkpoint record serialization.
+- `optimization/convergence_evidence.py`: canonical checkpoint evidence
+  derivation; the historical `studies/convergence_evidence.py` path temporarily
+  re-exports it for old study callers.
 - `optimizers/`: L-SHADE, SciPy DE, and candidate ranking primitives.
 - `optimization/`: budget, accounting, population, cache, and search mechanics.
 - `studies/`: experimental protocols and their configuration adapters.

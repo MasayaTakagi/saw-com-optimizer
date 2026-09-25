@@ -16,6 +16,9 @@ in this checkout.
 
 ## Prototype impedance sweep
 
+**Evidence level:** retained result/review documents; canonical run directory,
+configuration, and run commit are absent from this checkout.
+
 - **Question:** How does a separately optimized discrete SAW filter vary with
   real source/load impedance under the initial COM model?
 - **Conditions:** Hypothetical COM parameters; 14 impedance values across the
@@ -38,6 +41,9 @@ in this checkout.
   bundle, and run commit are not recoverable from the retained files.
 
 ## 50 Ω hybrid screen
+
+**Evidence level:** retained result document; canonical run directory,
+configuration, review bundle, and run commit are absent from this checkout.
 
 - **Question:** Does adding ladder resonators to the DMS improve the 50 Ω
   response?
@@ -63,6 +69,9 @@ in this checkout.
   and run commit are not recoverable from the retained files.
 
 ## Stage 3.1–3.4b convergence and continuation
+
+**Evidence level:** retained configs, experiment READMEs, and project decision
+records; canonical run directories and exact run commits are absent.
 
 - **Question:** How much unique-design search budget is needed for the 50 Ω
   `center_outer_same` DMS study, and how should stagnation be treated?
@@ -91,6 +100,9 @@ in this checkout.
   run commits are absent from the current `runs/` tree.
 
 ## Stage 3.3–3.5 optimizer and search-space studies
+
+**Evidence level:** retained configs, experiment READMEs, frozen S1 artifact,
+and escalation history; canonical production run and review bundle are absent.
 
 - **Question:** Which search backend and starting box give useful progress
   under a matched protocol?
@@ -128,6 +140,9 @@ in this checkout.
   referenced by the old handoff are not present in this checkout.
 
 ## Stage 3.6 — 50 Ω DOF release and asymmetric ports
+
+**Evidence level:** canonical runs and review bundles are retained, with
+recorded source commits for Gate 2A, Gate 2B-B, and Gate 2C.
 
 - **Question:** Which geometry DOFs should be released at the 50 Ω reference,
   and do separately optimized source/load impedances change the result?
@@ -174,6 +189,9 @@ in this checkout.
 
 ## Stage 3.7 — literature COM and aperture study
 
+**Evidence level:** canonical run data and model/study configs are retained;
+the Stage 3.7C decision is also recorded in escalation history.
+
 - **Question:** Can a source-grounded 42°YX-LiTaO3/Al COM model replace the
   hypothetical provider and support a B28 comparison?
 - **Model:** The normalized literature profile is
@@ -206,6 +224,9 @@ in this checkout.
   `db049bd9d0eb0e2c8730e9909ca0e5a422d09f70`.
 
 ## Stage 3.8 / 3.8C — DMS topology screen
+
+**Evidence level:** canonical production run, review bundles, and closeout
+evidence are retained.
 
 - **Question:** How do three candidate DMS topologies compare under the
   retained COM model and manufacturing constraints?

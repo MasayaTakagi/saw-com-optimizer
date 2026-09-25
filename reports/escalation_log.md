@@ -745,3 +745,41 @@ confirmation or a separately approved FEM extraction is required.
 - Resume parity and RNG continuation matched the uninterrupted fixed-seed
   L-SHADE run. No production optimizer run was started.
 - Review bundle: `artifacts/review_bundles/stage3_8_6_checkpoint_retention_correction_review.zip`.
+
+## 2026-09-25 — Historical cleanup pre-deletion convergence evidence review
+
+### Packet and decision
+
+- Packet: `reports/historical_cleanup_convergence_evidence_escalation.md`.
+- Scope: canonical ownership of optimizer-independent checkpoint evidence,
+  temporary compatibility behavior, and minimum parity gates. The correction
+  instructions prohibit historical bulk deletion and numerical changes in
+  this pass.
+- Judgment requested from `gpt-6-sol`: whether
+  `optimization/convergence_evidence.py` is the appropriate owner, whether
+  old study callers need an interim import path, and what checks should gate
+  the move. The runtime did not expose independently verified backend identity
+  or actual reasoning effort.
+- Decision: `sawopt.optimization.convergence_evidence` is the appropriate
+  canonical location because evidence derivation is optimizer-independent.
+  Move the reusable L-SHADE record caller now, retain the studies path as a
+  temporary re-export for historical callers, and remove that shim with the
+  historical runners in the deletion phase. Gate with fixed expected evidence
+  fixtures covering events, incomplete telemetry and missing fields,
+  checkpoint selection/overrides, and numeric/trace fallbacks; also compare a
+  controlled L-SHADE serialization fixture while normalizing volatile timing.
+- Outcome: implemented the ownership move and compatibility re-export. The
+  moved implementation preserves its behavior; public helper names were
+  exposed at the DMS common-helper boundary so downstream imports no longer
+  depend on private names. No optimizer algorithm, serialized record meaning,
+  COM, network, objective, or experiment condition changed.
+
+### Verification
+
+- Focused historical-cleanup characterization command passed: 72 tests in
+  31.54 s. This covered architecture boundaries, convergence evidence,
+  L-SHADE serialization, checkpoints, T0/T1/T2 topology behavior, released DMS
+  field/geometry/S-parameter/metric parity, and Stage 3.8C closeout regressions.
+- Full regression passed: `297 passed, 14 subtests passed` in 106.24 s using
+  `.venv\Scripts\python.exe -m pytest -p no:cacheprovider -q`.
+- No production optimizer or historical optimization run was started.

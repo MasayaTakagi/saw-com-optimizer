@@ -7,10 +7,10 @@ from collections.abc import Mapping
 
 import numpy as np
 
-from .convergence_evidence import apply_checkpoint_evidence
+from ..optimization.convergence_evidence import apply_checkpoint_evidence
 
 
-def _safe_record(record):
+def clean_record(record):
     def clean(value):
         if isinstance(value, np.ndarray):
             return [clean(item) for item in value.tolist()]
@@ -25,11 +25,11 @@ def _safe_record(record):
         return value
     return clean(record)
 
-def _lshade_record(backend, wiring, seed, budget, checkpoint_path,
-                   frequency_events, started_wall, started_cpu,
-                   *, disk_resume_used=False, trajectory_index=0,
-                   optimizer_wall_time_s=None, validation_wall_time_s=None,
-                   total_trial_wall_time_s=None):
+def serialize_lshade_record(backend, wiring, seed, budget, checkpoint_path,
+                            frequency_events, started_wall, started_cpu,
+                            *, disk_resume_used=False, trajectory_index=0,
+                            optimizer_wall_time_s=None, validation_wall_time_s=None,
+                            total_trial_wall_time_s=None):
     """Serialize one checkpoint observation from a live trajectory."""
     summary = backend.summary()
     requested = int(budget)
@@ -120,7 +120,7 @@ def _lshade_record(backend, wiring, seed, budget, checkpoint_path,
     elif checkpoint_path is not None:
         # Compatibility for historical direct-file checkpoint records.
         record["checkpoint"] = str(checkpoint_path)
-    return _safe_record(record)
+    return clean_record(record)
 
 
 def lshade_record(backend, wiring, seed, budget, checkpoint_path,
@@ -130,10 +130,10 @@ def lshade_record(backend, wiring, seed, budget, checkpoint_path,
                   total_trial_wall_time_s=None):
     """Public record adapter for study-specific trajectory implementations.
 
-    The implementation remains centralized in the historical helper; this
+    The implementation remains centralized in the canonical serializer; this
     public name keeps cross-study imports within the architecture contract.
     """
-    return _lshade_record(
+    return serialize_lshade_record(
         backend, wiring, seed, budget, checkpoint_path, frequency_events,
         started_wall, started_cpu, disk_resume_used=disk_resume_used,
         trajectory_index=trajectory_index,
@@ -141,3 +141,10 @@ def lshade_record(backend, wiring, seed, budget, checkpoint_path,
         validation_wall_time_s=validation_wall_time_s,
         total_trial_wall_time_s=total_trial_wall_time_s,
     )
+
+
+__all__ = [
+    "clean_record",
+    "lshade_record",
+    "serialize_lshade_record",
+]

@@ -198,5 +198,5 @@ stage3_8c_r1:
   - 20260918
   final_confirmation: true
   production_candidate_config: configs/studies/stage3_8c_r1_2_production.yaml
-  final_confirmation_test_gate: runs/stage3_8c_r1_2_final_confirmation_20260924/metadata/final_confirmation_test_gate.json
+  final_confirmation_test_gate: reports/stage3_8c_r1_2_final_confirmation_test_gate.json
   pilot_run_dir: runs/stage3_8c_r1_2_final_confirmation_20260924

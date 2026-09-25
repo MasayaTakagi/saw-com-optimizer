@@ -4,7 +4,7 @@ Recorded: 2026-09-25
 
 ## Git state
 
-- Branch: `codex/historical-cleanup`
+- Branch: `codex-historical-cleanup`
 - HEAD: `444d3a430797d32d688f74bb76ffda615cddfba0`
 - Freeze tag: `archive/pre-historical-cleanup-2026-09-25`
 - Tracked worktree changes before this report: none

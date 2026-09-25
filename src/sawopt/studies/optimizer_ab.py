@@ -48,7 +48,11 @@ from ..optimization.adaptive_frequency import critical_frequencies, new_frequenc
 from ..optimization.runner import optimize_one
 from ..reporting.review_bundle import _default_review_bundle_output, is_checkpoint_artifact
 from .convergence_evidence import apply_checkpoint_evidence
-from .lshade_records import _lshade_record, _safe_record, lshade_record
+from .lshade_records import (
+    clean_record as _safe_record,
+    lshade_record,
+    serialize_lshade_record as _lshade_record,
+)
 
 _cold_seeds = cold_seeds
 

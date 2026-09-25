@@ -275,11 +275,18 @@ def fixed_design_sanity(out: Path, cfg: Mapping[str, Any], grid: np.ndarray):
 
 
 def provider_for_material(material: str, cfg: Mapping[str, Any]):
-    """Compatibility-free public name for study material provider selection."""
+    """Public material provider selector for current topology studies."""
     return _provider(material, cfg)
 
 
+array_hash = _array_hash
+clean_value = _clean
+invalid_record = _invalid_record
+write_csv = _write_csv
+
+
 __all__ = [
-    "MATERIALS", "decode_design", "initial_design", "implementation_validation",
-    "fixed_design_sanity", "provider_for_material",
+    "MATERIALS", "array_hash", "clean_value", "decode_design",
+    "evaluate_topology_design", "fixed_design_sanity", "implementation_validation",
+    "initial_design", "invalid_record", "provider_for_material", "write_csv",
 ]

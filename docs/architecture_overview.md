@@ -19,6 +19,10 @@ configuration. Reporting consumes saved runs and result metadata.
 `src/sawopt/problem/dms_topologies.py` is the canonical T0/T1/T2 DMS topology
 module. `src/sawopt/problem/released_dms.py` owns the released T0 design record
 and its simulator; Stage 3.6 keeps only its release schema and decoder.
+`src/sawopt/optimization/convergence_evidence.py` owns optimizer-independent
+checkpoint telemetry derivation. The old studies path is a temporary
+re-export for historical callers and is scheduled for deletion with those
+study runners.
 `src/sawopt/studies/dms_topology_common.py` owns current study helpers for
 design decoding, provider selection, evaluation, and geometry checks. The
 Stage 3.8C study imports these canonical modules directly rather than importing

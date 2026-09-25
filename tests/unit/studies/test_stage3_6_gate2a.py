@@ -1,12 +1,18 @@
 import json
+from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
 
 from sawopt.core.com import simulate_filter
-from sawopt.core.metrics import geometry
+from sawopt.core.metrics import geometry, measure, search_grid
 from sawopt.core.models import FilterDesign, FixedProvider, NAMES
+from sawopt.core.network import evaluate
 from sawopt.io.config import load_experiment_config
+from sawopt.problem.released_dms import (
+    ReleasedFilterDesign as CanonicalReleasedFilterDesign,
+    simulate_released_filter as canonical_simulate_released_filter,
+)
 from sawopt.studies.convergence import normalize_convergence_config
 from sawopt.studies.stage3_6_gate2a import (
     BASELINE_GROUP,
@@ -46,13 +52,50 @@ def test_shared_manifold_reproduces_legacy_com_and_geometry():
     cfg = _cfg()
     design = FilterDesign()
     released = ReleasedFilterDesign()
-    frequencies = np.linspace(758e6, 803e6, 13)
+    frequencies = search_grid(cfg["spec"], cfg)
     provider = FixedProvider(cfg["com"])
     legacy = simulate_filter(design, provider, frequencies, cfg["center"], wiring="center_outer_same")
     candidate = simulate_released_filter(released, provider, frequencies, cfg["center"], wiring="center_outer_same")
     np.testing.assert_allclose(candidate.y_parameters, legacy.y_parameters, rtol=0, atol=1e-12)
     assert candidate.diagnostics["max_acoustic_solve_residual"] == legacy.diagnostics["max_acoustic_solve_residual"]
     assert geometry(released, cfg["constraints"]) == geometry(design, cfg["constraints"])
+    candidate_network = evaluate(candidate.y_parameters, 50.0, 50.0)
+    legacy_network = evaluate(legacy.y_parameters, 50.0, 50.0)
+    np.testing.assert_allclose(candidate_network["s"], legacy_network["s"], rtol=0, atol=1e-12)
+    candidate_metrics = measure(frequencies, candidate_network, released, cfg)["metrics"]
+    legacy_metrics = measure(frequencies, legacy_network, design, cfg)["metrics"]
+    for key in (
+        "worst_il_db", "ripple_db", "input_vswr", "output_vswr",
+        "source_return_loss_db_min", "load_return_loss_db_min",
+    ):
+        assert abs(candidate_metrics[key] - legacy_metrics[key]) <= 1e-12
+
+
+def test_released_dms_canonical_exports_and_section_geometry_contract():
+    assert ReleasedFilterDesign is CanonicalReleasedFilterDesign
+    assert simulate_released_filter is canonical_simulate_released_filter
+
+    design = ReleasedFilterDesign()
+    common_fields = asdict(FilterDesign())
+    released_fields = asdict(design)
+    assert {name: released_fields[name] for name in common_fields} == common_fields
+    assert released_fields["center_wavelength_um"] is None
+    assert released_fields["reflector_wavelength_um"] is None
+    assert released_fields["center_aperture_um"] is None
+    assert [
+        (item["region"], item["length_lambda"], item["port"], item["electrodes"])
+        for item in design.section_geometry()
+    ] == [
+        ("reflector", 20.0, None, 40.0),
+        ("gap", 0.5, None, 0.0),
+        ("idt", 24, 0, 48),
+        ("gap", 0.5, None, 0.0),
+        ("idt", 16, 1, 32),
+        ("gap", 0.5, None, 0.0),
+        ("idt", 24, 2, 48),
+        ("gap", 0.5, None, 0.0),
+        ("reflector", 20.0, None, 40.0),
+    ]
 
 
 def test_release_is_mirrored_and_center_perturbation_is_observable():

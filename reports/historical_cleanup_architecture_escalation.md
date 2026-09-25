@@ -11,7 +11,7 @@ numerical behavior and serialized result semantics. Do not implement changes.
 
 ## Repository state
 
-- Work branch: `codex/historical-cleanup`
+- Work branch: `codex-historical-cleanup`
 - Freeze commit: `444d3a430797d32d688f74bb76ffda615cddfba0`
 - Annotated freeze tag: `archive/pre-historical-cleanup-2026-09-25`
 - Baseline: `.venv\Scripts\python.exe -m pytest` — 288 passed; one harmless
