@@ -2,7 +2,8 @@
 
 These immutable inputs make the role-based DMS topology study independent of
 gitignored `runs/` paths while retaining the exact saved validation grid and
-initial designs used by the Stage 3.8C study.
+initial design inputs. The inputs preserve provenance from the historical
+Stage 3.8C study; they are reference data for the current role-based workflow.
 
 - `common_validation_grid_hz.csv` has 9,113 points and file SHA-256
   `84afd1e7ecf7c66ce937e7dc265a31f2ae4017ab08f7242b25577dd80279ffab`.
@@ -11,8 +12,8 @@ initial designs used by the Stage 3.8C study.
   The source run file and metadata hashes are recorded in
   `common_validation_grid.json`.
 - `initial_designs/M0.json` and `initial_designs/MLIT.json` preserve the exact
-  design dictionaries already used as Stage 3.8 test fixtures. Their source
-  run files and SHA-256 values are in `initial_design_origins.json`.
+  design dictionaries selected as current study inputs. Their source run files
+  and SHA-256 values are in `initial_design_origins.json`.
 
 These are reference inputs only. The archived run directories and review
 bundles remain untouched; future runs record a new configuration and source

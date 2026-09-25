@@ -31,6 +31,12 @@ Run a configured study with:
 python -m sawopt run-study --config configs/studies/dms_topology_screening.yaml --run runs/dms-topology-screening
 ```
 
+Run the separate 50 Ω Hybrid workflow with its standalone CLI:
+
+```powershell
+python -m sawopt.studies.hybrid --config configs/studies/hybrid_50ohm.yaml --run runs/hybrid-study
+```
+
 Use `python -m sawopt.orchestration.cli launch` for production runs expected to
 take 30 minutes or longer. Follow
 [`docs/guides/async_orchestration.md`](docs/guides/async_orchestration.md)

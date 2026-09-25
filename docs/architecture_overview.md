@@ -1,41 +1,36 @@
 # Architecture overview
 
-## Dependency direction
+## Package responsibilities
 
-New numerical work follows the dependency direction below:
+- `core/` implements COM sections, acoustic and electrical networks, S-parameter
+  conversion, metrics, and physical material calculations.
+- `problem/` defines reusable design spaces and evaluation boundaries,
+  including the canonical DMS topologies in `dms_topologies.py` and the released
+  DMS representation in `released_dms.py`.
+- `optimizers/` contains backend contracts, L-SHADE, the SciPy differential
+  evolution backend, candidate comparators, and optimizer-generic polish.
+- `optimization/` contains SAW search orchestration and shared services such as
+  accounting, adaptive frequency handling, budgets, caching, convergence
+  evidence, counters, history, population management, the runner, and
+  SAW-specific mixed-variable polish.
+- `studies/` contains the current study adapters: `dms_topology_common.py`,
+  `dms_topology_screening.py`, `hybrid.py`, and `lshade_records.py`.
+- `io/` owns configuration resolution, persistence, checkpoint lifecycle, and
+  provenance. `reporting/` builds artifacts from saved runs. `orchestration/`
+  manages detached execution and callbacks. `runtime/` configures execution
+  environment boundaries.
 
-```text
-studies → optimization → problem → core
-studies → reporting
-studies → io
-```
-
-`core` owns COM and network calculations. `problem` owns reusable design and
-topology definitions. `optimization` owns search primitives such as counters,
-population sampling, and accounting. `optimizers` owns algorithm backends and
-candidate selection. Study modules compose those pieces and own experiment
-configuration. Reporting consumes saved runs and result metadata.
-
-`src/sawopt/problem/dms_topologies.py` is the canonical T0/T1/T2 DMS topology
-module. `src/sawopt/problem/released_dms.py` owns the released T0 design record
-and its simulator; Stage 3.6 keeps only its release schema and decoder.
-`src/sawopt/optimization/convergence_evidence.py` owns optimizer-independent
-checkpoint telemetry derivation. The old studies path is a temporary
-re-export for historical callers and is scheduled for deletion with those
-study runners.
-`src/sawopt/studies/dms_topology_common.py` owns current study helpers for
-design decoding, provider selection, evaluation, and geometry checks. The
-Stage 3.8C study imports these canonical modules directly rather than importing
-another Stage's runner. L-SHADE checkpoint record serialization lives in
-`src/sawopt/studies/lshade_records.py`; `optimizer_ab.py` temporarily re-exports
-it while historical study removal is in progress.
+Study adapters compose problem definitions, optimizer backends, and
+optimization services. The `run-study` CLI dispatches the configured DMS
+topology study; the 50 Ω Hybrid workflow has its own CLI at
+`sawopt.studies.hybrid`.
 
 ## Provenance
 
-`sawopt.io.run_store.initialize` and Stage 3.8's source/config gates implement
-the historical fingerprint contract. They remain schema v1 and are not
-rewritten. New studies may use `sawopt.io.provenance.build_fingerprint_metadata`
-to save schema v2 with two hashes:
+`sawopt.io.run_store.initialize` supports the historical schema-v1 fingerprint
+contract. New studies may use
+`sawopt.io.provenance.build_fingerprint_metadata` to save schema v2 with two
+hashes:
 
 - `computation_fingerprint`: canonical configuration plus an explicit list of
   source dependencies that can affect numerical results.
@@ -53,9 +48,8 @@ never interpreted as a v2 computation fingerprint.
 `sawopt.reporting.review_bundle` owns artifact validation, file collection,
 source snapshots, Git/environment metadata, SHA-256 manifests, ZIP creation,
 and post-ZIP validation. `ReviewBundleSpec` describes a saved run's required
-and optional files. Stage-specific reporting code owns the content of
-`REVIEW_ME.md` and derived study summaries. Bundle generation uses saved run
-files and does not import or run an optimizer.
+and optional files. Bundle generation uses saved run files and does not import
+or run an optimizer.
 
 New experiment guidance is in [new_experiments.md](guides/new_experiments.md);
 standalone bundle instructions are in
