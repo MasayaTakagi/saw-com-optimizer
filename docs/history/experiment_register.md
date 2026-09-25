@@ -11,13 +11,19 @@ provenance; retrieve a file with `git show archive/pre-historical-deletion-2026-
 
 ## Evidence limits
 
-The current checkout contains canonical run data for Stages 3.6–3.8C, but not
-the documented prototype or 50 Ω hybrid run directories. Stage 3.1–3.5 run
-directories are also absent. For those records, this register preserves only
-claims supported by the pre-deletion source snapshot and retained escalation
-history; it does not invent missing metrics or run commits. Several old records
-therefore have no recoverable raw artifact or exact source commit in this
-checkout.
+`runs/` and most of `artifacts/` are Git-ignored. Repository history can
+prove the historical code/config/document state and expected artifact paths,
+but it cannot prove that a referenced local run or review bundle still exists
+after local cleanup. Artifact references below therefore describe historical
+canonical or expected locations; current local availability is **UNVERIFIED**
+unless it is checked separately.
+
+For Stages whose raw data are unavailable, this register preserves only claims
+supported by the pre-deletion Git snapshot, retained decision records, or a
+2026-09-25 retrospective recovery from the project's prior ChatGPT
+conversations and uploaded review material. Retrospectively recovered values
+are labeled as such and are not used to invent missing run commits or raw
+artifacts.
 
 ## Prototype impedance sweep
 
@@ -76,88 +82,176 @@ configuration, review bundle, and run commit are absent from this checkout.
   `runs/hybrid-50ohm` is not present in this checkout. Config, review bundle,
   and run commit are not recoverable from the retained files.
 
+## Stage 2 — impedance-aware topology/wiring pilot
+
+**Evidence level:** Git-recoverable implementation guide and Stage 2 task
+definition at the pre-deletion tag; the pilot run directory is not required for
+the decision record below.
+
+- **Question:** Can the study compare separately re-optimized filters across
+  impedance while avoiding topology/wiring pruning bias and coarse-grid
+  acceptance bias?
+- **Implementation decisions:** Stage 2 made source/load impedance explicit,
+  closed the adaptive-frequency loop, canonicalized integer-containing designs
+  before cache identity, scaled population with dimension, and required joint
+  topology × wiring low-budget screening rather than keeping only the wiring
+  that was best for D-only.
+- **Pilot conditions:** Small 20/50/100 Ω pilot; candidate families
+  `D`, `P_D`, and `P_D_P`; three DMS wirings; three seeds.
+- **Pilot result:** At 20 Ω the selected result was
+  `P_D_P / center_outer_same`, worst IL 9.3670 dB and maximum violation
+  2.1223. At 50 Ω it was `P_D / center_outer_same`, worst IL 8.4666 dB and
+  maximum violation 1.8222. At 100 Ω it was
+  `P_D_P / center_outer_same`, worst IL 9.5004 dB and maximum violation
+  2.6397. The corresponding 50 Ω-shape loading-only IL values were
+  10.8352, 8.4666, and 10.3333 dB.
+- **Decision:** All pilot points failed the target. The low-budget screen does
+  not establish that 50 Ω is the optimum and does not support a real-device
+  impedance recommendation. Continue with calibrated/common-budget
+  convergence work before a production impedance sweep.
+- **References:** Pre-deletion
+  `docs/guides/stage2_implementation.md`,
+  `CODEX_STAGE2_TASK.md` from the project attachment archive, and the Stage 2
+  source/config snapshot at the annotated deletion tag.
+
 ## Stage 3.1–3.4b convergence and continuation
 
-**Evidence level:** retained configs, experiment READMEs, and project decision
-records; canonical run directories and exact run commits are absent.
+**Evidence level:** Git-recoverable configs/experiment guides plus
+retrospectively recovered project-chat reviews. Raw Stage 3.1–3.5 run
+availability is not established by Git.
 
 - **Question:** How much unique-design search budget is needed for the 50 Ω
-  `center_outer_same` DMS study, and how should stagnation be treated?
-- **Conditions and decisions:** Stage 3.1's exact legacy config fragment is
-  missing; the retained experiment is intentionally non-executable and must
-  not be reconstructed from Stage 3.2 settings. Stage 3.2 added a bounded
-  zero-progress recovery sequence: four DE attempts, three between-attempt
-  population refreshes, quarter-population retention, and deterministic seed
-  progression. Later convergence accounting uses unique decoded designs so
-  duplicate proposals do not inflate the comparison budget.
-- **Stage 3.4b finding:** The cleanup plan records an extension through
-  256,000 unique evaluations. The 64,000 checkpoint alone was not enough to
-  assert convergence. Eight cold seeds, the 50 Ω wiring, and the hard lower
-  bound of eight input/output IDT pairs define the extended study. Do not
-  present a finite checkpoint or the study's 512,000 absolute ceiling as proof
-  of a global optimum.
-- **Carry-forward:** Treat convergence status as evidence about remaining
-  budget, not global optimality. Retain unique-evaluation accounting,
-  deterministic recovery, and the 50 Ω `center_outer_same` result as a
-  comparison reference.
-- **Limits and references:** The former convergence guides, experiment
-  descriptors, and `configs/studies/stage3_2*`–`stage3_4b*` files are available
-  from the annotated cleanup tag. Canonical run data and exact run commits are
-  absent from the current `runs/` tree.
+  `center_outer_same` DMS study, and how should stagnation and active search
+  boundaries be treated?
+- **Stage 3.1:** The exact legacy Stage 3.1 config fragment is missing and must
+  not be reconstructed from Stage 3.2 settings. In the later corrected
+  4,000-unique-design review, `center_outer_same` had best/median maximum
+  violation 1.780/1.827, seed IQR 0.00524, paired 2k→4k median improvement
+  0.00384, and no best-candidate polish improvement. This looked locally
+  plateaued, but input/output IDT pairs were pressed against the active lower
+  bound, so it was not accepted as a structure/model limit. `outer_ports`
+  retained much larger seed dispersion (IQR about 0.163) and remained
+  underoptimized.
+- **Stage 3.2 continuation:** The first 8k→16k continuation improved best
+  maximum violation only from about 1.099 to 1.087 while the median improved
+  from about 1.597 to 1.316; seed IQR widened from about 0.242 to 0.497 and two
+  seeds made late material improvements at roughly 87.3% and 95.6% of the
+  budget. Status therefore remained `likely_underoptimized`. The active
+  `io_idt_pairs` lower bound expanded 20→15; a post-run 15→10 probe improved
+  4/5 seeds, revealing that production bound expansion had not been wired to
+  the elite-boundary evidence.
+- **Recovery semantics:** Stage 3.2 added a bounded zero-progress recovery
+  sequence: up to four DE attempts, three between-attempt population
+  refreshes, retention of the first `max(1,n//4)` prior members, and
+  deterministic retry seeds using the trajectory segment index. A successful
+  retry exits immediately; `no_new_unique_designs` is set only after all
+  four attempts fail to add a new canonical design.
+- **Stage 3.4 boundary recovery:** The corrected boundary-aware continuation
+  opened `io_idt_pairs` 20→15→10. Five final designs were 10,10,10,10,11,
+  leaving clear lower-bound pressure. A later 16k/32k continuation remained
+  underoptimized: two of five seeds materially improved at 32k, including
+  1.5967→0.7124 and 1.0994→0.8563. The coordinate boundary probe was treated
+  as diagnostic rather than proof of a jointly re-optimized optimum.
+- **Stage 3.4b finding:** The final extended study used eight cold seeds and
+  opened `io_idt_pairs` to the hard lower bound of 8. At 256k it met the
+  study's convergence evidence: 192k→256k produced no significant improvement
+  in 8/8 seeds, grid convergence passed 8/8, no recovery/boundary condition
+  remained pending, and the maximum recorded validation gap was about
+  0.00119. Additional 384k/512k checkpoints or more seeds were judged
+  unnecessary for this question.
+- **Decision:** The poor 50 Ω `center_outer_same` result could no longer be
+  attributed simply to insufficient Legacy-DE budget. Remaining work shifted
+  to search-space design, correlated/redundant DOFs, mixed
+  discrete/continuous parameterization, and optimizer efficiency. A finite
+  convergence certificate still does not prove a global optimum.
+- **References:** The former convergence guides, experiment descriptors, and
+  `configs/studies/stage3_2*`–`stage3_4b*` files are recoverable from the
+  annotated cleanup tag. The Stage 3.1/3.2/3.4 numeric review statements above
+  were recovered from the project's prior ChatGPT review conversations on
+  2026-09-09 through 2026-09-12.
 
 ## Stage 3.3–3.5 optimizer and search-space studies
 
-**Evidence level:** retained configs, experiment READMEs, frozen S1 artifact,
-and escalation history; canonical production run and review bundle are absent.
+**Evidence level:** Git-recoverable configs/experiment READMEs/frozen S1,
+retained escalation history, and retrospectively recovered A/B review values.
+Raw production-run availability is not established by Git.
 
-- **Question:** Which search backend and starting box give useful progress
+- **Question:** Which optimizer backend and starting box give useful progress
   under a matched protocol?
-- **Conditions:** Stage 3.3 compared Legacy SciPy DE and L-SHADE; Stage 3.5
-  crossed both backends with the frozen Stage 3.4b S0 box and a data-informed,
-  boundary-expandable S1 initial box. Phase C used cold starts and development
-  seeds 20260917–20260920. All four arms reached 16k and 32k; arm A always
-  reached 64k, while only the 32k survivors continued to 64k. The L-SHADE
-  schedule horizon was 64,000 with checkpointed progression. Hard bounds,
-  COM/network behavior, validation, and convergence thresholds were held
-  fixed.
-- **Interpretation:** Early apparent Legacy-DE advantage was not sufficient to
-  establish backend superiority. A parity audit found identical historical
-  and current traces through 4,000 unique evaluations, then a current-only
-  adaptive-frequency exchange at 4,000 versus historical exchanges at
-  16,000/32,000/64,000. This is a protocol/provenance mismatch, not evidence
-  that one optimizer is intrinsically better. Use L-SHADE as the later study
-  backend because the later protocol adopts it; do not treat the historical
-  A/B as a universal algorithm ranking.
+- **Initial Stage 3.3 A/B was invalid:** L-SHADE did not consume the requested
+  4,000 unique designs: the recovered review recorded median actual unique
+  counts of about 1,162 for `center_outer_same` and 1,306 for
+  `outer_ports`. A duplicate-handling path could terminate progress after a
+  generation with no new unique design, and checkpoint budget had been coupled
+  to the L-SHADE population-schedule terminal horizon. Treating B1000 as the
+  terminal horizon shrank population from 126 to 4 with no later re-expansion.
+  This result was rejected before any optimizer-quality conclusion.
+- **Stage 3.3.1b corrected A/B:** With both backends matched at 4,000 unique
+  evaluations, five `center_outer_same` seeds and one 8,555-point common
+  validation grid, Legacy-DE recorded median/best maximum violation
+  1.8313/1.7795 with seed IQR 0.0189 and one of five seeds at or below 1.8.
+  L-SHADE recorded 1.8676/1.8341 with IQR 0.0245 and zero of five at or below
+  1.8. Median per-seed global-search wall time was about 150 s for Legacy-DE
+  and 193 s for L-SHADE; the five-process run was about 375 s. L-SHADE was not
+  promoted from this short-budget gate.
+- **Pre-production gate:** A/B performance evidence required at least 98%
+  budget completion, frozen source hashes, common validation, parallel parity,
+  and human review before production. Auto-bound was disabled during the
+  optimizer-isolation A/B. Historical A/B output was not allowed to become a
+  promotion result if those validity gates failed.
+- **Stage 3.5 conditions:** Stage 3.5 crossed both backends with the frozen
+  Stage 3.4b S0 box and a data-informed, boundary-expandable S1 initial box.
+  Phase C used cold starts and development seeds 20260917–20260920. All four
+  arms reached 16k and 32k; arm A always reached 64k, while only the 32k
+  survivors continued to 64k. The L-SHADE schedule horizon was 64,000.
+- **Interpretation:** The later apparent change in backend preference was not
+  interpreted as intrinsic superiority. Historical and current L-SHADE traces
+  were identical through 4,000 unique evaluations, then the current protocol
+  exchanged adaptive frequencies at 4k while the historical trajectory used
+  16k/32k/64k exchanges. This is a protocol/provenance mismatch. Later work
+  uses L-SHADE because the later production protocol adopts it, not because the
+  early 4k A/B proved universal superiority.
 - **S1 meaning:** The frozen
   `artifacts/stage3_5/phase_a_revised/search_space_s1.yaml` is a 50 Ω
-  experiment-specific starting box inside unchanged hard bounds. It narrows
-  the wavelength and reflector ranges and provides expandable ranges for
-  selected IDT pair counts. It is not a material-independent or all-impedance
-  default. The recorded source artifact SHA-256 is
+  experiment-specific starting box inside unchanged hard bounds. It is not a
+  material-independent or all-impedance default. Recorded SHA-256:
   `26feb9ebe09b7f37d71cc96b74e83544065fc2c0d62e5e830b601cb3b3dc731f`.
-- **Decision:** Phase C was added as a bounded matched development comparison.
-  Phase D, 192k/256k extension, impedance sweep, and productionization were
-  deliberately not started automatically. Preserve the source/config and
-  protocol provenance before drawing further backend conclusions.
-- **References:** The former Stage 3.3/3.5 experiment descriptors, configs,
-  and frozen S1 artifact are available from the annotated cleanup tag. The
-  Stage 3.5 decisions remain in `reports/escalation_log.md`. The production
-  run and review bundle referenced by the old handoff are not present here.
+- **Decision:** Phase C was the bounded matched development comparison.
+  Phase D, the 192k/256k extension, impedance sweep, and productionization were
+  deliberately not started automatically.
+- **References:** Pre-deletion Stage 3.3/3.5 configs and descriptors are
+  recoverable from the annotated tag; Stage 3.5 provenance decisions are in
+  `reports/escalation_log.md`. The invalid/corrected Stage 3.3 numeric review
+  statements were recovered from project conversations dated 2026-09-10.
 
 ## Stage 3.6 — 50 Ω DOF release and asymmetric ports
 
-**Evidence level:** canonical runs and review bundles are retained, with
-recorded source commits for Gate 2A, Gate 2B-B, and Gate 2C.
+**Evidence level:** historical canonical run/review-bundle paths and source
+commits are recorded. Because runs/artifacts are Git-ignored, their present
+local availability must be verified separately.
 
 - **Question:** Which geometry DOFs should be released at the 50 Ω reference,
   and do separately optimized source/load impedances change the result?
 - **Conditions:** The reference is a 50/50 Ω DMS with the existing topology,
   evaluator, constraints, objective, validation grid, and L-SHADE backend.
-  Gate 2A screened center pitch (`G1`), reflector pitch (`G2`), and center
-  aperture (`G3`) against the reduced baseline. Its 16k three-seed screen
-  promoted G1 and G2; G3 did not meet the promotion rule. The promoted
-  interaction is G1+G2. Gate 2B-B used nine symmetric/asymmetric port pairs,
-  three seeds, 32k unique evaluations per run, and a 9,113-point common grid.
+- **Gate 1:** The recovered pre-Gate-2A review compared Reduced S1 against
+  `IDT_GROUP_RELEASE` at 32k with three paired seeds. Median maximum
+  violation was about 0.656025 for Reduced S1 versus 0.660166 for the released
+  IDT group; feasibility was 0/3. IDT upper-bound expansion was not adopted,
+  the existing Reduced 64k result was reused as reference, and mirror/evaluator
+  parity passed at roughly 1e-15 numerical error. The decision was to test
+  shared/section-wise geometry releases next rather than treat a wider IDT
+  count range as the answer.
+- **Gate 2A:** Center pitch (`G1`), reflector pitch (`G2`), and center
+  aperture (`G3`) were screened against the reduced baseline. G1 and G2 were
+  promoted; G3 did not meet the promotion rule. Final confirmation used three
+  paired seeds at 50/50 Ω: G2 median maximum violation was about 0.498331 and
+  G1+G2 about 0.495384, with all runs still infeasible. G1+G2 became the
+  production reference search space; G3, added left/right geometry
+  asymmetry, material/COM releases, and topology alternatives remained
+  deferred.
+- **Gate 2B-B:** Used nine symmetric/asymmetric port pairs, three seeds, 32k
+  unique evaluations per run, and a 9,113-point common grid.
 - **Reason for asymmetric ports:** A left/right asymmetric DMS can present
   different source-side and load-side sensitivities, so `Zin` and `Zout` were
   independently varied instead of assuming one shared optimum.
@@ -194,8 +288,11 @@ recorded source commits for Gate 2A, Gate 2B-B, and Gate 2C.
 
 ## Stage 3.7 — literature COM and aperture study
 
-**Evidence level:** canonical run data and model/study configs are retained;
-the Stage 3.7C decision is also recorded in escalation history.
+**Evidence level:** the material profile and historical configs are
+Git-recoverable; Stage 3.7B decisions remain in escalation history. Stage 3.7C
+and 3.7D numerical conclusions below were recovered from the project's prior
+review conversation and checked against the pre-deletion configs. Current
+local run availability is unverified.
 
 - **Question:** Can a source-grounded 42°YX-LiTaO3/Al COM model replace the
   hypothetical provider and support a B28 comparison?
@@ -205,33 +302,60 @@ the Stage 3.7C decision is also recorded in escalation history.
   supplied by M0. The paper does not establish enough source-device detail to
   certify native reconstruction; the 80 µm validation aperture is an explicit
   evaluation assumption, not reported source geometry.
-- **Result and decision:** Algebraic normalization passed, but native
-  resonator/source reconstruction remained inconclusive (reported feature
-  scale error 3.13%, without a numeric digitized source feature). Phase
-  sensitivity was not robust within 2% of resonance, so the fixed-design B28
-  sensitivity was not run at that gate. The later Stage 3.7C fast screen used
-  M0 and MLIT as dual baselines and reported material-direction sensitivity;
-  neither is calibrated or production-qualified.
-- **Aperture:** Stage 3.7D found the 150 µm upper bound was not active and
-  recommended 30–150 µm for MLIT. Stage 3.8 later used 30–180 µm for MLIT as
-  an explicit user-directed override. That unequal range versus M0's
-  30–150 µm confounds cross-material comparisons and remains part of the
-  baseline provenance.
+- **Stage 3.7B/R1:** Algebraic normalization passed, but native
+  resonator/source reconstruction remained inconclusive: the recovered review
+  reports about 3.13% feature-scale error without a numeric digitized source
+  feature. Phase sensitivity was not robust within 2% of resonance, so the
+  fixed-design B28 sensitivity gate did not run at that point.
+- **Stage 3.7C fast screen:** Applying the MLIT profile to the fixed M0
+  geometry degraded maximum violation from about 0.504 to 82.08, worst IL from
+  about 4.50 to 23.69 dB, and input/output VSWR from about 3.61/3.76 to
+  207.7/91.6. Cold MLIT re-optimization recovered maximum violation to about
+  1.0764 and 1.1293 for the two recorded seeds, but trajectories were still
+  improving at the 8k checkpoint and therefore were not treated as converged.
+  The optimized geometry moved strongly in a different direction, including
+  gap ratio roughly 0.49→0.31 λ and aperture/λ roughly 20.6→29.9. The result
+  established material-direction sensitivity, not a calibrated-material or
+  production-performance claim.
+- **Stage 3.7D aperture probe:** The pre-deletion config confirms a read-only
+  two-seed probe at 150, 165, 180, and 200 µm with no optimizer rerun. The
+  recovered review records seed 1 maximum violation
+  1.0454→0.9019→0.8320→0.8837 and seed 2
+  1.1170→1.0891→1.1201→1.1790. The 150 µm upper bound was therefore judged
+  **active at a moderate level**, not inactive. 200 µm worsened both seeds;
+  no third seed/further probe was considered necessary for this bound decision.
+  The adopted MLIT aperture range for the next topology screen was 30–180 µm,
+  while M0 remained 30–150 µm.
+- **Decision:** Stage 3.7C/D supported using MLIT as a preliminary,
+  evaluation-only comparison profile and proceeding to topology screening,
+  while keeping FEM/measurement qualification on hold. Because M0 and MLIT use
+  unequal aperture ranges and different model provenance, cross-material
+  differences cannot be interpreted as pure material superiority.
+- **Historical inconsistency corrected:** Later Stage 3.8-era decision text
+  incorrectly described Stage 3.7D as recommending 30–150 µm and labeled
+  30–180 µm as a later user override. The earlier Stage 3.7D review recovered
+  on 2026-09-25 instead records `APERTURE_BOUND_ACTIVE_MODERATE` and adoption
+  of MLIT 30–180 µm. This register uses that recovered closeout decision.
 - **Unresolved:** Native electrode material, aperture, terminal/phase
-  registry, and attenuation convention are incomplete. No parameter mixing,
-  B28 calibration, or FEM result resolves these gaps. Production claims require
-  a complete same-source profile or FEM/measurement extraction.
-- **References:** `configs/models/stage3_7b_r1_normalized_literature_profile.yaml`,
-  runs under `runs/stage3_7*`, including
+  registry, and attenuation convention remain incomplete. No parameter
+  mixing, B28 calibration, or FEM result resolves these gaps.
+- **References:** Current material input
+  `configs/models/stage3_7b_r1_normalized_literature_profile.yaml`;
+  pre-deletion configs
+  `configs/studies/stage3_7b_r2_stage3_7c_literature_com_b28_fast_screen.yaml`
+  and
+  `configs/studies/stage3_7d_mlit_aperture_boundary_and_metadata.yaml`.
+  Historical expected run paths are
   `runs/stage3_7b_r2_stage3_7c_literature_com_b28_fast_screen_final_retry3`
-  and `runs/stage3_7d_mlit_aperture_boundary_and_metadata_final`; decisions in
-  `reports/escalation_log.md`. Stage 3.7C source commit:
-  `db049bd9d0eb0e2c8730e9909ca0e5a422d09f70`.
+  and
+  `runs/stage3_7d_mlit_aperture_boundary_and_metadata_final`; their present
+  local existence is not asserted here.
 
 ## Stage 3.8 / 3.8C — DMS topology screen
 
-**Evidence level:** canonical production run, review bundles, and closeout
-evidence are retained.
+**Evidence level:** the canonical production run/review-bundle paths,
+fingerprints, and closeout decisions are recorded. Their current local
+availability is not established by Git and must be verified separately.
 
 - **Question:** How do three candidate DMS topologies compare under the
   retained COM model and manufacturing constraints?
@@ -275,9 +399,11 @@ evidence are retained.
   and the aperture-bound mismatch. Do not infer a best real-device material or
   impedance.
 - **References:** The former production config is available from the annotated
-  cleanup tag. Retained raw data includes `runs/stage3_8c_production_20260924`,
+  cleanup tag. Historical canonical locations are
+  `runs/stage3_8c_production_20260924`,
   `artifacts/review_bundles/stage3_8c_production_review.zip` and corrected
-  closeout bundle `stage3_8c_production_closeout_corrected_review.zip`. The
+  closeout bundle `stage3_8c_production_closeout_corrected_review.zip`; their
+  current local existence must be checked separately. The
   closeout report is preserved in the annotated cleanup tag. Frozen candidate
   fingerprint: `4465b7177b15ab44c10576a7c3d3bf0363c79a7dafa46ef8452a45626407824d`;
   recorded candidate commit: `f2babf340f7143e44db6af83f28e2324e724f6ed`.
