@@ -234,14 +234,13 @@ local availability must be verified separately.
   and do separately optimized source/load impedances change the result?
 - **Conditions:** The reference is a 50/50 Ω DMS with the existing topology,
   evaluator, constraints, objective, validation grid, and L-SHADE backend.
-- **Gate 1:** The recovered pre-Gate-2A review compared Reduced S1 against
-  `IDT_GROUP_RELEASE` at 32k with three paired seeds. Median maximum
-  violation was about 0.656025 for Reduced S1 versus 0.660166 for the released
-  IDT group; feasibility was 0/3. IDT upper-bound expansion was not adopted,
-  the existing Reduced 64k result was reused as reference, and mirror/evaluator
-  parity passed at roughly 1e-15 numerical error. The decision was to test
-  shared/section-wise geometry releases next rather than treat a wider IDT
-  count range as the answer.
+- **Gate 1:** A dedicated Gate 1 numerical closeout could not be recovered
+  from the current Git history, the pre-deletion tracked files, or the indexed
+  project attachments searched on 2026-09-25. Do not reconstruct its exact
+  metrics from later Gate 2A evidence. What is recoverable is the carry-forward:
+  Gate 2A started from the reduced 50 Ω reference and evaluated section-class
+  DOF releases without changing COM equations, objective, constraints, or
+  validation semantics. Exact Gate 1 numeric claims remain **UNRECOVERED**.
 - **Gate 2A:** Center pitch (`G1`), reflector pitch (`G2`), and center
   aperture (`G3`) were screened against the reduced baseline. G1 and G2 were
   promoted; G3 did not meet the promotion rule. Final confirmation used three
