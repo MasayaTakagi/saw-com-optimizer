@@ -16,10 +16,12 @@ This is the current decision state after the registered experiments. Read
   production-qualified or native-device claim. The profile must not borrow
   missing values from M0.
 - FEM or measurement extraction is still needed to establish material
-  parameters and device-specific loss. The recorded Stage 3.7D MLIT aperture
-  recommendation is 30–150 µm; Stage 3.8's 30–180 µm range was a later
-  user-directed override. Treat cross-material comparisons as confounded
-  until bounds and material provenance are aligned.
+  parameters and device-specific loss. A 2026-09-25 retrospective recovery of
+  the Stage 3.7D closeout corrected the aperture lineage: the 150 µm MLIT upper
+  bound was judged moderately active, a no-rerun probe at 150/165/180/200 µm
+  supported adopting 30–180 µm for the next topology screen, and 200 µm was
+  not adopted. M0 remained 30–150 µm. Treat cross-material comparisons as
+  confounded until bounds and material provenance are aligned.
 
 ## DMS representation
 
@@ -34,8 +36,10 @@ This is the current decision state after the registered experiments. Read
   `src/sawopt/problem/dms_topologies.py`; the released T0 design record and
   simulator are in `src/sawopt/problem/released_dms.py`.
 - The 50 Ω `center_outer_same` DMS and the Stage 3.6 G1+G2 (`center` and
-  reflector pitch) release form the historical reference. Gate 2A did not
-  promote center aperture by itself.
+  reflector pitch) release form the historical reference. The exact numerical
+  Gate 1 closeout is unrecovered and should not be reconstructed from later
+  evidence. Gate 2A promoted center pitch and reflector pitch, while center
+  aperture did not pass the individual promotion rule.
 
 ## Optimization and comparison
 
@@ -48,9 +52,13 @@ This is the current decision state after the registered experiments. Read
 - Its initializer uses independent uniform proposals followed by geometry
   rejection and resampling. It does not repair invalid designs.
   Rejection fraction is diagnostic for R1.2, not a pilot gate.
-- Do not infer optimizer superiority from the old Legacy-DE/L-SHADE A/B where
-  adaptive-frequency exchange timing was not matched. The historical S1 box is
-  experiment-specific and is not a default for other impedances.
+- Do not infer optimizer superiority from the old Legacy-DE/L-SHADE A/B. The
+  first Stage 3.3 comparison was invalid because L-SHADE did not consume the
+  requested unique-design budget; the corrected 4k A/B favored Legacy-DE
+  modestly under that short protocol, while the later Stage 3.5 parity audit
+  found an adaptive-frequency timing mismatch between historical and current
+  L-SHADE trajectories. The historical S1 box is experiment-specific and is
+  not a default for other impedances.
 
 ## 50 Ω and port-impedance findings
 
@@ -71,7 +79,9 @@ This is the current decision state after the registered experiments. Read
 
 1. Obtain calibrated COM parameters from measurement or FEM and resolve the
    MLIT source-data gaps.
-2. Align material search bounds before comparing M0 and MLIT.
+2. Either align material search bounds before comparing M0 and MLIT, or keep
+   cross-material conclusions explicitly conditional on the current M0
+   30–150 µm versus MLIT 30–180 µm ranges.
 3. Improve feasible search coverage without changing geometry constraints or
    distributions without review; no filter-feasible Stage 3.8C design exists.
 4. Keep DMS-plus-ladder hybrid work as a candidate because it improved the
