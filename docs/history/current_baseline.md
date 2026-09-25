@@ -36,10 +36,10 @@ This is the current decision state after the registered experiments. Read
   `src/sawopt/problem/dms_topologies.py`; the released T0 design record and
   simulator are in `src/sawopt/problem/released_dms.py`.
 - The 50 Ω `center_outer_same` DMS and the Stage 3.6 G1+G2 (`center` and
-  reflector pitch) release form the historical reference. Gate 1 did not
-  justify a broader IDT-count search space; Gate 2A promoted center pitch and
-  reflector pitch, while center aperture did not pass the individual
-  promotion rule.
+  reflector pitch) release form the historical reference. The exact numerical
+  Gate 1 closeout is unrecovered and should not be reconstructed from later
+  evidence. Gate 2A promoted center pitch and reflector pitch, while center
+  aperture did not pass the individual promotion rule.
 
 ## Optimization and comparison
 
