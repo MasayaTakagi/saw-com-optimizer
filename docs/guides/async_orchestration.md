@@ -10,9 +10,9 @@ production callbackの対象を取り違えないため、可能なら現在のC
 
 ```powershell
 python -m sawopt.orchestration.cli launch `
-  --config configs/studies/next_50ohm_dms_production.yaml `
+  --config configs/studies/dms_topology_screening.yaml `
   --session-id <CURRENT_CODEX_SESSION_ID> `
-  --run-dir runs/async-stage32-production
+  --run-dir runs/async-dms-topology-screening
 ```
 
 callbackを使わない検証は明示的に無効化できます。

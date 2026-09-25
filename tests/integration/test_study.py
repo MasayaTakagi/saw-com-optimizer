@@ -1,7 +1,7 @@
 import copy,json,tempfile,unittest
 from pathlib import Path
 import yaml,numpy as np
-from sawopt.optimization.study import initialize,optimize_one
+from sawopt.optimization.runner import initialize,optimize_one
 from sawopt.core.metrics import geometry
 from sawopt.core.models import FilterDesign
 

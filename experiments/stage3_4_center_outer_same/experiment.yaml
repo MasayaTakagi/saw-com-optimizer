@@ -1,3 +1,0 @@
-base_config: ../../configs/studies/next_50ohm_center_outer_same_stage34.yaml
-study:
-  type: continuation

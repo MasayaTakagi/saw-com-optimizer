@@ -17,12 +17,11 @@ from sawopt.io.legacy_lifecycle import (
 )
 from sawopt.optimizers.checkpoint_session import LShadeCheckpointSession
 from sawopt.optimizers.lshade import LShadeBackend
-from sawopt.studies.lshade_records import lshade_record
-from sawopt.studies.optimizer_ab import lshade_record as legacy_lshade_record
+from sawopt.studies.lshade_records import lshade_record, serialize_lshade_record
 
 
-def test_optimizer_ab_keeps_lshade_record_compatibility_import():
-    assert legacy_lshade_record is lshade_record
+def test_lshade_record_adapter_uses_canonical_serializer():
+    assert lshade_record.__globals__["serialize_lshade_record"] is serialize_lshade_record
 
 
 def _write_json(path, value):

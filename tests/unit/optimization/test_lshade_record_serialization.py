@@ -1,5 +1,4 @@
 from sawopt.studies import lshade_records
-from sawopt.studies import optimizer_ab
 
 
 class _FixedBackend:
@@ -46,7 +45,7 @@ class _FixedBackend:
         }
 
 
-def test_lshade_record_legacy_and_canonical_paths_match_fixed_semantics(monkeypatch):
+def test_lshade_record_adapter_preserves_checkpoint_accounting(monkeypatch):
     monkeypatch.setattr(lshade_records.time, "process_time", lambda: 50.0)
     monkeypatch.setattr(lshade_records.time, "monotonic", lambda: 100.0)
     backend = _FixedBackend()
@@ -65,9 +64,6 @@ def test_lshade_record_legacy_and_canonical_paths_match_fixed_semantics(monkeypa
     }
 
     canonical = lshade_records.lshade_record(*args, **kwargs)
-    legacy = optimizer_ab.lshade_record(*args, **kwargs)
-
-    assert legacy == canonical
     assert {
         key: canonical[key]
         for key in (

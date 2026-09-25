@@ -83,14 +83,14 @@ def decode_design(vector: Sequence[float], topology: str, cfg: Mapping[str, Any]
             reflector_wavelength_um=float(values[len(NAMES) + 1]),
         )
     if topology == T1:
-        return decode_t1(vector, int(cfg["stage3_8"]["t1_reflector_electrodes"]))
+        return decode_t1(vector, int(cfg["dms_topology"]["t1_reflector_electrodes"]))
     if topology == T2:
         return decode_t2(vector)
     raise ValueError(topology)
 
 
 def _provider(material: str, cfg: Mapping[str, Any]):
-    section = cfg["stage3_8"]["materials"][material]
+    section = cfg["dms_topology"]["materials"][material]
     if material == "M0":
         values = yaml.safe_load((ROOT / section["com_file"]).read_text(encoding="utf-8"))
         return FixedProvider(values), material_profile_metadata(profile_id="M0")
@@ -104,7 +104,7 @@ def _provider(material: str, cfg: Mapping[str, Any]):
 
 
 def _initial_t0(material: str, cfg: Mapping[str, Any]) -> ReleasedFilterDesign:
-    path = ROOT / cfg["stage3_8"]["initial_designs"][material]
+    path = ROOT / cfg["dms_topology"]["initial_designs"][material]
     payload = json.loads(path.read_text(encoding="utf-8"))
     if "design" in payload:
         payload = payload["design"]
@@ -128,9 +128,9 @@ def initial_design(material: str, topology: str, cfg: Mapping[str, Any]):
             common_idt_gap_lambda=t0.idt_gap_lambda,
             reflector_gap_lambda=t0.reflector_gap_lambda,
             aperture_um=t0.aperture_um,
-            reflector_electrodes=int(cfg["stage3_8"]["t1_reflector_electrodes"]),
+            reflector_electrodes=int(cfg["dms_topology"]["t1_reflector_electrodes"]),
         )
-    offset = float(cfg["stage3_8"].get("t2_initial_main_offset_fraction", 0.01))
+    offset = float(cfg["dms_topology"].get("t2_initial_main_offset_fraction", 0.01))
     center = t0.center_wavelength_um or t0.wavelength_um
     reflector = t0.reflector_wavelength_um or t0.wavelength_um
     return ParallelThreeIdtDesign(
@@ -270,7 +270,7 @@ def fixed_design_sanity(out: Path, cfg: Mapping[str, Any], grid: np.ndarray):
                 "profile_id": profile_metadata["id"],
                 "geometry": json.dumps(_clean(result.get("design", {})), sort_keys=True),
             })
-    _write_csv(out / "stage3_8_fixed_design_sanity.csv", rows)
+    _write_csv(out / "dms_topology_fixed_design_sanity.csv", rows)
     return rows
 
 

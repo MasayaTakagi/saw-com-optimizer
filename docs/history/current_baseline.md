@@ -39,14 +39,14 @@ This is the current decision state after the registered experiments. Read
 
 ## Optimization and comparison
 
-- Later topology studies use L-SHADE with unique decoded designs as the search
-  budget. Preserve deterministic seeds, checkpoint schedule, and geometry
-  accounting when interpreting or continuing a run.
-- Stage 3.8C uses a geometry-first comparator: any geometry-valid candidate
+- The current DMS topology study uses L-SHADE with unique decoded designs as
+  the search budget. Preserve deterministic seeds, checkpoint schedule, and
+  geometry accounting when interpreting or continuing a run.
+- The current DMS study uses a geometry-first comparator: any geometry-valid candidate
   precedes a geometry-rejected candidate; successful physics precedes physics
   failure; valid physics records retain the established metric comparator.
-- Stage 3.8C's current initializer is independent uniform proposals followed
-  by geometry rejection and resampling. It does not repair invalid designs.
+- Its initializer uses independent uniform proposals followed by geometry
+  rejection and resampling. It does not repair invalid designs.
   Rejection fraction is diagnostic for R1.2, not a pilot gate.
 - Do not infer optimizer superiority from the old Legacy-DE/L-SHADE A/B where
   adaptive-frequency exchange timing was not matched. The historical S1 box is
@@ -85,18 +85,21 @@ This is the current decision state after the registered experiments. Read
 
 - `core/`: COM, network, metrics, and physical material calculations.
 - `problem/`: reusable geometry and topology definitions.
-- `studies/dms_topology_common.py`: current DMS study adapter helpers. It does
-  not import a Stage 3.6 or Stage 3.8 runner.
+- `problem/released_dms.py`: reusable released-design representation and T0
+  simulation.
+- `studies/dms_topology_common.py` and
+  `studies/dms_topology_screening.py`: current DMS study helpers and adapter.
 - `studies/lshade_records.py`: shared L-SHADE checkpoint record serialization.
-- `optimization/convergence_evidence.py`: canonical checkpoint evidence
-  derivation; the historical `studies/convergence_evidence.py` path temporarily
-  re-exports it for old study callers.
+- `optimization/convergence_evidence.py`: checkpoint evidence derivation used
+  by study record serialization.
 - `optimizers/`: L-SHADE, SciPy DE, and candidate ranking primitives.
 - `optimization/`: budget, accounting, population, cache, and search mechanics.
 - `studies/`: experimental protocols and their configuration adapters.
 - `io/`, `reporting/`, and `orchestration/`: persistence, review artifacts,
   and detached execution lifecycle.
 
-The historical cleanup is removing Stage-number-only workflows while
-preserving these current responsibilities and the evidence in
-`experiment_register.md`.
+Historical study runners and their old configs/tests have been removed from
+the active tree. The pre-cleanup annotated Git tag
+`archive/pre-historical-deletion-2026-09-25` preserves their exact source for
+inspection; the experiment register retains the findings and decisions needed
+for current work.

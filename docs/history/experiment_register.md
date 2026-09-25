@@ -4,15 +4,20 @@ This register keeps the results and decisions needed to interpret later SAW
 work. Historical source code is not a re-execution contract. Raw run data is
 left in place and is referenced where it exists.
 
+Historical source documents, stage code, and experiment configs removed from
+the active tree are preserved at the annotated tag
+`archive/pre-historical-deletion-2026-09-25`. Their old paths below identify
+provenance; retrieve a file with `git show archive/pre-historical-deletion-2026-09-25:<path>`.
+
 ## Evidence limits
 
 The current checkout contains canonical run data for Stages 3.6–3.8C, but not
 the documented prototype or 50 Ω hybrid run directories. Stage 3.1–3.5 run
 directories are also absent. For those records, this register preserves only
-claims supported by the retained result documents, configs, handoff plan, and
-escalation history; it does not invent missing metrics or run commits. Several
-old records therefore have no recoverable raw artifact or exact source commit
-in this checkout.
+claims supported by the pre-deletion source snapshot and retained escalation
+history; it does not invent missing metrics or run commits. Several old records
+therefore have no recoverable raw artifact or exact source commit in this
+checkout.
 
 ## Prototype impedance sweep
 
@@ -35,8 +40,9 @@ configuration, and run commit are absent from this checkout.
 - **Limits:** No material calibration, no global-optimum claim, and no
   convergence claim from zero seed spread. Reusing neighboring-impedance
   candidates also means zero spread is not independent evidence.
-- **References:** `docs/results/prototype_results_ja.md`,
-  `docs/reviews/review_ja.md`; documented canonical run
+- **References:** Pre-deletion source documents
+  `docs/results/prototype_results_ja.md` and `docs/reviews/review_ja.md` are
+  available through the annotated cleanup tag; documented canonical run
   `runs/refined-prototype` is not present in this checkout. Config, review
   bundle, and run commit are not recoverable from the retained files.
 
@@ -64,7 +70,9 @@ configuration, review bundle, and run commit are absent from this checkout.
   25.6% to input reflection, 22.4% to delivered load power, and 52.0% to model
   dissipation/acoustic radiation. This is evidence that matching alone may be
   insufficient within the model.
-- **References:** `docs/results/hybrid_50ohm_results_ja.md`; documented run
+- **References:** The pre-deletion result document
+  `docs/results/hybrid_50ohm_results_ja.md` is available through the annotated
+  cleanup tag; documented run
   `runs/hybrid-50ohm` is not present in this checkout. Config, review bundle,
   and run commit are not recoverable from the retained files.
 
@@ -92,12 +100,10 @@ records; canonical run directories and exact run commits are absent.
   budget, not global optimality. Retain unique-evaluation accounting,
   deterministic recovery, and the 50 Ω `center_outer_same` result as a
   comparison reference.
-- **Limits and references:** `docs/guides/stage3_convergence.md`,
-  `experiments/stage3_1_convergence/README.md`,
-  `experiments/stage3_2_continuation/README.md`,
-  `experiments/stage3_4b_extended_convergence/README.md`, and the corresponding
-  `configs/studies/stage3_2*`–`stage3_4b*` files. Canonical run data and exact
-  run commits are absent from the current `runs/` tree.
+- **Limits and references:** The former convergence guides, experiment
+  descriptors, and `configs/studies/stage3_2*`–`stage3_4b*` files are available
+  from the annotated cleanup tag. Canonical run data and exact run commits are
+  absent from the current `runs/` tree.
 
 ## Stage 3.3–3.5 optimizer and search-space studies
 
@@ -133,11 +139,10 @@ and escalation history; canonical production run and review bundle are absent.
   Phase D, 192k/256k extension, impedance sweep, and productionization were
   deliberately not started automatically. Preserve the source/config and
   protocol provenance before drawing further backend conclusions.
-- **References:** `experiments/stage3_3_optimizer_ab/README.md`,
-  `experiments/stage3_5_search_efficiency/README.md`,
-  `configs/studies/stage3_5_*`, the frozen S1 artifact, and the Stage 3.5
-  entries in `reports/escalation_log.md`. The production run and review bundle
-  referenced by the old handoff are not present in this checkout.
+- **References:** The former Stage 3.3/3.5 experiment descriptors, configs,
+  and frozen S1 artifact are available from the annotated cleanup tag. The
+  Stage 3.5 decisions remain in `reports/escalation_log.md`. The production
+  run and review bundle referenced by the old handoff are not present here.
 
 ## Stage 3.6 — 50 Ω DOF release and asymmetric ports
 
@@ -269,11 +274,11 @@ evidence are retained.
   Stage 3.9, address material calibration, geometry/search-space efficiency,
   and the aperture-bound mismatch. Do not infer a best real-device material or
   impedance.
-- **References:** `configs/studies/stage3_8c_r1_2_production.yaml`,
-  `runs/stage3_8c_production_20260924`,
-  `artifacts/review_bundles/stage3_8c_production_review.zip`, corrected closeout
-  bundle `stage3_8c_production_closeout_corrected_review.zip`, and
-  `reports/stage3_8c_production_closeout_test_summary.md`. Frozen candidate
+- **References:** The former production config is available from the annotated
+  cleanup tag. Retained raw data includes `runs/stage3_8c_production_20260924`,
+  `artifacts/review_bundles/stage3_8c_production_review.zip` and corrected
+  closeout bundle `stage3_8c_production_closeout_corrected_review.zip`. The
+  closeout report is preserved in the annotated cleanup tag. Frozen candidate
   fingerprint: `4465b7177b15ab44c10576a7c3d3bf0363c79a7dafa46ef8452a45626407824d`;
   recorded candidate commit: `f2babf340f7143e44db6af83f28e2324e724f6ed`.
 
@@ -283,4 +288,5 @@ At each future study closeout, add the result and decision here, update
 `current_baseline.md` only when a result changes an adopted assumption, and
 then decide whether experiment-specific implementation, config, and tests can
 leave the active tree. Keep raw runs and review bundles at their recorded
-locations.
+locations. The pre-deletion tag is the canonical source for removed historical
+files; it does not replace the scientific summaries in this register.

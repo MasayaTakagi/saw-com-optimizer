@@ -1,11 +1,4 @@
 from sawopt.optimization import convergence_evidence as canonical
-from sawopt.studies import convergence_evidence as historical
-
-
-def test_historical_study_path_is_a_temporary_reexport():
-    assert historical.EVIDENCE_FIELDS is canonical.EVIDENCE_FIELDS
-    assert historical.derive_checkpoint_evidence is canonical.derive_checkpoint_evidence
-    assert historical.apply_checkpoint_evidence is canonical.apply_checkpoint_evidence
 
 
 def test_explicit_checkpoint_evidence_and_budget_overrides_have_fixed_output():

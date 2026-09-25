@@ -57,3 +57,18 @@ The repository has 303 tracked files at the freeze point:
 
 These are static observations only; they do not imply that the full historical
 modules are still required by current workflows.
+
+## Final pre-deletion freeze
+
+Before the historical implementation removal wave, the active branch was
+frozen again at commit `3f88bf0be2a0ac651e35f9de678df1ca5023f387` with the
+annotated tag `archive/pre-historical-deletion-2026-09-25`. This later tag is
+the canonical snapshot for the deletion phase; the earlier freeze above is
+kept as its original record.
+
+The tagged tree contains 315 tracked files: 100 under `src/`, 60 under
+`tests/`, 47 under `configs/`, 17 under `experiments/`, 29 under `docs/`, 31
+under `reports/`, and 31 elsewhere. The last recorded full-suite baseline
+before this removal wave was `297 passed, 14 subtests passed` in 106.24 s,
+using the project's `.venv` interpreter. The two user-provided handoff
+documents are untracked and are not part of the tagged snapshot.

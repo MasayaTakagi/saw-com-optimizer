@@ -783,3 +783,57 @@ confirmation or a separately approved FEM extraction is required.
 - Full regression passed: `297 passed, 14 subtests passed` in 106.24 s using
   `.venv\Scripts\python.exe -m pytest -p no:cacheprovider -q`.
 - No production optimizer or historical optimization run was started.
+
+## 2026-09-25 — Historical cleanup deletion-phase boundary review
+
+### Packet and decision
+
+- The temporary Sol review packet was consolidated into this decision record
+  after implementation and verification.
+- Scope: the boundary between the completed, Stage-named 3.8C R1.2 gate
+  sequence and the cleanup plan's living DMS topology study, plus safe deletion
+  order for historical runners and their configs/tests/shims.
+- Judgment requested from `gpt-6-sol`. Runtime-visible backend identity and
+  reasoning effort were not independently exposed.
+- Decision: preserve the R1.2 numerical study capability by moving its
+  behavior to a role-based DMS topology study module. Treat the completed R1,
+  R1.1, and R1.2 approval/gate sequence, exact production config, separate
+  Stage 3.8 fast-screen runner, and Stage 2 topology study as historical. Keep
+  geometry-first ranking, independent-uniform rejection sampling,
+  per-material/per-seed T0/T1/T2 evaluation, deterministic RNG, unique
+  evaluation/checkpoint accounting, common-grid evaluation, and result fields.
+  Do not change canonical physics or optimizer code.
+- The old R1.2 production YAML is not a reusable current config: it reads
+  prior runs for validation grid and initial designs, compares R1/R1.1 runs,
+  and depends on one-time pilot/report gates. Build a clean role-based config
+  from explicit current inputs; preserve exact grid/design values and their
+  historical origin where they remain necessary. Omit one-time gates and
+  comparators. Do not claim numerical equivalence for future runs without
+  evidence.
+- Split work into verified waves: (1) cut over the current study adapter,
+  config, dispatch, and focused tests; (2) remove historical Stage 2–3.7
+  runners/configs/descriptors/shims/aliases and matching tests; (3) remove the
+  separate Stage 3.8 fast screen plus the old Stage 3.8C runner/revision
+  configs/closeout tests/report builder; (4) prune completed handoffs and
+  temporary reports, then run the final gates. Keep runs and review bundles
+  intact. Existing source snapshots, recorded fingerprints, old paths, and
+  SHA strings remain immutable historical evidence.
+
+### Implementation status
+
+- Preserved the R1.2 numerical capability in the role-based
+  `studies/dms_topology_screening.py` adapter and a clean role-based config.
+  The dispatch now accepts only that current protocol. The common released-DMS
+  representation and numerical behavior remain in canonical problem/optimizer
+  modules; no COM physics, objective, optimizer algorithm, or experiment
+  conditions were changed.
+- Removed Stage 2–3.8 historical runners, shims, experiment configs and
+  descriptors, Stage-specific tests/report builders, completed tracked
+  handoffs, and temporary reports. Updated the current README and history
+  register. Kept `runs/`, review bundles, the annotated pre-deletion tag, and
+  the two untracked user-provided handoff documents.
+- Focused migration suite passed: `88 passed, 1 subtest passed` in 57.60 s.
+- Full regression passed: `165 passed, 11 subtests passed` in 72.04 s using
+  `.venv\Scripts\python.exe -m pytest -p no:cacheprovider -q`.
+- Static Python import search found no references to removed modules. The
+  architecture boundary test passed. No production optimizer was launched.

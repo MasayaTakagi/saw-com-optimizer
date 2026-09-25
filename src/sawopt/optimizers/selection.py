@@ -1,4 +1,4 @@
-"""Authoritative feasibility-first candidate ordering for Stage 3.3.
+"""Canonical candidate ordering policies for optimization backends.
 
 The optimizer is allowed to expose a scalar objective for compatibility, but
 selection must use this module's lexicographic key.  Keeping the policy in a
@@ -106,10 +106,10 @@ def _geometry_violation_values(record: Mapping[str, Any]) -> tuple[float, float]
 
 @dataclass(frozen=True)
 class GeometryFirstComparator:
-    """Stage-independent owner of the historical geometry-first rank policy.
+    """Rank geometry-valid candidates before rejected proposals.
 
-    Its geometry prefix and status handling are intentionally distinct from
-    :class:`FeasibilityFirstComparator` and preserve the R1 ordering exactly.
+    Successful physics records use the standard feasibility and filter-metric
+    ordering; failed physics records follow successful evaluations.
     """
 
     def rank_key(self, record: Mapping[str, Any]) -> tuple[float, ...]:

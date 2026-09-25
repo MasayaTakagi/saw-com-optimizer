@@ -1,3 +1,0 @@
-base_config: ../../configs/studies/stage2_pilot.yaml
-study:
-  type: topology_screening

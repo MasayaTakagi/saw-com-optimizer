@@ -1,0 +1,9 @@
+{
+  "array_sha256": "2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f",
+  "frequency_count": 9113,
+  "grid_id": "2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f",
+  "historical_metadata_sha256": "558910098fbcd48a728fd3f705b90a32fab2cb826e207f7c9312ed33f97ceca2",
+  "historical_origin": "runs\\stage3_7_material_com_50ohm_sanity_final\\results\\common_validation_grid_hz.csv",
+  "sha256": "84afd1e7ecf7c66ce937e7dc265a31f2ae4017ab08f7242b25577dd80279ffab",
+  "source": "configs/reference/dms_topology_screening/common_validation_grid_hz.csv"
+}
