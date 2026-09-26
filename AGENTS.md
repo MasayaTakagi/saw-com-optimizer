@@ -63,6 +63,18 @@ identity before INIT. Keep C2C source in its external
 sibling repository; do not vendor it or update it automatically. The reviewed
 baseline and operating policy are documented under [`docs/c2c/`](docs/c2c/README.md).
 
+## Review governance
+
+Use one owner for each review responsibility:
+
+- **PLAN / ACCEPT — C2C / ChatGPT:** plan project work before changes and independently accept meaningful completed work units from current workspace, Git, and validation evidence.
+- **JUDGMENT — Sol:** provide bounded high-risk judgment only when the escalation criteria below apply; Sol review does not replace C2C acceptance.
+- **IMPLEMENT / self-validation — Codex root:** make the approved changes and run the relevant validation.
+
+At task start, obtain the C2C PLAN and classify whether Sol escalation is required. When required, get Sol judgment before implementation, then Codex root resumes execution. Keep routine, fully specified implementation, documentation, tests, formatting, and simple refactoring within Codex without Sol escalation. Do not send the same review question to C2C and Sol by default: Sol resolves the bounded pre-implementation judgment; C2C accepts the integrated result after EXECUTED.
+
+Before launching a long-running or high-cost production run, obtain C2C acceptance of the implementation and pre-launch configuration/preflight, including readiness to capture a valid Codex session. Immediately after launch, verify `run_manifest.json` under the requirements below before considering the launch valid. After completion, have C2C review the recorded result. Escalate to Sol only when the high-risk criteria below apply; a completion callback must not start another production run. See [`docs/c2c/OPERATIONS.md`](docs/c2c/OPERATIONS.md) for the control loop and timing.
+
 ## Long-running production run policy
 
 - Treat any program expected to run for 30 minutes or longer as a long-running

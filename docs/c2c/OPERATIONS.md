@@ -108,6 +108,32 @@ message alone is not proof of correctness. Continue a requested review/fix
 cycle until DONE, or stop and report BLOCKED. Keep long-running optimizer
 processes independent from the lifetime of a C2C or ChatGPT session.
 
+### Review routing and timing
+
+Use the roles defined in [`AGENTS.md`](../../AGENTS.md): C2C/ChatGPT owns PLAN
+and ACCEPT, Sol provides bounded JUDGMENT only when escalation criteria apply,
+and Codex root owns implementation and self-validation. At PLAN, classify
+whether Sol escalation is required. If it is, obtain Sol's judgment before
+changing the implementation; Codex root then resumes execution. Treat Sol's
+judgment as input to the plan, not acceptance of the integrated result, and
+avoid asking both reviewers the same question by default.
+
+At meaningful work-unit completion, Codex root sends EXECUTED with current
+workspace, Git, and validation evidence. C2C independently reviews that state
+and decides ACCEPT/DONE or requests a focused revision. Get that acceptance
+before dependent work, promotion to the next study stage, or commit/push/merge
+when the unit is intended for integration.
+
+Before launching a long-running or high-cost production run, obtain C2C
+acceptance of the implementation and pre-launch configuration/preflight,
+including readiness to capture a valid Codex session. Launch only after that
+acceptance and successful preflight. Immediately after launch, verify
+`run_manifest.json` against the requirements in `AGENTS.md`; do not consider
+the launch valid until those checks pass. After completion, C2C reviews the
+recorded run result; involve Sol only if a defined high-risk escalation
+condition applies. A completion callback reviews the finished run and must
+never automatically launch another production run.
+
 ## EPERM recovery
 
 When a C2C state write returns EPERM, identify the exact C2C state path named
