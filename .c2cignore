@@ -3,6 +3,11 @@
 **/*.pyc
 .pytest_cache/
 
+# VCS metadata and environment secrets
+.git/
+.env
+.env.*
+
 # Virtual environments
 .venv/
 venv/
@@ -17,11 +22,18 @@ runs/**/*.zip
 
 # Potentially large raw optimizer outputs
 runs/**/raw/
+runs/**/checkpoints/
+runs/**/*.ckpt
+runs/**/*.checkpoint
+
+# Temporary data
+temp/
 
 # Local/private material
 private/
 secrets/
 credentials/
+confidential/
 
 # Licensed or redistribution-restricted references
 references/licensed/

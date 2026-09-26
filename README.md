@@ -7,6 +7,8 @@ they are not calibrated production parameters. See
 adopted model, current limits, and next engineering questions, and
 [`docs/history/experiment_register.md`](docs/history/experiment_register.md)
 for historical results and decisions.
+See [`docs/project_roadmap.md`](docs/project_roadmap.md) for the long-term goal,
+sequencing, and phase exit gates.
 
 ## Current workflows
 
