@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "dependency": "codex-with-chatgpt",
+  "role": "development-control-plane",
+  "repository": "https://github.com/XiaoDuoYa/codex-with-chatgpt",
+  "reviewed_sha": "9663b88753e35c76796c5bce000293e0bd22cd9e",
+  "package_version": "0.1.3",
+  "approval_status": "APPROVED WITH LIMITATIONS",
+  "automatic_update": false,
+  "dependency_update_requires_security_review": true,
+  "upgrade_requires_security_review": true,
+  "upgrade_requires_explicit_user_approval": true,
+  "frozen_lockfile_install_required_after_approval": true,
+  "vendored": false,
+  "runtime_dependency": false,
+  "workspace": {
+    "name": "saw-com-optimizer",
+    "root_alias": "workspace:/",
+    "connector_name": "Codex with ChatGPT · saw-com-optimizer"
+  },
+  "mcp_access": "read-only",
+  "approved_mcp_tools": [
+    "workspace_info",
+    "list_directory",
+    "read_file",
+    "search_workspace",
+    "git_status",
+    "git_diff",
+    "test_status",
+    "execution_summary",
+    "execution_output"
+  ],
+  "required_workspace_controls": [
+    ".c2cignore",
+    "workspace confinement",
+    "read-only MCP surface"
+  ],
+  "cloudflared": {
+    "version": "2026.9.3",
+    "sha256": "f096265ec2fcbe9bb6e2d64268db167ced3fcbb83d894bdb9e2fcdb26f2ea7e2",
+    "path_environment_variable": "C2C_CLOUDFLARED_PATH",
+    "configuration_scope": "process-local"
+  },
+  "known_limitations": [
+    "updateAvailable=true notification-only behavior has not been exercised against an actual candidate",
+    "ordinary Windows file-symlink escape was not tested because the symlink could not be created under the available permissions"
+  ],
+  "validation_evidence": "reports/c2c_secure_pilot_validation_20260925.md"
+}

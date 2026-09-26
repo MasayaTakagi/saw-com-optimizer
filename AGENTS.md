@@ -53,6 +53,16 @@ Review bundles are external artifacts and must always be written to this
 repository root's `artifacts/review_bundles/` directory. Do not place review
 bundles under `runs/`.
 
+## C2C development control plane
+
+When C2C is available for a project task, use it as the standard planning and
+review control plane: ChatGPT plans and reviews; Codex executes. Use only the
+`Codex with ChatGPT · saw-com-optimizer` connector bound to the
+`saw-com-optimizer` workspace, and verify the C2C doctor gate and workspace
+identity before INIT. Keep C2C source in its external
+sibling repository; do not vendor it or update it automatically. The reviewed
+baseline and operating policy are documented under [`docs/c2c/`](docs/c2c/README.md).
+
 ## Long-running production run policy
 
 - Treat any program expected to run for 30 minutes or longer as a long-running
@@ -254,13 +264,15 @@ Initial range:
 
 Zport = 20 to 200 ohm
 
-Input and output impedances may initially be constrained to the same
-value:
+An explicitly configured initial one-dimensional study may use equal
+source and load impedances:
 
-Zin = Zout = Zport
+Zs = Zl = Zport
 
-Design the interfaces so asymmetric source/load impedances can be added
-later.
+Keep source and load impedances independently configurable. Do not assume
+they are equal unless the study configuration says so; final impedance
+comparisons must preserve independent control and re-optimize the filter
+for each impedance pair.
 
 For every impedance value:
 
@@ -402,30 +414,9 @@ Make stochastic optimizations reproducible using explicit random seeds.
 
 Prefer Python.
 
-Suggested package structure:
-
-saw_com/
-    __init__.py
-    com.py
-    elements.py
-    network.py
-    filter_model.py
-    specifications.py
-    objective.py
-    optimization.py
-    impedance_sweep.py
-    plotting.py
-    config.py
-
-scripts/
-    run_single.py
-    run_impedance_sweep.py
-
-tests/
-    ...
-
-results/
-    ...
+The current implementation lives under `src/sawopt/`. See
+[`docs/architecture_overview.md`](docs/architecture_overview.md) for its
+current layers and ownership boundaries.
 
 Keep COM physics separate from optimization code.
 
