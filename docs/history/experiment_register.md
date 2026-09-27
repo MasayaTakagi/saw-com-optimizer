@@ -407,6 +407,53 @@ availability is not established by Git and must be verified separately.
   fingerprint: `4465b7177b15ab44c10576a7c3d3bf0363c79a7dafa46ef8452a45626407824d`;
   recorded candidate commit: `f2babf340f7143e44db6af83f28e2324e724f6ed`.
 
+## Stage 3.9 — selected 50 Ω DMS reference closeout
+
+**Evidence level:** accepted 8k control, Stage 3.9A diagnosis, and C2C-accepted
+16k extension with corrected persistence and prefix-parity verification.
+
+- **Question:** Can the selected 50/50 Ω DMS reference recover a stable,
+  feasible or credibly near-feasible design under the current model and
+  search protocol?
+- **Conditions:** MLIT/T1 symmetric five-IDT DMS; 50 Ω source and load; cold
+  starts; seeds 20260917 and 20260918; 16,000 unique evaluations per seed;
+  retained 8,000-evaluation population-schedule horizon; checkpoints every
+  2,000 evaluations; common 9,113-point validation grid. The 0–8k prefixes
+  match the accepted controls exactly.
+- **Result:** At 16k, search max normalized violations were 0.428364 and
+  0.430129. Common-grid maxima were 0.428503 and 0.430129. Both final designs
+  passed geometry but failed filter feasibility. The two trajectories
+  approached a similar empirical late plateau, with only 0.000002 and
+  0.000301 improvement from 14k to 16k. Formal convergence fields remain
+  incomplete (`grid_converged` and `micro_polish_improvement` are null).
+  Stopband constraints at 703–748 MHz and 832–862 MHz dominate; no unresolved
+  active search-bound or hard-geometry limitation was reported.
+- **Decision:** Close Stage 3.9 under roadmap branch (b) for the selected
+  MLIT/T1 50/50 Ω DMS reference path. Do not run another T1 budget extension.
+  MLIT/T2 remains unresolved and unpromoted; it does not block this scoped
+  closeout. Stage 4 may qualify fixed-50/50 Ω hybrid candidates.
+- **Limits:** This is an engineering closeout of the tested reference path,
+  not a proof of global physical or topological impossibility. It makes no
+  material-superiority claim and does not establish that T2 or other future
+  models/design spaces are infeasible. The model remains uncalibrated for
+  production or real-device impedance claims. Formal convergence evidence is
+  incomplete, so describe a late empirical plateau rather than verified
+  convergence.
+- **Review:** C2C closeout PLAN `c2c_stage39_close` iteration 1 and bounded Sol
+  judgment are preserved in `reports/escalation_log.md`. Integrated C2C
+  review iteration 2 accepted the scientific evidence and identified one
+  roadmap baseline inconsistency; that correction is recorded in
+  `reports/escalation_log.md`. C2C iteration 3 accepted the corrected
+  closeout and confirmed Stage 3.9 closed under branch (b) for the selected
+  MLIT/T1 path; no additional optimizer experiment is required.
+- **References:** Closeout bundle
+  `artifacts/review_bundles/stage3_9_closeout_20260927/`; Stage 3.9A bundle
+  `artifacts/review_bundles/stage3_9a_search_viability_diagnosis/`; accepted
+  Stage 3.9B bundle
+  `artifacts/review_bundles/stage3_9b_budget_extension_review_corrected/`;
+  run `runs/stage3_9b_mlit_t1_50ohm_budget_extension_20260927`, ID
+  `20260927_053504_a62960`.
+
 ## Cleanup rule
 
 At each future study closeout, add the result and decision here, update

@@ -13,22 +13,24 @@ from sawopt.orchestration.run_manager import create_run
 from sawopt.orchestration.worker import execute_run
 
 
-def _create_manifest(run_dir: Path, code: int) -> None:
-    marker = run_dir / "result.txt"
+def _create_manifest(run_dir: Path, code: int, *, separate_optimizer_output: bool = False) -> None:
+    optimizer_run_dir = run_dir / "optimizer" if separate_optimizer_output else run_dir
+    marker = optimizer_run_dir / "result.txt"
     command = [
         sys.executable,
         "-c",
-        "import pathlib, sys; pathlib.Path(sys.argv[1]).write_text('result', encoding='utf-8'); sys.exit(int(sys.argv[2]))",
+        "import pathlib, sys; p=pathlib.Path(sys.argv[1]); p.parent.mkdir(parents=True, exist_ok=True); p.write_text('result', encoding='utf-8'); sys.exit(int(sys.argv[2]))",
         str(marker),
         str(code),
     ]
     create_run(RunManifest(
-        schema_version=1,
+        schema_version=2 if separate_optimizer_output else 1,
         run_id="dummy",
         experiment_name="dummy",
         created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         project_root=str(run_dir),
         run_dir=str(run_dir),
+        optimizer_run_dir=str(optimizer_run_dir) if separate_optimizer_output else None,
         command=command,
         config_path=None,
         codex_session_id=None,
@@ -39,6 +41,23 @@ def _create_manifest(run_dir: Path, code: int) -> None:
 
 
 class WorkerTests(unittest.TestCase):
+    def test_v2_worker_keeps_control_and_optimizer_artifacts_separate(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "separated"
+            optimizer_run_dir = run_dir / "optimizer"
+            _create_manifest(run_dir, 0, separate_optimizer_output=True)
+
+            status = execute_run(run_dir)
+
+            self.assertEqual(status["state"], "COMPLETED")
+            self.assertTrue((run_dir / "run_manifest.json").is_file())
+            self.assertTrue((run_dir / "status.json").is_file())
+            self.assertTrue((run_dir / "stdout.log").is_file())
+            self.assertTrue((run_dir / "stderr.log").is_file())
+            self.assertEqual((optimizer_run_dir / "result.txt").read_text(encoding="utf-8"), "result")
+            self.assertTrue((optimizer_run_dir / "metadata" / "run_completion.json").is_file())
+            self.assertFalse((run_dir / "metadata" / "run_completion.json").exists())
+
     def test_successful_dummy_optimizer(self):
         with TemporaryDirectory() as temporary:
             run_dir = Path(temporary) / "run"

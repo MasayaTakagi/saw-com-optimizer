@@ -246,11 +246,14 @@ def implementation_validation(cfg: Mapping[str, Any]) -> dict[str, Any]:
         },
     }
 
-def fixed_design_sanity(out: Path, cfg: Mapping[str, Any], grid: np.ndarray):
+def fixed_design_sanity(
+    out: Path, cfg: Mapping[str, Any], grid: np.ndarray, *,
+    materials: Iterable[str] | None = None, topologies: Iterable[str] | None = None,
+):
     rows = []
-    for material in MATERIALS:
+    for material in tuple(materials) if materials is not None else MATERIALS:
         provider, profile_metadata = _provider(material, cfg)
-        for topology in TOPOLOGIES:
+        for topology in tuple(topologies) if topologies is not None else TOPOLOGIES:
             design = initial_design(material, topology, cfg)
             result = evaluate_topology_design(design, provider, cfg, grid, topology)
             metrics = result.get("metrics", {})

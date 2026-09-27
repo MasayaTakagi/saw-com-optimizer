@@ -7,7 +7,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .codex_callback import run_codex_callback
+from .codex_callback import run_codex_callback, run_codex_callback_preflight
 from .models import RunManifest
 from .process_runner import build_worker_command, launch_detached, pid_exists
 from .run_manager import (
@@ -45,7 +45,9 @@ def resolve_run_dir(value: str, root: Path | None = None) -> Path:
     return (root / candidate).resolve()
 
 
-def _build_optimizer_command(config: Path, run_dir: Path, *, workers: int | None) -> list[str]:
+def _build_optimizer_command(
+    config: Path, optimizer_run_dir: Path, *, workers: int | None,
+) -> list[str]:
     command = [
         sys.executable,
         "-m",
@@ -54,7 +56,7 @@ def _build_optimizer_command(config: Path, run_dir: Path, *, workers: int | None
         "--config",
         str(config),
         "--run",
-        str(run_dir),
+        str(optimizer_run_dir),
     ]
     if workers is not None:
         command.extend(["--workers", str(workers)])
@@ -143,8 +145,14 @@ def launch(args: argparse.Namespace) -> int:
         raise FileNotFoundError(f"config does not exist: {config}")
     run_id = _new_run_id()
     run_dir = resolve_run_dir(args.run_dir, root) if args.run_dir else root / "runs" / run_id
+    optimizer_run_dir = run_dir / "optimizer"
+    if run_dir.exists() and any(run_dir.iterdir()):
+        raise FileExistsError(f"orchestration directory is not empty: {run_dir}")
+    if optimizer_run_dir.exists() and any(optimizer_run_dir.iterdir()):
+        raise FileExistsError(f"optimizer output directory is not empty: {optimizer_run_dir}")
     callback_enabled = not args.no_callback
     session = None
+    callback_preflight = None
     if callback_enabled:
         session_path = Path(args.session_file) if args.session_file else root / ".codex" / "runtime" / "current_session.json"
         if not session_path.is_absolute():
@@ -155,13 +163,17 @@ def launch(args: argparse.Namespace) -> int:
             project_root=root,
             max_age_s=float(args.session_max_age_hours) * 3600,
         )
+        callback_preflight = run_codex_callback_preflight(
+            str(session["session_id"]),
+            project_root=str(root),
+        )
     command = _build_optimizer_command(
         config,
-        run_dir,
+        optimizer_run_dir,
         workers=args.workers,
     )
     manifest = RunManifest(
-        schema_version=1,
+        schema_version=2,
         run_id=run_id,
         experiment_name=args.experiment_name or config.stem,
         created_at=utc_now(),
@@ -178,6 +190,8 @@ def launch(args: argparse.Namespace) -> int:
             else float(args.callback_timeout_minutes)
         ),
         codex_session_source=None if session is None else str(session.get("source", "unknown")),
+        optimizer_run_dir=str(optimizer_run_dir),
+        callback_preflight=callback_preflight,
     )
     create_run(manifest)
     checkpoint = _write_session_checkpoint(

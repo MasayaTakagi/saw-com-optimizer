@@ -77,20 +77,24 @@ def execute_run(run_dir: Path, *, callback_runner: Callable[..., int] | None = N
     except BaseException as exc:
         _append_exception(run_dir, exc)
         transition(run_dir, "FAILED", exit_code=None, error=str(exc))
-        complete_study_run(run_dir, disposition=RunDisposition.FAILED)
+        complete_study_run(
+            Path(manifest.effective_optimizer_run_dir),
+            disposition=RunDisposition.FAILED,
+        )
         exit_code = None
     else:
-        disposition = legacy_process_disposition(run_dir, return_code=exit_code)
+        optimizer_run_dir = Path(manifest.effective_optimizer_run_dir)
+        disposition = legacy_process_disposition(optimizer_run_dir, return_code=exit_code)
         transition(
             run_dir,
             disposition.value,
             exit_code=exit_code,
             error=None if exit_code == 0 else f"optimizer exited with code {exit_code}",
         )
-        complete_study_run(run_dir, disposition=disposition)
+        complete_study_run(optimizer_run_dir, disposition=disposition)
         if disposition is RunDisposition.COMPLETED:
             try:
-                finalization = finalize_run_checkpoints(run_dir)
+                finalization = finalize_run_checkpoints(optimizer_run_dir)
             except Exception as exc:
                 # Optimizer completion remains authoritative. Retain recovery
                 # files and make lifecycle failure visible for later repair.

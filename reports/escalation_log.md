@@ -8,6 +8,53 @@ decision, Luna's action, verification, and outcome. Requested model and
 reasoning effort must be kept separate from independently observed backend
 identity and behavior.
 
+## 2026-09-27 — Stage 3.9B overlap retry orchestration recovery
+
+### Packet and decision
+
+- Scope: recover the already authorized 8,000-evaluation × 2-seed overlap-parity
+  run after an asynchronous launch failed before any optimizer evaluation.
+- Evidence: orchestration control files occupied the study output directory,
+  violating its empty-at-start contract. The callback separately failed to
+  access the Codex state store in the detached worker context. The failed run
+  is retained unchanged and has no scientific checkpoint to resume.
+- Judgment requested from `gpt-6-sol`: select the smallest safe orchestration
+  repair and define callback recovery boundaries. Backend identity and actual
+  reasoning effort were not independently exposed.
+- Decision: give schema-v2 runs a nested `optimizer/` output directory while
+  preserving the top-level directory for orchestration state. Keep schema-v1
+  manifests readable with their historical effective output path. Route
+  lifecycle/finalization operations to the optimizer path. Before callback-
+  enabled launch, run a no-op probe using the exact session, resolved Codex
+  executable, structured target validation, and the same environment as the
+  eventual callback. Block launch on permission, target, executable, timeout,
+  or process failures. Do not broaden state-store access, disable callbacks,
+  alter the experiment protocol, or resume/reuse the failed attempt.
+- C2C PLAN iteration 3 accepted implementation of this bounded repair. C2C
+  requires independent acceptance of implementation and callback preflight
+  before a fresh retry. The separate 16,000 × 2-seed run remains gated on a
+  completed overlap PASS and later C2C acceptance.
+
+### Codex action and outcome
+
+- Implemented schema-v2 control/output separation, legacy manifest fallback,
+  lifecycle routing, dual-path callback prompts, and fail-closed callback
+  preflight. Added focused orchestration tests for those boundaries. The
+  accepted overlap and 16k configs, canonical Stage 3.8C run, and failed
+  attempt remain unchanged.
+- C2C's first independent review accepted path separation and lifecycle
+  routing, then found two fail-closed gaps: substring acknowledgement matching
+  and acceptance of an expected target alongside a foreign target ID. The
+  follow-up fixes now require an exact completed `agent_message` response and
+  the complete observed ID set to equal only the requested session. Regression
+  tests cover acknowledgement fragments/echoes and mixed target IDs.
+- Re-validation after that correction: 57 focused tests and 9 subtests passed;
+  `py_compile` and `git diff --check` passed. The initial correction attempt
+  exposed a syntax error in the new test fixture, which was fixed before the
+  passing rerun. No optimizer retry or 16k optimizer was launched.
+- No additional Sol escalation was needed for this strictness correction.
+  Independent C2C review of the follow-up is pending.
+
 ## 2026-09-25 — Historical cleanup architecture boundary
 
 ### Packet
@@ -837,3 +884,577 @@ confirmation or a separately approved FEM extraction is required.
   `.venv\Scripts\python.exe -m pytest -p no:cacheprovider -q`.
 - Static Python import search found no references to removed modules. The
   architecture boundary test passed. No production optimizer was launched.
+
+## 2026-09-26 — C2C IAB computer-use control boundary
+
+### Packet and decision
+
+- Scope: choose the project-specific procedure for operating ChatGPT through
+  the built-in IAB after the user requested that the computer-use Skill be the
+  standard.
+- Evidence and constraints: `docs/c2c/OPERATIONS.md` and
+  `docs/c2c/SECURITY_BASELINE.md` named the Browser Skill bootstrap and
+  prohibited Computer Use generically. The user authorized computer use only
+  within IAB. C2C/ChatGPT PLAN recommended preserving the existing
+  `browser-client.mjs` bootstrap while narrowing the prohibition.
+- Requested reviewer: GPT-6 Sol (`gpt-6-sol`), high reasoning, judgment only.
+  Backend model identity and actual reasoning effort were not independently
+  exposed.
+- Judgment requested: whether to preserve the Browser Use bootstrap or
+  document the currently exposed IAB computer-use API, and which credential,
+  consent, and non-IAB boundaries must remain explicit.
+
+### Sol judgment
+
+- Use the current `mcp__cua_repl` IAB APIs for ChatGPT browser interaction;
+  keeping the old Browser Use bootstrap would not implement the user's request.
+- Use the computer-use Skill for its safety rules and the tool's current
+  documentation for IAB initialization and tab selection. Do not imply
+  approval for native Windows controls, `@oai/sky`, or external browsers.
+- Hand authentication secrets, pairing-code entry, and consent or permission
+  prompts to the user; preserve the doctor gate, workspace identity, read-only
+  MCP boundary, and review governance.
+
+### Codex action and outcome
+
+- Updated only the project C2C operating and security-baseline guidance plus
+  this required escalation record. Removed the Browser Use bootstrap as the
+  approved path and documented IAB-only control and user handoffs. The
+  reviewed C2C checkout, connector scope, tunnel baseline, and numerical code
+  were not changed.
+
+## 2026-09-27 — Stage 3.9B budget-extension protocol
+
+### Packet and decision
+
+- Scope: first bounded viability experiment for the MLIT/T1 cell following
+  Stage 3.9A's no-rerun diagnosis. The proposed run uses Zs=Zl=50 ohm, cold
+  starts, seeds 20260917 and 20260918, 16,000 unique evaluations per seed,
+  and checkpoints every 2,000 evaluations. The common validation grid,
+  constraints, objective, COM profile, comparator, initializer, frequencies,
+  and search bounds remain unchanged.
+- Judgment requested from `gpt-6-sol`: whether this is an appropriate first
+  viability test; whether the population schedule should preserve its 8,000
+  evaluation horizon or expand to 16,000; and whether parity and stopping
+  criteria are sufficient. Backend identity and actual reasoning effort were
+  not independently exposed.
+- Decision: proceed with the two-seed 16,000-evaluation MLIT/T1 cold-start
+  experiment while explicitly retaining the 8,000 population schedule
+  horizon. This isolates the extra evaluation budget from a changed
+  0–8,000 population-size schedule; after 8,000, the minimum population is
+  retained.
+- Required controls: preserve all other experiment inputs; retain separate
+  outputs; compare initial samples, incumbent decoded designs, objective and
+  components, population sizes, available population/cache trajectory, and
+  evaluation accounting at 2k/4k/6k/8k; require exact deterministic equality
+  where applicable and predeclare any numerical tolerance. An unexplained
+  overlap mismatch invalidates the extension interpretation and must be
+  diagnosed before proceeding.
+- Acceptance/stopping: existing full feasibility and validity gates define
+  viability; report improvement separately from viability. Complete the
+  planned 16k per seed unless a numerical/accounting/parity failure or formal
+  search-space exhaustion prevents valid continuation. Do not use plateau
+  stopping. Two seeds are a bounded diagnostic only; neither a positive nor a
+  negative outcome establishes a robust rate or physical impossibility.
+  Further budget, schedule, or production runs require a separate approval.
+
+### Codex action and outcome
+
+- Added a backward-compatible optional material/topology selection to the
+  current DMS study. The default remains the complete M0/MLIT × T0/T1/T2
+  matrix; selected axes now flow through fixed/known-design preflight, run
+  metadata, optimization loops, summary metadata, and checkpoint accounting.
+- Added a Stage 3.9B config for only MLIT/T1 at Zs=Zl=50 ohm, seeds 20260917
+  and 20260918, 16,000 unique evaluations per seed, and 2,000-evaluation
+  checkpoints. The L-SHADE population schedule horizon is explicitly 8,000;
+  the schedule is held at minimum population beyond that point.
+- Added a reproducible Stage 3.9A no-rerun diagnosis and persistent JSON/CSV/
+  Markdown evidence for separate M0/T0 and MLIT/T1 lanes under
+  `artifacts/review_bundles/stage3_9a_search_viability_diagnosis/` (16
+  checkpoint rows). M0/T0 plateaus from 2,000 with lower-bound pressure;
+  MLIT/T1 improves through 8,000 without final active-bound hits. Both remain
+  infeasible at 8,000 and pass hard geometry checks.
+- Validation: focused DMS study suite passed (9 tests); both scripts compiled;
+  Stage 3.9B implementation, known-design and fixed-design checks passed on
+  the 9,113-point common grid, and a 200-evaluation smoke run completed. The
+  experiment preflight evidence is under
+  `artifacts/review_bundles/stage3_9b_budget_extension_preflight/`.
+- No COM physics, objective, constraints, search bounds, initializer,
+  comparator, or frequency grid were changed. No 16k production optimizer was
+  launched. Before interpreting a future extension, its 2k–8k overlap must
+  satisfy the Sol parity gate; before production launch, C2C must accept the
+  implementation/preflight and the required callback session must be valid.
+
+## 2026-09-27 — Stage 3.9B retry blocked at callback preflight
+
+- C2C accepted the schema-v2 orchestration recovery and authorized a fresh
+  8,000-evaluation-per-seed overlap-parity retry under
+  `runs/stage3_9b_mlit_t1_50ohm_overlap_parity_20260927_retry1/`.
+- The callback-enabled asynchronous launch was attempted with the current
+  Codex session. Preflight failed closed before creating the retry root or
+  starting a worker: the Codex CLI could not emit a target `session_id` or
+  `thread_id` JSON event because it could not initialize its in-process
+  app-server client.
+- A direct diagnostic identified a read-only database failure at
+  `C:\Users\sub\.codex\state_5.sqlite` and access denied under
+  `C:\Users\sub\.codex\tmp\arg0\...`. One narrowly scoped elevated launch
+  retry produced the same failure. No safe, narrowly scoped permission
+  recovery was available; callback validation and sandbox boundaries were
+  not weakened.
+- Outcome: no optimizer process, worker, or retry run was created. The prior
+  failed attempt remains preserved. The 16,000-evaluation extension remains
+  gated on completion and C2C acceptance of the 8,000-evaluation overlap
+  parity run. Recovery is blocked pending repair of the Codex session state
+  and temporary app-server access so callback preflight can pass.
+- C2C independently reviewed iteration 5 and confirmed the retry root and
+  optimizer output are absent, the original failed attempt is preserved, and
+  the task is `BLOCKED`. Unblocking requires repairing the host state/temp
+  access and passing the exact-session callback preflight in the normal,
+  non-elevated launch context; return to C2C before creating the fresh retry.
+
+## 2026-09-27 — Stage 3.9B overlap retry launched without session resume
+
+- The user stated that session resume is temporarily frozen and explicitly
+  directed execution without it. C2C re-planned and authorized this specific
+  8,000-evaluation × 2-seed overlap run with `--no-callback`; no science or
+  comparison settings changed.
+- Launched asynchronously with the project virtual environment and accepted
+  config under the fresh root
+  `runs/stage3_9b_mlit_t1_50ohm_overlap_parity_20260927_retry1/`.
+  `run_id=20260926_183341_71d671`. The CLI verified the optimizer output
+  directory was absent/empty before starting; startup artifacts now exist in
+  the nested `optimizer/` directory.
+- The schema-v2 manifest was verified: `optimizer_run_dir` is the nested
+  `optimizer/` path; the recorded `--run` matches; config path is the accepted
+  overlap config; `codex_session_id`, `codex_session_source`, and
+  `callback_preflight` are null; `callback_enabled` and
+  `review_after_completion` are false. The session checkpoint has the same
+  run ID and null session ID.
+- C2C independently confirmed durable status `RUNNING` and accepted the
+  launch checkpoint. It reports worker PID 17832 and optimizer PID 24208;
+  the launcher console reported PID 33080, so use durable status as the
+  authority for subsequent operations. No stdout polling or synchronous
+  wait was performed. Completion/parity review remains a later manual step;
+  the 16,000-evaluation extension remains unauthorized.
+
+## 2026-09-27 — Sol escalation: Stage 3.9B overlap parity divergence
+
+### Packet and judgment requested
+
+- Scope: interpret the completed, C2C-authorized Stage 3.9B overlap result
+  before proposing any repair or additional optimization run. The experiment
+  used the accepted MLIT/T1, 50/50 ohm config, seeds 20260917/20260918,
+  cold starts, 8,000 evaluations per seed, and checkpoints at 2k/4k/6k/8k.
+  It ran asynchronously without callback/session resume under the explicit
+  user instruction and C2C's iteration-6 exception.
+- Evidence: run `20260926_183341_71d671` completed with exit code 0. The
+  accepted verifier reports FAIL at all 8 checkpoint cells and 16,979 total
+  mismatches. Passing gates: both checkpoint lattices and resolved protocol
+  inputs. Failing gates: checkpoint comparisons, full optimizer state/cache,
+  initializer evidence, 8k common-grid finalists, and run metadata snapshots.
+  Dominant differences are 15,998 cache keys, 760 archive-trace sizes, and
+  80 exact optimizer archive state values. Initial geometry rejection counts
+  differ (3 vs 7 for seed 20260917; 6 vs 7 for seed 20260918); selected
+  common-grid designs/metrics also differ. A common-grid file-byte hash
+  mismatch is also reported. Full evidence is under
+  `artifacts/review_bundles/stage3_9b_overlap_parity_retry1_review/`.
+- Requested reviewer: GPT-6 Sol, bounded judgment only. Assess whether the
+  observed result establishes real trajectory/protocol divergence versus a
+  verifier or provenance-normalization defect, identify the smallest
+  read-only diagnostics that can distinguish them, and state whether any
+  interpretation beyond “parity failed” is justified. Do not implement a
+  fix, change scientific settings, or launch another optimization run.
+- C2C has been asked to independently review/accept the actual result. No
+  repair or rerun is in progress; the 16,000-evaluation extension remains
+  unauthorized pending a valid parity PASS and C2C acceptance.
+
+### Sol judgment and bounded follow-up diagnostics
+
+- Sol judgment: the initializer RNG seeds and evaluated design sequence differ
+  materially; this is real initialization/trajectory divergence, not merely
+  metadata or float serialization. The complete historical cause was
+  unresolved at judgment time. Do not claim optimizer regression, changed
+  physics, or superior performance from these data; no code/config change or
+  rerun was authorized.
+- Read-only source/hash investigation recovered the retained R1.2 seed recipe:
+  `stage3_8c_r1_geometry_first_v1/r1_2_independent_rejection/...`. It
+  reproduces both canonical persisted initializer seeds (3938065196 and
+  1982837181). The current recipe uses
+  `dms_topology_geometry_first_independent_rejection_v1/independent_rejection`
+  and reproduces the retry seeds (3688039291 and 2750583874). The recorded
+  canonical Git head predates the runtime source path, which its own metadata
+  records as untracked; the retained pre-prune implementation and persisted
+  seeds corroborate the recipe, but the exact source blob at that Git head is
+  unavailable.
+- A no-physics replay used the historical seeds with the current initializer.
+  Both seeds reproduced all 180 initial cache keys exactly in order; all
+  sampling counters, rejection reasons, variable distributions, and geometry
+  distributions matched the canonical metadata. This isolates the initial
+  population difference to seed-contract drift rather than current sampler
+  logic. No optimizer or COM/RF evaluation ran.
+- The reference, canonical-run, and overlap-run grid CSV files are byte
+  identical (raw SHA-256 `84afd1e7...`). All three parsed 9,113-point arrays
+  are elementwise equal (array ID `2e24c4ce...`). Metadata contains the LF-
+  normalized source hash `54c1daf6...`; the verifier compared that to raw file
+  bytes and reported a serialization-only mismatch. Numerical grid equality
+  remains exact.
+- Diagnostic bundle: `artifacts/review_bundles/stage3_9b_overlap_parity_root_cause/`.
+  The result and diagnostic bundle were sent to C2C for independent review.
+  No scientific code/config edit, new overlap run, or 16,000-evaluation run is
+  authorized. Obtain Sol judgment before any seed-contract correction or
+  repeated overlap experiment; require C2C acceptance before implementation.
+
+### C2C diagnostic acceptance and Sol remediation judgment
+
+- C2C iteration 8 independently accepted the forensic bundle and confirmed
+  the root-cause conclusion: the first real divergence is initializer RNG
+  seed-contract drift; the current sampler reproduces both historical
+  populations exactly when given the canonical seeds. The grid-hash issue is
+  serialization-only; exact numerical-array equality remains a required gate.
+- Sol judgment: the bounded repair should preserve the historical namespace
+  and `r1_2_independent_rejection` suffix as an explicit parity compatibility
+  contract, avoiding a global change to unrelated DMS studies. Correct the
+  verifier's documented LF-normalized hash comparison separately; do not
+  weaken the exact array/count/ID checks. This judgment authorizes no code
+  change or production run.
+- Before a fresh 8,000-evaluation overlap, Sol requires source-level
+  compatibility evidence for comparator ordering, evaluator payload/ranking,
+  design decoding/canonicalization, optimizer configuration, and checkpoint
+  scheduling. Record source hashes and preserve the caveat that the exact
+  canonical runtime source blob is unavailable at its recorded Git head. An
+  unchanged tracked `lshade.py` alone does not close this gap.
+- Required gates: C2C repair PLAN, recorded Sol judgment, targeted repair
+  validation, C2C acceptance of the integrated implementation and launch
+  preflight, then C2C review of the rerun. The 16,000-evaluation run remains
+  unauthorized until repaired 8,000-evaluation parity passes and C2C accepts
+  it.
+
+### C2C repair PLAN and bounded implementation validation
+
+- C2C iteration 9 accepted Sol's judgment and authorized only the scoped seed-
+  contract mechanism, Stage 3.9B parity hash correction, tests, metadata, and a
+  read-only compatibility evidence builder. No pilot or production optimizer
+  launch was authorized. Source-compatibility evidence is a post-implementation,
+  pre-launch gate.
+- Added explicit `stage3_8c_r1_2_independent_rejection` selection to both Stage
+  3.9B overlap and budget-extension configs. The default DMS seed derivation
+  remains unchanged. Run metadata now records contract ID, namespace, suffix,
+  and the actual initial sampling seed per material/topology/seed.
+- Updated the parity verifier to keep exact numerical grid count/array/ID
+  checks while validating normalized provenance hashes against the referenced
+  source grid and normalized run copy. Added the no-optimizer read-only builder
+  `scripts/build_stage3_9b_source_compatibility.py`, which writes its review
+  bundle under `artifacts/review_bundles/stage3_9b_source_compatibility/`.
+- Validation: 20 focused DMS/parity tests passed; the short optimizer unit test
+  was intentionally excluded because this work unit forbids optimizer
+  execution. `py_compile` passed for changed/new Python files and
+  `git diff --check` exited 0 (Git emitted only existing LF-to-CRLF worktree
+  warnings). The compatibility bundle reports PASS for comparator ordering,
+  evaluator payload/ranking, design decode/canonicalization, optimizer config,
+  and checkpoint schedule. Both historical initial populations replayed
+  exactly 180/180 with sampling accounting matching (seed 20260917: 182 draws,
+  3 geometry rejections; seed 20260918: 185 draws, 6 geometry rejections).
+- The canonical run's recorded Git head still lacks the exact Stage 3.8C
+  runtime source path. The retained pre-prune source and persisted behavior
+  corroborate the contract but are not a cryptographically pinned runtime
+  source blob; the evidence bundle records this caveat. No optimizer or RF/COM
+  evaluation was run, no new 8,000-evaluation overlap run was launched, and
+  16,000 evaluations remain unauthorized. A final compatibility hardening
+  keeps the removed/present historical-config branches explicit: legacy
+  Stage 3.8C config resolution does not require the new Stage 3.9 selector;
+  the overlap config selector and persisted actual initializer seeds remain
+  independently gated. C2C requested that persisted canonical snapshots stay
+  authoritative regardless of whether a legacy config file is present, and
+  that optimizer controls/source identity be evidenced explicitly. The final
+  bundle tests historical config absent/present without routing it through the
+  modern schema. It compares canonical and current active/hard bounds and
+  integer indices, effective initial/minimum populations (180/4), budget and
+  horizon (8,000), memory update batch (180), and history size (6). `lshade.py`
+  matches the canonical recorded head; `selection.py` differs, with its
+  persisted comparator/ranking trace replay passing. Validation passed: 21
+  focused tests, one short optimizer test deselected, `py_compile`, bundle
+  builder, and `git diff --check`. A pytest cache permission warning was
+  emitted; test execution succeeded. No optimizer, COM/RF evaluation, or
+  production run was performed. The final bundle is
+  `artifacts/review_bundles/stage3_9b_source_compatibility_gateb_final/`,
+  including `validation_results.json`. The canonical runtime-source caveat
+  remains. Submitted for final C2C Gate B acceptance; no Gate C preflight or
+  launch is authorized by this work unit.
+
+### Gate B acceptance and Gate C retry2 launch checkpoint
+
+- C2C accepted Gate B in iteration 12 after independently reviewing the
+  corrected legacy-config branch, optimizer-control/source comparisons, both
+  Stage 3.9 configs, regression, and final compatibility bundle. The retained
+  canonical-runtime-source caveat remains explicit.
+- The fresh preflight confirmed workspace identity `saw-com-optimizer` /
+  `workspace:/` (`workspaceId` `ee7cba15db95`), the Gate B summary PASS, and
+  every current source/config SHA-256 in
+  `stage3_9b_source_compatibility_gateb_final/source_hashes.json`. The 8k
+  overlap config resolved to MLIT/T1_SYMMETRIC_5IDT, 50 ohm source/load,
+  cold-start, seeds 20260917/20260918, budget and schedule horizon 8000,
+  checkpoints 2000/4000/6000/8000, and the historical seed contract. Derived
+  initializer seeds were 3938065196 and 1982837181. The retry2 root and nested
+  optimizer directory were absent before launch; the earlier run roots were
+  terminal (`CALLBACK_FAILED` and `COMPLETED`) and no `python.exe` or
+  `pythonw.exe` process was present.
+- Under the Gate C plan and the standing no-session-resume instruction, launched
+  only the fresh 8k x 2 retry with `--no-callback`; no session ID/file was
+  supplied. Run ID: `20260927_043544_5ba048`, root:
+  `runs/stage3_9b_mlit_t1_50ohm_overlap_parity_20260927_retry2/`.
+- Immediate post-launch verification passed: schema-v2 manifest points to the
+  exact overlap config and nested `optimizer/` directory; session ID/source are
+  null; callback, review-after-completion, and callback preflight are disabled
+  or null; session checkpoint has the same run ID, `session_id: null`, and
+  `resume_count: 0`; durable state entered `RUNNING`; generated run-source
+  metadata records the approved historical contract and both exact seeds.
+  This is a launch checkpoint only. The detached worker is not being polled or
+  awaited, and no result/parity claim is made. The 16k run remains unauthorized
+  pending completed retry2 parity PASS and independent C2C acceptance.
+
+### Gate D retry2 completion and parity review
+
+- On explicit user request to check status and resume the work if complete,
+  durable `status.json` showed `COMPLETED`, `exit_code: 0`, and
+  `optimizer_state: COMPLETED` for run `20260927_043544_5ba048`. Manifest still
+  records callbacks disabled, no session ID, and resume count 0. No optimizer
+  output log was polled.
+- Before verification, workspace identity remained
+  `saw-com-optimizer` / `workspace:/`; every source/config SHA-256 listed in
+  Gate B's `source_hashes.json` still matched.
+- Ran only the persisted-result parity verifier (no optimizer or COM/RF
+  evaluation):
+  `scripts/verify_stage3_9b_overlap_parity.py --overlap-run-dir runs/stage3_9b_mlit_t1_50ohm_overlap_parity_20260927_retry2/optimizer --overlap-config configs/studies/stage3_9b_mlit_t1_50ohm_overlap_parity.yaml --output-dir artifacts/review_bundles/stage3_9b_overlap_parity_retry2_review`.
+- Result: **PASS**, eight of eight cells, zero mismatches. All gates passed:
+  canonical and overlap checkpoint lattices, resolved protocol inputs, run
+  metadata snapshots, initializer evidence, exact checkpoint comparisons,
+  complete 8k optimizer state/cache, and common-grid finalists. Summary and
+  comparison table are preserved in
+  `artifacts/review_bundles/stage3_9b_overlap_parity_retry2_review/`.
+- Submitted for independent C2C Gate D acceptance. The 16k extension remains
+  unauthorized until C2C accepts this full parity result and issues a separate
+  authorization/plan.
+
+### Gate D acceptance and Gate E preflight/verifier preparation
+
+- C2C accepted Gate D in iteration 14. It verified the completed retry2 run,
+  exit code 0, callbacks disabled, resume count 0, all eight seed/checkpoint
+  comparisons PASS with zero mismatches, and every parity gate PASS. C2C issued
+  a separate conditional Gate E plan for one fresh asynchronous 16k×2 run.
+- Added a config-only preflight and read-only persisted-result verifier for the
+  16k extension. The verifier compares each 2k/4k/6k/8k extension checkpoint
+  against the accepted 8k control, allowing only the declared total-run hard
+  and terminal budget fields to differ. It checks the exact 16k checkpoint
+  lattice, unique-evaluation/physics accounting, the unchanged 8k population
+  schedule, seed/initializer provenance, no-session/no-resume manifest and
+  status, final optimizer cache/state, common-grid finalists, and reports
+  objective/violation changes separately from feasibility for each seed.
+  Results are explicitly descriptive for two seeds; no success-rate inference
+  is made.
+- Config-only preflight passed at
+  artifacts/review_bundles/stage3_9b_budget_extension_preflight_20260927_final2/.
+  All 10 Gate-B source/config hashes matched; Gate-D parity remained PASS;
+  the budget-extension root was absent; the config resolved to 16,000
+  evaluations per seed at 2k through 16k checkpoints with the 8,000 schedule
+  horizon and the approved seed contract/seeds. Only budget and checkpoint
+  lattice differ from the accepted overlap protocol.
+- Validation passed: py_compile; focused Stage 3.9B tests (15 passed);
+  git diff --check (only existing LF-to-CRLF warnings). Pytest emitted an
+  access-denied .pytest_cache warning but completed successfully. A
+  post-validation process check found no python.exe or pythonw.exe worker.
+- No optimizer, COM/RF evaluation, or production run was launched. The
+  conditional 16k×2 launch is held for independent C2C review of the new
+  verifier and completed preflight, as required by review governance.
+
+### Gate E bounded verifier/preflight corrections
+
+- C2C iteration 15 did not accept the initial Gate E bundle. It requested two
+  bounded corrections before launch: explicitly resolve and record the actual
+  16k backend limits (rather than relying on the 8k prefix protocol projection),
+  and compare the exact ordered first 8,000 cache entries in the final 16k
+  optimizer state against the accepted 8k control cache.
+- Added the actual 16k backend gate. It requires total/hard budget 16,000,
+  schedule horizon 8,000, initial population 180, and hard bounds identical
+  to the accepted search space. The prefix-specific 8k backend projection is
+  retained separately and labeled.
+- Added read-only cache-prefix verification for both seeds. It requires an
+  8,000-entry control cache, compares ordered keys exactly, compares cached
+  evaluation payloads with the existing Gate-D exact/tolerance policy, and
+  compares cache frequency-version prefixes when both are represented.
+  Entries beyond the first 8,000 do not affect the prefix gate.
+- Regenerated the config-only preflight bundle at
+  artifacts/review_bundles/stage3_9b_budget_extension_preflight_20260927_final3/.
+  It passes: Gate B hashes 10/10; Gate D 8/8 with zero mismatches; fresh
+  extension root absent; effective backend 16,000/16,000/8,000/180; approved
+  hard bounds and seed contract retained.
+- Focused validation passed: py_compile; 18 Stage 3.9B tests; git diff --check
+  (existing LF-to-CRLF warnings only). Tests cover hard-budget/horizon
+  mutations, ordered cache-prefix equality, changed key/metric rejection, and
+  post-8k cache tail exclusion. Pytest reports an access-denied .pytest_cache
+  warning but all tests passed. No Python worker was active after validation.
+- No optimizer, COM/RF evaluation, or production run was launched. Submitted
+  the corrected implementation and preflight for another independent C2C
+  review; the conditional 16k launch remains unreleased until acceptance.
+
+### Gate E acceptance and 16k×2 launch checkpoint
+
+- C2C accepted the two bounded corrections in iteration 16, independently
+  verifying the actual 16k backend configuration and the new cache-prefix
+  gate. It released exactly one asynchronous 16k×2 launch under the existing
+  no-session-resume / no-callback controls.
+- Immediately before launch, the fresh extension root was absent and
+  Get-Process reported no python.exe or pythonw.exe workers. The final3
+  config-only preflight was PASS and C2C confirmed workspace identity
+  saw-com-optimizer / workspace:/ at b3f7d37.
+- Launched with the project virtual environment and only the approved 16k
+  budget-extension config:
+  .venv/Scripts/python.exe -m sawopt.orchestration.cli launch --config
+  configs/studies/stage3_9b_mlit_t1_50ohm_budget_extension.yaml --run-dir
+  runs/stage3_9b_mlit_t1_50ohm_budget_extension_20260927 --experiment-name
+  stage3_9b_budget_extension --no-callback
+- Run ID 20260927_053504_a62960; orchestration worker PID 3540. The worker
+  detached asynchronously. Immediate schema-v2 manifest checks passed: fresh
+  control root, nested optimizer directory, exact config, study command
+  targeting the nested directory, null Codex session ID/source, callbacks and
+  review-after-completion disabled, and callback preflight null.
+- Durable state entered RUNNING with optimizer_state RUNNING and no exit code.
+  Matching session checkpoint has null session ID and resume_count 0.
+  run-source metadata records 16,000 evaluations; checkpoints 2k through
+  16k; MLIT/T1_SYMMETRIC_5IDT; 50/50 ohm; cold start; no warm/parent/neighbor
+  transfer; historical seed contract stage3_8c_r1_2_independent_rejection,
+  namespace stage3_8c_r1_geometry_first_v1, suffix
+  r1_2_independent_rejection, and initializer seeds 3938065196 /
+  1982837181.
+- The CLI launch response reported PID 3540, while durable status records
+  worker PID 29772 and optimizer PID 35800. C2C independently confirmed the
+  discrepancy is benign; durable status.json PIDs are authoritative for later
+  review.
+- C2C accepted the launch checkpoint in iteration 17. No optimizer output was
+  read or polled, and completion is not claimed. Leave the detached run alone
+  until terminal status, then use only the accepted persisted-result verifier.
+  No additional budget or production run is authorized.
+
+### Gate E terminal status and persisted-result verification
+
+- Durable status for run 20260927_053504_a62960 reached COMPLETED with exit
+  code 0, optimizer_state COMPLETED, resume_count 0, and no error. The run
+  started at 2026/09/27 14:35:05 and finished at 2026/09/27 15:05:12.
+- Ran only the C2C-accepted read-only persisted-result verifier:
+  `.venv/Scripts/python.exe scripts/verify_stage3_9b_budget_extension.py`.
+  It returned FAIL: 8 prefix comparisons, 55 mismatches. Main findings include
+  persisted terminal budgets of 8,000 where the approved 16,000 was expected,
+  missing common-grid fields in prefix records, B8000 counter differences,
+  and run-source config provenance differing from the approved 16k config.
+- The verifier preserved its result in
+  `artifacts/review_bundles/stage3_9b_budget_extension_review/`.
+  No repair, optimizer rerun, or new production run was started. Submit this
+  Gate E result to C2C for independent disposition before resuming further work.
+
+### Gate E verifier lifecycle correction and corrected result review
+
+- C2C iteration 18 classified all 55 original mismatches as verifier/lifecycle
+  false positives, not a substantive 0–8k search-trajectory divergence. It
+  verified the ordered 8,000-entry cache prefixes for both seeds, identical
+  B8000 search-frequency work and design/objective fields, 16,000 unique final
+  evaluations per seed, and matching normalized retained input-config content.
+- C2C authorized only a bounded verifier/test correction and re-verification
+  of the existing persisted run. No optimizer, COM/RF evaluation, or new
+  production run was authorized or started.
+- Updated the verifier to treat `terminal_budget` and
+  `population_schedule_terminal_budget` as the required 8,000 schedule
+  horizon, while `hard_max_budget` remains the 16,000 extension limit. Prefix
+  parity now retains exact search counters and reports, but excludes,
+  finalization-only validation counters. Prefix B2k–B8k no longer requires
+  post-run common-grid fields; the independent final 16k common-grid gate stays
+  mandatory. Provenance now checks normalized content hashes of the retained
+  `optimizer/input_config.yaml` against the approved config, and treats the
+  run-source path field as optional for the current schema.
+- Added focused regression tests. The targeted Stage 3.9B module passes
+  12 tests; py_compile passes; `git diff --check` passes (Git reports only
+  existing LF/CRLF normalization warnings).
+- Re-ran only the read-only verifier against the completed run, writing a new
+  bundle to
+  `artifacts/review_bundles/stage3_9b_budget_extension_review_corrected/`.
+  Result PASS: all 12 gates pass, all eight seed×checkpoint prefix cells have
+  zero mismatches, and no errors remain. The original FAIL bundle is retained
+  unchanged as audit history.
+- The 16k trajectories improved objective and maximum violation for both
+  specified seeds, but the final common-grid selections remain infeasible.
+  This is descriptive evidence only; no two-seed success-rate inference is
+  made.
+- C2C iteration 19 independently accepted the corrected persisted-result
+  bundle: all 12 verifier gates PASS, all eight 0–8k prefix cells have zero
+  mismatches, ordered cache prefixes and final common-grid checks pass, and
+  normalized retained-config provenance matches. C2C confirms Gate B, Gate D,
+  and Gate E integrity PASS. Feasibility remains NOT ACHIEVED for both seeds;
+  no further production run, budget increase, schedule/optimizer change,
+  asymmetric-impedance exploration, or Stage 4 promotion is authorized here.
+
+### Stage 3.9 closeout interpretation
+
+- C2C closeout PLAN `c2c_stage39_close`, iteration 1, found that the Stage 3.9
+  exit gate had two reasonable interpretations and required a bounded Sol
+  judgment before formal closure. It recommended a no-run closeout if Sol
+  accepted the narrow reference-path interpretation.
+- Escalation packet:
+  `reports/escalation_packets/stage3_9_close_sol_judgment_2026-09-27.md`.
+- Sol judgment: close under exit branch (b) for the selected MLIT/T1 50/50 Ω
+  DMS reference path. The two-seed 8k-to-16k accepted evidence, near-identical
+  late plateau, common-grid infeasibility, and absence of unresolved bound
+  pressure are sufficient for this scoped engineering closeout. Do not extend
+  T1 again. T2 may remain unresolved and unpromoted; it does not block this
+  scoped closure. Do not claim formal convergence, global impossibility,
+  material superiority, or infeasibility of every DMS variant. Sol did not
+  authorize a production run.
+- Integrated closeout synthesis and documentation were prepared in
+  `artifacts/review_bundles/stage3_9_closeout_20260927/` and the Stage 3.9
+  history, baseline, and roadmap.
+- C2C integrated review iteration 2 verified the scientific record and
+  accepted the closeout scope, numbers, normalized constraints, Gate D/E
+  references, T2 caveat, and Sol judgment. It requested one blocking
+  documentation correction: update the roadmap's section 4 baseline from the
+  post-Stage-3.8C state to the post-Stage-3.9 state, while retaining the
+  impedance-sweep and model-qualification gates. Updated only that roadmap
+  section. No experiment or source implementation changed.
+- C2C integrated review iteration 3 issued final ACCEPT. It confirmed the
+  post-Stage-3.9 roadmap baseline, scoped branch-(b) closure, empirical
+  late-plateau wording (not formal convergence), unresolved/unpromoted T2,
+  and the remaining 2-D impedance-sweep/model-qualification gates. Stage 3.9
+  is CLOSED; no additional optimizer experiment is required. Stage 4 may
+  proceed under its own C2C PLAN and ordinary pre-experiment gates.
+
+### PR #13 architecture-boundary CI correction
+
+- GitHub CI for PR #13 reported 206 passing tests and one failure in
+  `test_live_study_adapters_are_role_named`: the two Stage 3.9B saved-run
+  auditors were placed directly in `sawopt.studies`, alongside live adapters.
+- Bounded Sol judgment: place these read-only auditors in
+  `sawopt.studies.audits`; preserve the architecture test and audit semantics,
+  and update imports, source paths, and architecture documentation. No further
+  Sol review is needed unless the correction expands into audit behavior,
+  launch behavior, science, or provenance contracts.
+- C2C PLAN `c2c_pr13_architecture_ci`, iteration 1, accepted that scope and
+  requires focused plus full pytest validation, syntax/import checks,
+  `git diff --check`, and read-only reruns of the accepted Gate D and Gate E
+  verifiers into fresh review bundles before merge. Historical bundles,
+  persisted run data, manifests, and fingerprints must remain unchanged.
+- The bounded relocation is implemented. The architecture test still rejects
+  stage-specific live adapters at the `studies/` root, and now also fails if
+  an audit imports the optimizer, optimization, or orchestration execution
+  layers. CLI wrappers, focused tests, source-hash input path, and architecture
+  documentation point to `studies/audits/`.
+- Validation: 27 focused tests pass after the final test edit; full pytest
+  reports 208 passed; moved-module and CLI-wrapper `py_compile` passes;
+  `git diff --check` passes with only Git's LF/CRLF notices. The relocated
+  Gate-D verifier reports PASS for 8/8 comparisons with zero mismatches; the
+  relocated Gate-E verifier reports PASS for all 8 prefix checkpoint
+  comparisons with zero errors. Fresh outputs are under
+  `artifacts/review_bundles/stage3_9b_overlap_parity_audit_relocation_review_20260927/`
+  and
+  `artifacts/review_bundles/stage3_9b_budget_extension_audit_relocation_review_20260927/`.
+  The full-suite pytest process also emitted a non-fatal cache warning because
+  `.pytest_cache` is not writable in this environment; the run exited 0. No
+  optimizer/COM-RF or production run was started, and no persisted run,
+  accepted bundle, manifest, or historical fingerprint was rewritten.
+- Independent C2C implementation acceptance is pending before commit/push;
+  GitHub CI must then pass before merging PR #13.

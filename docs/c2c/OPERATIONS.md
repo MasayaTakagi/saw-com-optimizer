@@ -3,8 +3,10 @@
 This guide covers the C2C development control plane for `saw-com-optimizer`.
 The C2C checkout remains a sibling repository outside the SAW repository. Use
 the installed `codex-with-chatgpt` Skill for its task protocol and recovery
-details; this document records the project-specific gates and approved local
-runtime inputs.
+details; this document records the project-specific gates, approved local
+runtime inputs, and ChatGPT UI route. For this workspace, the IAB-only route
+below is the project-specific exception to generic UI-control restrictions in
+the installed Skill; its task protocol and recovery rules still apply.
 
 ## Normal startup
 
@@ -12,11 +14,11 @@ Follow this sequence for a C2C-controlled task:
 
 ```text
 Codex task start
-→ read the installed C2C Skill
+→ read the installed C2C Skill and computer-use Skill
 → provide the approved cloudflared path to the needed process
 → C2C doctor gate
-→ bundled Browser Skill bootstrap
-→ IAB
+→ follow the current mcp__cua_repl instructions
+→ operate ChatGPT in the built-in IAB only
 → saved ChatGPT C2C conversation
 → workspace_info verification
 → INIT
@@ -61,26 +63,35 @@ sending INIT, confirm:
 If any required check is not green, follow the installed Skill's existing
 recovery procedure and rerun doctor. Do not send INIT until the gate is green.
 
-## Browser bootstrap and saved conversation
+## IAB control and saved conversation
 
-Read the currently bundled `control-in-app-browser` Skill before browser
-control. It is the source of truth for the current Codex Desktop build and
-specifies the absolute `browser-client.mjs` path. Do not pin that path or the
-plugin version in project documentation, and do not assume
-`setupBrowserRuntime` is a global function.
+Before operating ChatGPT, read the installed `computer-use` Skill and the
+current `mcp__cua_repl` tool instructions. The Skill supplies the applicable
+computer-use safety rules; the tool instructions define the current IAB API,
+initialization, and tab-selection procedure. For this project, operate ChatGPT
+only through the browser API exposed for the built-in IAB. Do not use the
+Skill's native Windows-app controls, `@oai/sky`, or another computer-control
+surface for C2C.
 
-Use the documented bootstrap:
+Follow the tool's first-call and reset instructions exactly. Inspect the
+returned browser/tab state, select only a tab identified as the IAB, and bind
+an existing ChatGPT tab using its returned tab reference or observed URL. Do
+not guess tab IDs or switch to Chrome, Edge, or another external browser. If
+the IAB is unavailable, stop and report the blocker rather than falling back
+to a different browser or native UI. After each UI action, inspect the latest
+page state before deciding the next action.
 
-```js
-const { setupBrowserRuntime } = await import("<path from bundled Browser Skill>");
-const agent = await setupBrowserRuntime();
-const iab = await agent.browsers.get("iab");
-```
+Do not automate password, one-time-code, multi-factor, pairing-code, or other
+credential entry. Hand authentication, pairing-code entry, and consent or
+permission prompts to the user in the IAB; resume after the user completes
+them. Never read or manipulate tokens, cookies, or session storage. Do not
+treat the IAB-only rule as blanket approval to grant access or bypass a
+security barrier.
 
-Initialize once per Codex session and reuse the agent and IAB. Use the saved
-ChatGPT conversation according to `c2c session --json` and the installed C2C
-Skill's conversation-mode rules. Use the IAB for all ChatGPT steps. Computer
-Use and external-browser/Chrome fallback are not part of the approved path.
+Use the saved ChatGPT conversation according to `c2c session --json` and the
+installed C2C Skill's conversation-mode rules. Use the IAB for every ChatGPT
+step. Keep the workspace connector read-only and use it only for workspace
+data; UI control does not replace the doctor gate or workspace identity check.
 
 Before INIT, use the workspace-bound connector to verify:
 

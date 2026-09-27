@@ -8,7 +8,7 @@ import math
 import shutil
 import subprocess
 import time
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -39,6 +39,8 @@ from .lshade_records import lshade_record
 ROOT = Path(__file__).resolve().parents[3]
 STUDY_TYPE = "dms_topology_screening"
 SEMANTICS_VERSION = "dms_topology_geometry_first_independent_rejection_v1"
+DEFAULT_INITIAL_POPULATION_SEED_CONTRACT = "dms_topology_current_v1"
+STAGE3_8C_R1_2_INITIAL_POPULATION_SEED_CONTRACT = "stage3_8c_r1_2_independent_rejection"
 GEOMETRY_CONSTRAINT_NAMES = (
     "max_total_acoustic_length", "max_aperture_width", "minimum_electrode_width",
     "minimum_electrode_gap", "max_total_electrode_count",
@@ -51,10 +53,60 @@ EXPECTED_PHYSICS_ERRORS = (ValueError, np.linalg.LinAlgError, FloatingPointError
 GEOMETRY_FIRST_COMPARATOR = GeometryFirstComparator()
 
 
+@dataclass(frozen=True)
+class InitialPopulationSeedContract:
+    identifier: str
+    namespace: str
+    derivation_suffix: str
+
+
+_INITIAL_POPULATION_SEED_CONTRACTS = {
+    DEFAULT_INITIAL_POPULATION_SEED_CONTRACT: InitialPopulationSeedContract(
+        DEFAULT_INITIAL_POPULATION_SEED_CONTRACT,
+        SEMANTICS_VERSION,
+        "independent_rejection",
+    ),
+    STAGE3_8C_R1_2_INITIAL_POPULATION_SEED_CONTRACT: InitialPopulationSeedContract(
+        STAGE3_8C_R1_2_INITIAL_POPULATION_SEED_CONTRACT,
+        "stage3_8c_r1_geometry_first_v1",
+        "r1_2_independent_rejection",
+    ),
+}
+
+
+def resolve_initial_population_seed_contract(
+    cfg: Mapping[str, Any],
+) -> InitialPopulationSeedContract:
+    """Resolve a named, explicit initializer RNG contract; absent means current behavior."""
+    identifier = cfg.get("dms_topology", {}).get(
+        "initial_population_seed_contract", DEFAULT_INITIAL_POPULATION_SEED_CONTRACT,
+    )
+    try:
+        return _INITIAL_POPULATION_SEED_CONTRACTS[identifier]
+    except (KeyError, TypeError) as exc:
+        raise ValueError(f"unknown initial population seed contract: {identifier!r}") from exc
+
+
+def initial_population_sampling_seed(
+    cfg: Mapping[str, Any], seed: int, material: str, topology: str,
+) -> int:
+    """Derive the initializer-only RNG seed from the configured immutable contract."""
+    contract = resolve_initial_population_seed_contract(cfg)
+    payload = (
+        f"{contract.namespace}/{contract.derivation_suffix}/{seed}/{material}/{topology}/initial_population"
+    )
+    return int.from_bytes(hashlib.sha256(payload.encode("utf-8")).digest()[:8], "big") % (2**32)
+
+
 def _backend_config(cfg: Mapping[str, Any], topology: str, budget: int,
                     hard_bounds: np.ndarray) -> dict[str, Any]:
     section = cfg["dms_topology"]["topologies"][topology]
     values = dict(cfg.get("dms_topology", {}).get("lshade", {}))
+    schedule_horizon = int(cfg["dms_topology"].get(
+        "population_schedule_terminal_budget", budget,
+    ))
+    if schedule_horizon <= 0 or schedule_horizon > int(budget):
+        raise ValueError("population schedule horizon must be positive and no greater than budget")
     configured_population = cfg["dms_topology"].get("initial_population")
     if configured_population is None:
         configured_population = (
@@ -64,12 +116,51 @@ def _backend_config(cfg: Mapping[str, Any], topology: str, budget: int,
     values.update({
         "total_budget": int(budget),
         "hard_max_budget": int(budget),
-        "population_schedule_terminal_budget": int(budget),
+        "population_schedule_terminal_budget": schedule_horizon,
         "initial_population": max(4, int(configured_population)),
         "hard_bounds": np.asarray(hard_bounds, dtype=float).tolist(),
     })
     values.update(section.get("lshade", {}))
+    effective_horizon = int(values["population_schedule_terminal_budget"])
+    if effective_horizon <= 0 or effective_horizon > int(budget):
+        raise ValueError("effective L-SHADE schedule horizon must be positive and no greater than budget")
     return values
+
+
+def _selected_study_axes(cfg: Mapping[str, Any]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Resolve an optional validated material/topology subset for this run."""
+    settings = cfg["dms_topology"]
+    selection = settings.get("selection", {})
+    if not isinstance(selection, Mapping):
+        raise ValueError("dms_topology.selection must be a mapping")
+    unknown_axes = set(selection) - {"materials", "topologies"}
+    if unknown_axes:
+        raise ValueError(f"unknown dms_topology.selection keys: {sorted(unknown_axes)}")
+
+    def resolve(name: str, configured: Sequence[str], available: Sequence[str],
+                configured_map: Mapping[str, Any]) -> tuple[str, ...]:
+        requested = selection.get(name)
+        if requested is None:
+            selected = tuple(configured)
+        else:
+            if isinstance(requested, (str, bytes)) or not isinstance(requested, Sequence):
+                raise ValueError(f"dms_topology.selection.{name} must be a non-empty list")
+            selected = tuple(str(value) for value in requested)
+        if not selected:
+            raise ValueError(f"dms_topology.selection.{name} must not be empty")
+        if len(selected) != len(set(selected)):
+            raise ValueError(f"dms_topology.selection.{name} contains duplicates")
+        unknown = [value for value in selected if value not in available]
+        if unknown:
+            raise ValueError(f"unknown {name}: {unknown}")
+        missing = [value for value in selected if value not in configured_map]
+        if missing:
+            raise ValueError(f"selected {name} missing from dms_topology configuration: {missing}")
+        return selected
+
+    materials = resolve("materials", MATERIALS, MATERIALS, settings.get("materials", {}))
+    topologies = resolve("topologies", TOPOLOGIES, TOPOLOGIES, settings.get("topologies", {}))
+    return materials, topologies
 
 
 def _load_common_grid(cfg: Mapping[str, Any]) -> tuple[np.ndarray, str, str, dict[str, Any]]:
@@ -419,9 +510,11 @@ def sample_independent_uniform_population(
     if max(geometry(fixed, cfg["constraints"])[1], default=0.0) > 0.0:
         raise ValueError(f"known fixed seed for {material}/{topology} violates geometry")
 
-    rng_seed = int(rng_seed_override) if rng_seed_override is not None else int.from_bytes(hashlib.sha256(
-        f"{SEMANTICS_VERSION}/independent_rejection/{seed}/{material}/{topology}/initial_population".encode()
-    ).digest()[:8], "big") % (2**32)
+    seed_contract = resolve_initial_population_seed_contract(cfg)
+    rng_seed = (
+        int(rng_seed_override) if rng_seed_override is not None
+        else initial_population_sampling_seed(cfg, seed, material, topology)
+    )
     rng = np.random.default_rng(rng_seed)
     started = time.perf_counter()
     (
@@ -461,6 +554,9 @@ def sample_independent_uniform_population(
         "attempts_per_random_accept": float(draws / accepted_random) if accepted_random else math.inf,
         "fixed_seed_count": 1,
         "initial_sampling_seed": int(rng_seed),
+        "initial_sampling_seed_contract_id": seed_contract.identifier,
+        "initial_sampling_seed_namespace": seed_contract.namespace,
+        "initial_sampling_seed_derivation_suffix": seed_contract.derivation_suffix,
         "initial_sampling_draws": int(draws),
         "initial_sampling_geometry_rejections": int(geometry_rejections),
         "initial_sampling_duplicate_rejections": int(duplicate_rejections),
@@ -1040,11 +1136,14 @@ def _population_preflight(
 
 def _known_design_preflight(
     cfg: Mapping[str, Any], search_frequencies: np.ndarray, common_frequencies: np.ndarray,
+    *, materials: Sequence[str] | None = None, topologies: Sequence[str] | None = None,
 ) -> list[dict[str, Any]]:
     rows = []
-    for material in MATERIALS:
+    selected_materials = tuple(materials) if materials is not None else _selected_study_axes(cfg)[0]
+    selected_topologies = tuple(topologies) if topologies is not None else _selected_study_axes(cfg)[1]
+    for material in selected_materials:
         provider, _metadata = provider_for_material(material, cfg)
-        for topology in TOPOLOGIES:
+        for topology in selected_topologies:
             design = initial_design(material, topology, cfg)
             search_result = evaluate_dms_design(design, provider, cfg, search_frequencies, topology)
             common_result = evaluate_dms_design(design, provider, cfg, common_frequencies, topology)
@@ -1072,6 +1171,8 @@ def run_dms_topology_screening(
     cfg["_source_config_path"] = str(Path(config_path).resolve())
     settings = cfg["dms_topology"]
     out = Path(run_path).resolve()
+    if bool(settings.get("cold_start", False)) and resume:
+        raise ValueError("this study config requires a cold start and forbids resume")
     if out.exists() and not resume and any(out.iterdir()):
         raise FileExistsError(f"study output directory is not empty: {out}")
     out.mkdir(parents=True, exist_ok=True)
@@ -1083,8 +1184,16 @@ def run_dms_topology_screening(
     budget = int(settings["budget"])
     seeds = tuple(int(seed) for seed in settings["seeds"])
     checkpoints = tuple(int(point) for point in settings.get("checkpoints", [budget]))
+    materials, topologies = _selected_study_axes(cfg)
     if not seeds or not checkpoints or max(checkpoints) != budget:
         raise ValueError("checkpoints must be non-empty and end at the configured budget")
+    seed_contract = resolve_initial_population_seed_contract(cfg)
+    initial_sampling_seeds = {
+        f"{material}/{topology}/{seed}": initial_population_sampling_seed(
+            cfg, seed, material, topology,
+        )
+        for material in materials for topology in topologies for seed in seeds
+    }
 
     metadata_dir = out / "metadata"
     metadata_dir.mkdir(parents=True, exist_ok=True)
@@ -1113,15 +1222,33 @@ def run_dms_topology_screening(
         "budget": budget,
         "checkpoints": list(checkpoints),
         "seeds": list(seeds),
+        "selected_materials": list(materials),
+        "selected_topologies": list(topologies),
+        "selection": {"materials": list(materials), "topologies": list(topologies)},
+        "cold_start": not resume,
+        "warm_start": bool(resume),
+        "parent_transfer": False,
+        "neighbor_warm_start": False,
         "initializer_method": "independent_uniform_rejection_v1",
+        "initial_population_seed_contract": {
+            "identifier": seed_contract.identifier,
+            "namespace": seed_contract.namespace,
+            "derivation_suffix": seed_contract.derivation_suffix,
+        },
+        "initial_sampling_seeds": initial_sampling_seeds,
     })
 
     implementation = implementation_validation(cfg)
     _write_json(metadata_dir / "implementation_validation.json", implementation)
     if implementation.get("status") != "PASS":
         return {"status": "IMPLEMENTATION_VALIDATION_FAILED", "run": str(out)}
-    fixed_rows = fixed_design_sanity(out, cfg, common_frequencies)
-    known_rows = _known_design_preflight(cfg, search_frequencies, common_frequencies)
+    fixed_rows = fixed_design_sanity(
+        out, cfg, common_frequencies, materials=materials, topologies=topologies,
+    )
+    known_rows = _known_design_preflight(
+        cfg, search_frequencies, common_frequencies,
+        materials=materials, topologies=topologies,
+    )
     _write_csv(out / "known_design_preflight.csv", known_rows)
     failed_known = [row for row in known_rows if not row["search_metrics_finite"]
                     or not row["common_metrics_finite"] or not row["geometry_valid"]]
@@ -1134,9 +1261,9 @@ def run_dms_topology_screening(
     rejection_rows = []
     response_rows = []
     initializer_rows = []
-    for material in MATERIALS:
+    for material in materials:
         provider, _profile_metadata = provider_for_material(material, cfg)
-        for topology in TOPOLOGIES:
+        for topology in topologies:
             active, hard, _integer_indices = material_bounds(cfg, material, topology)
             for seed in seeds:
                 initial_population_size = _population_size(cfg, topology, budget, hard)
@@ -1232,8 +1359,8 @@ def run_dms_topology_screening(
         "status": "COMPLETE",
         "source_config_fingerprint": fingerprint,
         "common_validation_grid_id": common_grid_id,
-        "materials": list(MATERIALS),
-        "topologies": list(TOPOLOGIES),
+        "materials": list(materials),
+        "topologies": list(topologies),
         "seeds": list(seeds),
         "budget": budget,
         "checkpoint_count": len(checkpoint_rows),
@@ -1245,7 +1372,7 @@ def run_dms_topology_screening(
     _write_csv(out / "geometry_rejections.csv", rejection_rows)
     _write_csv(out / "common_grid_responses.csv", response_rows)
     checkpoint_audit = validate_checkpoint_lattice(
-        checkpoint_rows, materials=MATERIALS, topologies=TOPOLOGIES,
+        checkpoint_rows, materials=materials, topologies=topologies,
         seeds=seeds, checkpoints=checkpoints,
     )
     _write_json(out / "checkpoint_accounting_audit.json", checkpoint_audit)

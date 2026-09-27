@@ -42,6 +42,9 @@ class CliTests(unittest.TestCase):
             self.assertEqual(status["worker_pid"], 4242)
             self.assertFalse(manifest.callback_enabled)
             self.assertIn("run-study", manifest.command)
+            self.assertEqual(manifest.schema_version, 2)
+            self.assertEqual(manifest.effective_optimizer_run_dir, str(run_dir / "optimizer"))
+            self.assertEqual(manifest.command[manifest.command.index("--run") + 1], str(run_dir / "optimizer"))
 
     def test_explicit_session_id_is_used_without_reading_hook_capture(self):
         with TemporaryDirectory() as temporary:
@@ -57,12 +60,34 @@ class CliTests(unittest.TestCase):
                 "--callback-timeout-minutes",
                 "12",
             ])
-            with mock.patch.object(cli, "launch_detached", return_value=4343):
+            with mock.patch.object(cli, "run_codex_callback_preflight", return_value={
+                "status": "PASS",
+                "session_id": "session-A",
+                "validated_target_id": "session-A",
+                "executable": "codex-test",
+            }) as preflight_mock, mock.patch.object(cli, "launch_detached", return_value=4343):
                 self.assertEqual(cli.launch(args), 0)
+            preflight_mock.assert_called_once_with("session-A", project_root=str(ROOT))
             manifest = load_manifest(run_dir)
             self.assertEqual(manifest.codex_session_id, "session-A")
             self.assertEqual(manifest.codex_session_source, "explicit")
             self.assertEqual(manifest.callback_timeout_minutes, 12.0)
+            self.assertEqual(manifest.callback_preflight["status"], "PASS")
+
+    def test_preflight_failure_prevents_run_creation_and_worker_launch(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "blocked-before-launch"
+            args = cli.build_parser().parse_args([
+                "launch", "--config", "configs/base/b28_dms_baseline.yaml",
+                "--run-dir", str(run_dir), "--session-id", "session-A",
+            ])
+            with mock.patch.object(
+                cli, "run_codex_callback_preflight", side_effect=RuntimeError("preflight denied"),
+            ), mock.patch.object(cli, "launch_detached") as launch_mock:
+                with self.assertRaisesRegex(RuntimeError, "preflight denied"):
+                    cli.launch(args)
+            launch_mock.assert_not_called()
+            self.assertFalse(run_dir.exists())
 
     def test_two_explicit_sessions_are_fixed_to_separate_manifests(self):
         with TemporaryDirectory() as temporary:
@@ -76,7 +101,16 @@ class CliTests(unittest.TestCase):
                 "launch", "--config", "configs/base/b28_dms_baseline.yaml",
                 "--run-dir", str(run_b), "--session-id", "session-B",
             ])
-            with mock.patch.object(cli, "launch_detached", side_effect=[5001, 5002]):
+            with mock.patch.object(
+                cli,
+                "run_codex_callback_preflight",
+                side_effect=lambda session_id, **kwargs: {
+                    "status": "PASS",
+                    "session_id": session_id,
+                    "validated_target_id": session_id,
+                    "executable": "codex-test",
+                },
+            ), mock.patch.object(cli, "launch_detached", side_effect=[5001, 5002]):
                 self.assertEqual(cli.launch(args_a), 0)
                 self.assertEqual(cli.launch(args_b), 0)
             self.assertEqual(load_manifest(run_a).codex_session_id, "session-A")
@@ -139,6 +173,31 @@ class CliTests(unittest.TestCase):
             command = launch_mock.call_args.kwargs["command"]
             self.assertIn("--resume", command)
             self.assertEqual(load_status(run_dir)["state"], "STARTING")
+
+    def test_resume_keeps_the_manifest_optimizer_output_directory(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "orphan-v2"
+            optimizer_dir = run_dir / "optimizer"
+            create_run(RunManifest(
+                schema_version=2, run_id="orphan-v2", experiment_name="dummy",
+                created_at=datetime.now(timezone.utc).isoformat(),
+                project_root=str(run_dir), run_dir=str(run_dir),
+                optimizer_run_dir=str(optimizer_dir),
+                command=["study", "--run", str(optimizer_dir)],
+                config_path=None, codex_session_id=None, codex_model=None,
+                callback_enabled=False, review_after_completion=False,
+            ))
+            transition(run_dir, "STARTING", worker_pid=999999)
+            transition(run_dir, "ORPHANED", error="test")
+            args = cli.build_parser().parse_args([
+                "launch", "--config", "configs/base/b28_dms_baseline.yaml",
+                "--run-dir", str(run_dir), "--resume", "--no-callback",
+            ])
+            with mock.patch.object(cli, "launch_detached", return_value=7879) as launch_mock:
+                self.assertEqual(cli.launch(args), 0)
+            command = launch_mock.call_args.kwargs["command"]
+            self.assertIn("--resume", command)
+            self.assertEqual(load_manifest(run_dir).effective_optimizer_run_dir, str(optimizer_dir))
 
     def test_session_id_cannot_be_silently_ignored_when_callback_is_disabled(self):
         args = cli.build_parser().parse_args([

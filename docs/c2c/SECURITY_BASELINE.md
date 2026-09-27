@@ -35,23 +35,28 @@ virtual environments, generated/raw optimizer data, checkpoints, temporary
 and cache files, archives, private or credential material, and licensed
 references. The ignore rules must not be weakened to enable C2C.
 
-## Browser and bootstrap boundary
+## ChatGPT UI control boundary
 
-For ChatGPT interaction, use the currently bundled
-`control-in-app-browser` Skill and the `browser-client.mjs` import path it gives
-for the active Codex Desktop build. Do not assume `setupBrowserRuntime` is a
-global function or pin a plugin version or installation path. The supported
-bootstrap is:
+Read the installed `computer-use` Skill and the current `mcp__cua_repl` tool
+instructions before ChatGPT UI control. Use the Skill for its safety rules and
+the tool documentation for the current IAB API and initialization procedure.
+The approved surface for C2C ChatGPT operations is the built-in IAB browser API
+exposed by `mcp__cua_repl`; do not use native Windows-app control, `@oai/sky`,
+Chrome, Edge, or another external browser for this workflow. Select an IAB tab
+only from observed tool state and stop if IAB control is unavailable.
 
-```js
-const { setupBrowserRuntime } = await import("<path from bundled Browser Skill>");
-const agent = await setupBrowserRuntime();
-const iab = await agent.browsers.get("iab");
-```
+Do not automate password, one-time-code, multi-factor, pairing-code, or other
+credential entry. Hand authentication, pairing-code entry, and consent or
+permission prompts to the user in the IAB. Never read or manipulate tokens,
+cookies, or session storage, and do not bypass browser or security warnings.
+This is a narrow project-specific exception to generic UI-route restrictions,
+not blanket authorization to use other computer-control surfaces or change
+account access.
 
-Reuse the bound agent and IAB within the session. The in-app browser is the
-standard ChatGPT control surface; do not fall back to Computer Use, Chrome, or
-another external browser.
+This UI-control boundary does not expand the connector's permissions. Keep
+workspace access confined to the approved workspace and the read-only MCP
+allowlist above; use the doctor gate and exact workspace identity check before
+INIT.
 
 ## Approved tunnel binary
 

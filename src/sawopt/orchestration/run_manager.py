@@ -190,6 +190,11 @@ def create_run(manifest: RunManifest) -> None:
     run_dir = Path(manifest.run_dir)
     if run_dir.exists() and any(run_dir.iterdir()):
         raise FileExistsError(f"run directory is not empty: {run_dir}")
+    optimizer_run_dir = Path(manifest.effective_optimizer_run_dir)
+    if optimizer_run_dir.exists() and any(optimizer_run_dir.iterdir()):
+        raise FileExistsError(
+            f"optimizer output directory is not empty: {optimizer_run_dir}"
+        )
     run_dir.mkdir(parents=True, exist_ok=True)
     atomic_write_json(manifest_path(run_dir), manifest.to_dict())
     atomic_write_json(status_path(run_dir), RunStatus(
