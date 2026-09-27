@@ -13,8 +13,11 @@
   accounting, adaptive frequency handling, budgets, caching, convergence
   evidence, counters, history, population management, the runner, and
   SAW-specific mixed-variable polish.
-- `studies/` contains the current study adapters: `dms_topology_common.py`,
-  `dms_topology_screening.py`, `hybrid.py`, and `lshade_records.py`.
+- `studies/` contains the current live, role-named study adapters:
+  `dms_topology_common.py`, `dms_topology_screening.py`, `hybrid.py`, and
+  `lshade_records.py`. Its `audits/` subpackage contains read-only historical
+  and saved-result validation tools; these are not launch-dispatchable study
+  adapters.
 - `io/` owns configuration resolution, persistence, checkpoint lifecycle, and
   provenance. `reporting/` builds artifacts from saved runs. `orchestration/`
   manages detached execution and callbacks. `runtime/` configures execution

@@ -12,10 +12,10 @@ from typing import Any, Mapping, Sequence
 
 import numpy as np
 
-from ..core.metrics import search_grid
-from ..io.config import load_experiment_config
-from . import dms_topology_common as common
-from . import dms_topology_screening as study
+from ...core.metrics import search_grid
+from ...io.config import load_experiment_config
+from .. import dms_topology_common as common
+from .. import dms_topology_screening as study
 
 
 MATERIAL = "MLIT"
@@ -26,7 +26,7 @@ METRIC_RTOL = 1e-12
 METRIC_ATOL = 1e-12
 OBJECTIVE_RTOL = 1e-12
 OBJECTIVE_ATOL = 1e-6
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 CANONICAL_RUN = ROOT / "runs" / "stage3_8c_production_20260924"
 OVERLAP_CONFIG = ROOT / "configs" / "studies" / "stage3_9b_mlit_t1_50ohm_overlap_parity.yaml"
 REVIEW_ROOT = ROOT / "artifacts" / "review_bundles" / "stage3_9b_overlap_parity_review"

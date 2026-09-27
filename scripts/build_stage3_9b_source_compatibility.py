@@ -13,7 +13,7 @@ import numpy as np
 from sawopt.io.config import load_experiment_config
 from sawopt.problem.dms_topologies import T1
 from sawopt.studies import dms_topology_screening as study
-from sawopt.studies.stage3_9b_overlap_parity import (
+from sawopt.studies.audits.stage3_9b_overlap_parity import (
     CHECKPOINTS,
     MATERIAL,
     SEEDS,
@@ -31,7 +31,7 @@ DEFAULT_OUTPUT = ROOT / "artifacts/review_bundles/stage3_9b_source_compatibility
 SOURCE_FILES = (
     "src/sawopt/studies/dms_topology_screening.py",
     "src/sawopt/studies/dms_topology_common.py",
-    "src/sawopt/studies/stage3_9b_overlap_parity.py",
+    "src/sawopt/studies/audits/stage3_9b_overlap_parity.py",
     "src/sawopt/optimizers/selection.py",
     "src/sawopt/optimizers/lshade.py",
     "src/sawopt/problem/dms_topologies.py",

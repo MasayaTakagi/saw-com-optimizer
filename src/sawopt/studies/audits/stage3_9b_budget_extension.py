@@ -8,11 +8,11 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
-from ..io.config import load_experiment_config
+from ...io.config import load_experiment_config
 from . import stage3_9b_overlap_parity as parity
 
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 SEEDS = parity.SEEDS
 MATERIAL = parity.MATERIAL
 TOPOLOGY = parity.TOPOLOGY

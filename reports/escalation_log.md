@@ -1422,3 +1422,39 @@ confirmation or a separately approved FEM extraction is required.
   and the remaining 2-D impedance-sweep/model-qualification gates. Stage 3.9
   is CLOSED; no additional optimizer experiment is required. Stage 4 may
   proceed under its own C2C PLAN and ordinary pre-experiment gates.
+
+### PR #13 architecture-boundary CI correction
+
+- GitHub CI for PR #13 reported 206 passing tests and one failure in
+  `test_live_study_adapters_are_role_named`: the two Stage 3.9B saved-run
+  auditors were placed directly in `sawopt.studies`, alongside live adapters.
+- Bounded Sol judgment: place these read-only auditors in
+  `sawopt.studies.audits`; preserve the architecture test and audit semantics,
+  and update imports, source paths, and architecture documentation. No further
+  Sol review is needed unless the correction expands into audit behavior,
+  launch behavior, science, or provenance contracts.
+- C2C PLAN `c2c_pr13_architecture_ci`, iteration 1, accepted that scope and
+  requires focused plus full pytest validation, syntax/import checks,
+  `git diff --check`, and read-only reruns of the accepted Gate D and Gate E
+  verifiers into fresh review bundles before merge. Historical bundles,
+  persisted run data, manifests, and fingerprints must remain unchanged.
+- The bounded relocation is implemented. The architecture test still rejects
+  stage-specific live adapters at the `studies/` root, and now also fails if
+  an audit imports the optimizer, optimization, or orchestration execution
+  layers. CLI wrappers, focused tests, source-hash input path, and architecture
+  documentation point to `studies/audits/`.
+- Validation: 27 focused tests pass after the final test edit; full pytest
+  reports 208 passed; moved-module and CLI-wrapper `py_compile` passes;
+  `git diff --check` passes with only Git's LF/CRLF notices. The relocated
+  Gate-D verifier reports PASS for 8/8 comparisons with zero mismatches; the
+  relocated Gate-E verifier reports PASS for all 8 prefix checkpoint
+  comparisons with zero errors. Fresh outputs are under
+  `artifacts/review_bundles/stage3_9b_overlap_parity_audit_relocation_review_20260927/`
+  and
+  `artifacts/review_bundles/stage3_9b_budget_extension_audit_relocation_review_20260927/`.
+  The full-suite pytest process also emitted a non-fatal cache warning because
+  `.pytest_cache` is not writable in this environment; the run exited 0. No
+  optimizer/COM-RF or production run was started, and no persisted run,
+  accepted bundle, manifest, or historical fingerprint was rewritten.
+- Independent C2C implementation acceptance is pending before commit/push;
+  GitHub CI must then pass before merging PR #13.

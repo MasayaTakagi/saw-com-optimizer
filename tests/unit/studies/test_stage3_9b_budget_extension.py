@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
-from sawopt.studies import stage3_9b_budget_extension as extension
-from sawopt.studies import stage3_9b_overlap_parity as parity
+from sawopt.studies.audits import stage3_9b_budget_extension as extension
+from sawopt.studies.audits import stage3_9b_overlap_parity as parity
 
 
 def test_prefix_projection_excludes_only_approved_total_budget_fields():

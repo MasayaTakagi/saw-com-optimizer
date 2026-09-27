@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 
 from sawopt.io.config import load_experiment_config
-from sawopt.studies import stage3_9b_overlap_parity as parity
-from sawopt.studies.stage3_9b_overlap_parity import (
+from sawopt.studies.audits import stage3_9b_overlap_parity as parity
+from sawopt.studies.audits.stage3_9b_overlap_parity import (
     CHECKPOINTS,
     COUNTER_FIELDS,
     SEEDS,
