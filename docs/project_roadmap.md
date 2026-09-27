@@ -65,7 +65,7 @@ The project should report a Pareto set when meaningful trade-offs remain rather 
 
 ---
 
-## 4. Current baseline — after Stage 3.8C
+## 4. Current baseline — after Stage 3.9
 
 The project currently has a reusable software architecture with separate `core`, `problem`, `optimizers`, `optimization`, `studies`, `io`, `reporting`, and orchestration layers.
 
@@ -78,6 +78,13 @@ Scientifically, the current state is:
 - The Stage 3.6 G1+G2 release is the historical 50 Ω DMS reference.
 - T0, T1, and T2 DMS representations are available and validated at the structural/network level.
 - Stage 3.8C produced no filter-feasible design.
+- The selected MLIT/T1 50/50 Ω DMS reference path closed Stage 3.9 under
+  branch (b). Two accepted 16k trajectories reached a late empirical plateau
+  near maximum normalized violation 0.43, while both common-grid final designs
+  remained materially infeasible.
+- Formal convergence is not established; MLIT/T2 remains unresolved and
+  unpromoted. The closeout does not claim global DMS impossibility or material
+  superiority.
 - M0 and MLIT cannot yet be used for a clean material-superiority claim because their provenance and aperture bounds differ.
 - MLIT is still an evaluation-only literature profile, not a production-qualified material model.
 - Historical 50 Ω hybrid work showed meaningful improvement relative to DMS-only results under the hypothetical model, but still did not meet the target.
@@ -91,7 +98,7 @@ Accordingly, the project is **not ready for the final 2-D impedance sweep**.
 
 | Phase | Main question | Core work | Exit gate |
 |---|---|---|---|
-| **Stage 3.9 — Search viability and 50 Ω reference recovery** | Can the current model/topology/search space produce a credible feasible or near-feasible 50 Ω design? | Decompose active violations by constraint/frequency; improve search coverage and parameterization without silently relaxing physical constraints; resolve obviously inefficient/redundant DOFs; keep common dense validation and reproducible L-SHADE accounting; align material bounds before direct M0-vs-MLIT comparisons or keep the material tracks separate. | A stable 50/50 Ω reference with adequate convergence/boundary evidence, or a documented conclusion that the current model/topology cannot reach feasibility. |
+| **Stage 3.9 — Search viability and 50 Ω reference recovery (CLOSED 2026-09-27, branch b scoped to MLIT/T1)** | Can the current model/topology/search space produce a credible feasible or near-feasible 50 Ω design? | Decompose active violations by constraint/frequency; improve search coverage and parameterization without silently relaxing physical constraints; resolve obviously inefficient/redundant DOFs; keep common dense validation and reproducible L-SHADE accounting; align material bounds before direct M0-vs-MLIT comparisons or keep the material tracks separate. | Closed for the selected MLIT/T1 50/50 Ω DMS reference path after two accepted 16k trajectories remained materially infeasible near max normalized violation 0.43. MLIT/T2 remains unresolved and unpromoted. This is not a global impossibility result. |
 | **Stage 4 — 50 Ω hybrid topology qualification** | Which DMS + ladder architecture should be carried forward? | At fixed 50/50 Ω, compare the most defensible DMS candidates with ladder additions. Start with low-complexity hybrid variants and add ladder DOFs only when justified. Keep topology and optimizer comparisons under matched budgets and common validation. T2 should not be promoted merely because it remains underexplored. | Freeze a small set of hybrid topology candidates, preferably one primary and one fallback, with reproducible 50 Ω evidence. |
 | **Model Qualification Track — run in parallel, become mandatory before final impedance optimization** | Is the physical model accurate enough for a real impedance conclusion? | Extract/fit COM parameters from FEM and/or measurement; resolve electrode/material assumptions, terminal/phase registry, attenuation/loss conventions, aperture dependence, and parasitics; validate against resonator/device S-parameters; version the calibrated provider. | A calibrated model with documented uncertainty and validation error. No final impedance recommendation is allowed before this gate. |
 | **Stage 5 — Calibrated-model re-baseline and geometry release** | Does the selected topology remain valid after physical calibration, and which geometry DOFs are actually needed? | Re-run the 50 Ω reference and selected hybrid topology under the calibrated model; release left/right/asymmetric or additional geometry DOFs progressively; re-check active bounds and parameter correlations; reconsider topology if calibration materially changes the ranking. | A calibrated, converged 50/50 Ω production reference and a frozen design-space definition for impedance exploration. |

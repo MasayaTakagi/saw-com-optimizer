@@ -74,6 +74,11 @@ This is the current decision state after the registered experiments. Read
   screening clues under their own model and search bounds.
 - No claim is made that 45 Ω, 50 Ω, or 62.5 Ω is the real-device optimum.
   Re-optimize the filter independently at every impedance in any future sweep.
+- Stage 3.9 closed under roadmap branch (b) for the selected MLIT/T1 50/50 Ω
+  DMS reference path. Two accepted 16k trajectories plateaued empirically near
+  maximum normalized violation 0.43 and remained materially infeasible on the
+  common grid. T2 remains unresolved and unpromoted; this is not a global
+  impossibility result. See the Stage 3.9 closeout in the experiment register.
 
 ## Current unresolved work
 
@@ -82,14 +87,14 @@ This is the current decision state after the registered experiments. Read
 2. Either align material search bounds before comparing M0 and MLIT, or keep
    cross-material conclusions explicitly conditional on the current M0
    30–150 µm versus MLIT 30–180 µm ranges.
-3. Improve feasible search coverage without changing geometry constraints or
-   distributions without review; no filter-feasible Stage 3.8C design exists.
-4. Keep DMS-plus-ladder hybrid work as a candidate because it improved the
-   recorded 50 Ω hypothetical-model result, while recognizing the target still
-   failed.
+3. Keep MLIT/T2 explicitly unresolved; do not promote it on underexplored
+   status alone. Any future T2 study is a separate, matched-budget question.
+4. Continue DMS-plus-ladder hybrid qualification at fixed 50/50 Ω under the
+   hypothetical model, while keeping physical model qualification in view.
 5. A future impedance sweep must use independent inner optimizations per
    impedance and retain asymmetric source/load interfaces. The historical
-   coarse screens are not a substitute.
+   coarse screens are not a substitute, and impedance conclusions require a
+   calibrated COM model.
 
 ## Active software boundaries
 

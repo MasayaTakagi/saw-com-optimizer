@@ -37,6 +37,18 @@ def _manifest(run_dir: Path, *, callback=False, session_id=None):
 
 
 class RunManagerTests(unittest.TestCase):
+    def test_legacy_manifest_defaults_optimizer_output_to_control_root(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "legacy"
+            manifest = _manifest(run_dir)
+            legacy_data = manifest.to_dict()
+            legacy_data.pop("optimizer_run_dir", None)
+            legacy_data.pop("callback_preflight", None)
+            loaded = RunManifest.from_dict(legacy_data)
+            self.assertEqual(loaded.schema_version, 1)
+            self.assertIsNone(loaded.optimizer_run_dir)
+            self.assertEqual(loaded.effective_optimizer_run_dir, str(run_dir))
+
     def test_atomic_write_and_validated_state_machine(self):
         with TemporaryDirectory() as temporary:
             run_dir = Path(temporary) / "run"

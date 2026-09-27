@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import replace
 
 import numpy as np
+import pytest
 
 from sawopt.io.config import load_experiment_config
 from sawopt.optimization.accounting import validate_checkpoint_lattice
-from sawopt.problem.dms_topologies import T0
+from sawopt.problem.dms_topologies import T0, T1
 from sawopt.studies import dms_topology_screening as study
 from sawopt.studies.dms_topology_common import initial_design, provider_for_material
 
@@ -36,6 +39,88 @@ def test_current_config_uses_frozen_inputs_and_has_no_one_time_gates():
     assert grid_id == metadata["grid_id"]
     mlit, _metadata = provider_for_material("MLIT", cfg)
     assert mlit.profile_id == "LI2024_42YX_LT_METAL_UNSPECIFIED_T25"
+
+
+def test_optional_cell_selection_defaults_to_full_protocol_and_accepts_single_cell():
+    cfg = _config()
+    assert study._selected_study_axes(cfg) == (
+        ("M0", "MLIT"), ("T0_CURRENT_3IDT", "T1_SYMMETRIC_5IDT", "T2_PARALLEL_3IDT_X2"),
+    )
+
+    cfg["dms_topology"]["selection"] = {
+        "materials": ["MLIT"], "topologies": ["T1_SYMMETRIC_5IDT"],
+    }
+    assert study._selected_study_axes(cfg) == (("MLIT",), ("T1_SYMMETRIC_5IDT",))
+
+
+def test_optional_cell_selection_rejects_empty_unknown_and_duplicate_axes():
+    cfg = _config()
+    for selection in (
+        {"materials": [], "topologies": ["T1_SYMMETRIC_5IDT"]},
+        {"materials": ["MISSING"], "topologies": ["T1_SYMMETRIC_5IDT"]},
+        {"materials": ["MLIT"], "topologies": ["T1_SYMMETRIC_5IDT"] * 2},
+    ):
+        cfg["dms_topology"]["selection"] = selection
+        try:
+            study._selected_study_axes(cfg)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"invalid selection was accepted: {selection}")
+
+
+def test_stage3_9b_config_fixes_overlap_population_schedule_and_budget():
+    cfg = load_experiment_config(
+        "configs/studies/stage3_9b_mlit_t1_50ohm_budget_extension.yaml"
+    )
+    section = cfg["dms_topology"]
+    assert section["budget"] == 16000
+    assert section["population_schedule_terminal_budget"] == 8000
+    assert section["checkpoints"] == list(range(2000, 16001, 2000))
+    assert section["seeds"] == [20260917, 20260918]
+    assert section["cold_start"] is True
+    assert section["impedance_ohm"] == 50.0
+    assert study._selected_study_axes(cfg) == (("MLIT",), ("T1_SYMMETRIC_5IDT",))
+
+    bounds = study.material_bounds(cfg, "MLIT", "T1_SYMMETRIC_5IDT")[1]
+    baseline = _config()
+    old_settings = study._backend_config(
+        baseline, "T1_SYMMETRIC_5IDT", 8000, bounds,
+    )
+    extended_settings = study._backend_config(
+        cfg, "T1_SYMMETRIC_5IDT", 16000, bounds,
+    )
+    assert old_settings["population_schedule_terminal_budget"] == 8000
+    assert extended_settings["population_schedule_terminal_budget"] == 8000
+    assert extended_settings["total_budget"] == extended_settings["hard_max_budget"] == 16000
+
+    from sawopt.optimizers.lshade import LShadeBackend
+
+    old_backend = LShadeBackend(
+        study.material_bounds(baseline, "MLIT", "T1_SYMMETRIC_5IDT")[0],
+        seed=20260917, config=old_settings,
+        integer_indices=study.material_bounds(baseline, "MLIT", "T1_SYMMETRIC_5IDT")[2],
+    )
+    extended_backend = LShadeBackend(
+        study.material_bounds(cfg, "MLIT", "T1_SYMMETRIC_5IDT")[0],
+        seed=20260917, config=extended_settings,
+        integer_indices=study.material_bounds(cfg, "MLIT", "T1_SYMMETRIC_5IDT")[2],
+    )
+    assert [old_backend.population_size_for_budget(b) for b in range(2000, 8001, 2000)] == [
+        extended_backend.population_size_for_budget(b) for b in range(2000, 8001, 2000)
+    ]
+
+
+def test_cold_start_protocol_rejects_resume_before_creating_output(tmp_path):
+    config_path = "configs/studies/stage3_9b_mlit_t1_50ohm_budget_extension.yaml"
+    output = tmp_path / "must-not-be-created"
+    try:
+        study.run_dms_topology_screening(config_path, output, resume=True)
+    except ValueError as exc:
+        assert "requires a cold start" in str(exc)
+    else:
+        raise AssertionError("cold-start config accepted resume=True")
+    assert not output.exists()
 
 
 def test_independent_uniform_initializer_is_seeded_and_geometry_valid():
@@ -68,6 +153,64 @@ def test_independent_uniform_initializer_is_seeded_and_geometry_valid():
         assert study._geometry_status(design, cfg)[2] == 0.0
         np.testing.assert_array_equal(
             study._canonical_physical(vector, active, integers), vector,
+        )
+
+
+def test_initial_population_seed_contracts_are_explicit_and_scoped():
+    cfg = _config()
+    assert study.resolve_initial_population_seed_contract(cfg).identifier == (
+        study.DEFAULT_INITIAL_POPULATION_SEED_CONTRACT
+    )
+    assert study.initial_population_sampling_seed(cfg, 20260917, "MLIT", T1) == 3688039291
+    cfg["study"]["revision"] = "renamed_without_science_change"
+    assert study.initial_population_sampling_seed(cfg, 20260917, "MLIT", T1) == 3688039291
+
+    cfg["dms_topology"]["initial_population_seed_contract"] = (
+        study.STAGE3_8C_R1_2_INITIAL_POPULATION_SEED_CONTRACT
+    )
+    contract = study.resolve_initial_population_seed_contract(cfg)
+    assert contract.namespace == "stage3_8c_r1_geometry_first_v1"
+    assert contract.derivation_suffix == "r1_2_independent_rejection"
+    assert study.initial_population_sampling_seed(cfg, 20260917, "MLIT", T1) == 3938065196
+    assert study.initial_population_sampling_seed(cfg, 20260918, "MLIT", T1) == 1982837181
+
+    cfg["dms_topology"]["initial_population_seed_contract"] = "unknown"
+    with pytest.raises(ValueError, match="unknown initial population seed contract"):
+        study.initial_population_sampling_seed(cfg, 20260917, "MLIT", T1)
+
+
+def test_historical_seed_contract_replays_canonical_ordered_population():
+    cfg = load_experiment_config(
+        "configs/studies/stage3_9b_mlit_t1_50ohm_overlap_parity.yaml"
+    )
+    expected_hashes = {
+        20260917: "699703dcfec14fc3691ca0c728dccc787469d82903728cc0bcff8e84e4f13770",
+        20260918: "8c5c42b5bc4214ac88220593ef58ba98b2fd341e4bc81c1d9cabd97eea293e4a",
+    }
+    expected_rejections = {20260917: 3, 20260918: 6}
+    for seed in (20260917, 20260918):
+        population, sampling = study.sample_independent_uniform_population(
+            cfg, "MLIT", T1, seed=seed, population_size=180, max_attempts=10_800,
+            reference_proposals=0, bootstrap_replicates=0,
+        )
+        active, _hard, integer_indices = study.material_bounds(cfg, "MLIT", T1)
+        physical = [
+            study._canonical_physical(
+                active[:, 0] + vector * (active[:, 1] - active[:, 0]),
+                active,
+                integer_indices,
+            ).tolist()
+            for vector in population
+        ]
+        digest = hashlib.sha256(
+            json.dumps(physical, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        ).hexdigest()
+        assert len(physical) == 180
+        assert digest == expected_hashes[seed]
+        assert sampling["initial_sampling_geometry_rejections"] == expected_rejections[seed]
+        assert sampling["initial_sampling_duplicate_rejections"] == 0
+        assert sampling["initial_sampling_seed_contract_id"] == (
+            study.STAGE3_8C_R1_2_INITIAL_POPULATION_SEED_CONTRACT
         )
 
 

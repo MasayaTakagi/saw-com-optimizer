@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
 
@@ -46,13 +47,31 @@ class RunManifest:
     review_after_completion: bool
     callback_timeout_minutes: float | None = 30.0
     codex_session_source: str | None = None
+    optimizer_run_dir: str | None = None
+    callback_preflight: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if self.callback_timeout_minutes is not None and self.callback_timeout_minutes <= 0:
             raise ValueError("callback_timeout_minutes must be positive or None")
+        if self.schema_version >= 2:
+            if not self.optimizer_run_dir:
+                raise ValueError("schema-v2 run manifest requires optimizer_run_dir")
+            control_root = Path(self.run_dir).resolve()
+            optimizer_root = Path(self.optimizer_run_dir).resolve()
+            if optimizer_root == control_root:
+                raise ValueError("optimizer_run_dir must be distinct from run_dir")
+            try:
+                optimizer_root.relative_to(control_root)
+            except ValueError as exc:
+                raise ValueError("optimizer_run_dir must be nested under run_dir") from exc
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    @property
+    def effective_optimizer_run_dir(self) -> str:
+        """Study output path, falling back to the control root for old manifests."""
+        return str(self.optimizer_run_dir or self.run_dir)
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "RunManifest":
@@ -84,6 +103,14 @@ class RunManifest:
             codex_session_source=(
                 None if value.get("codex_session_source") is None
                 else str(value.get("codex_session_source"))
+            ),
+            optimizer_run_dir=(
+                None if value.get("optimizer_run_dir") in (None, "")
+                else str(value["optimizer_run_dir"])
+            ),
+            callback_preflight=(
+                None if value.get("callback_preflight") is None
+                else dict(value["callback_preflight"])
             ),
         )
 
