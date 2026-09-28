@@ -1,5 +1,5 @@
 {
-  "description": "Capture the current Codex session for explicit asynchronous run callbacks.",
+  "description": "Capture the current Codex session and report safe startup diagnostics.",
   "hooks": {
     "SessionStart": [
       {
@@ -9,6 +9,13 @@
             "type": "command",
             "command": "python3 .codex/hooks/c2c_state_access_preflight.py --hook-output",
             "commandWindows": ".codex\\hooks\\c2c_state_access_preflight.cmd --hook-output",
+            "additionalContextLimit": 1000,
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 .codex/hooks/git_workspace_preflight.py --hook-output",
+            "commandWindows": ".codex\\hooks\\git_workspace_preflight.cmd --hook-output",
             "additionalContextLimit": 1000,
             "timeout": 10
           },
