@@ -24,10 +24,37 @@ Codex task start
 → INIT
 ```
 
-At the start of the workflow, run `c2c update-check --json` for detection only
-and `c2c sandbox-allow --json` according to the installed Skill. Never update
-on detection. `sandbox-allow` must be idempotent when the existing state path
-is already allowed; do not broaden permissions for convenience.
+Before the C2C-using task starts, run `c2c sandbox-allow --json` as the normal
+user according to the installed Skill. Never update on detection. Confirm the
+C2C-related persistent Codex writable-root declaration is exactly
+`%LOCALAPPDATA%\codex-with-chatgpt`; preserve unrelated pre-existing roots.
+`alreadyAllowed=true` confirms only persistent
+configuration, not access in an already-created managed sandbox. If the root
+was added or changed, start a fresh managed Codex sandbox before C2C use.
+
+At task start, run `c2c update-check --json` for detection only. Then use the
+SessionStart state-access hook as an early warning and, immediately before any
+C2C `doctor`, `session`, or `record` command, run the direct unelevated probe
+through the same execution boundary:
+
+```powershell
+.codex\hooks\c2c_state_access_preflight.cmd --json
+```
+
+Proceed only when its result is `PASS`. The hook only creates one exclusive,
+empty, uniquely named canary directly inside the existing canonical state
+directory, flushes and closes it, then removes that exact file. It does not
+create directories, alter C2C files, grant permissions, read credentials, or
+relocate C2C state. A SessionStart `PASS` is informational because hooks and
+the later command may have different effective access; the direct probe is the
+operational gate and is necessary but does not prove every child path used by
+doctor/session/record. Those operations must still succeed on their first
+normal-user attempt.
+
+The normal order is: persistent exact-root declaration → fresh managed
+sandbox if configuration changed → SessionStart diagnostic → direct probe
+`PASS` → doctor → workspace identity → saved conversation/session/INIT. Never
+broaden permissions for convenience.
 
 ### Approved cloudflared
 
@@ -119,6 +146,72 @@ message alone is not proof of correctness. Continue a requested review/fix
 cycle until DONE, or stop and report BLOCKED. Keep long-running optimizer
 processes independent from the lifetime of a C2C or ChatGPT session.
 
+### Async continuation to the original Desktop thread
+
+For newly designed C2C-managed asynchronous work, use the qualified one-shot
+official `codex queue` route to return completion to the **exact original
+Desktop thread**:
+
+```text
+accepted PLAN and durable continuation checkpoint
+→ start detached job and end the initiating turn
+→ job writes its durable terminal result
+→ one codex queue --thread <exact-original-thread-id> --message <small-reference>
+→ same-thread queued turn validates the result
+→ continue at NEXT_EXPECTED_STEP
+→ EXECUTED and independent review
+```
+
+Keep three durable layers connected:
+
+- The original Desktop thread retains the PLAN and conversation context. Capture
+  its exact thread ID before detaching; do not discover a target later, use
+  `--last`, or create a continuation thread.
+- The C2C checkpoint or HANDOFF retains `TASK_ID`, PLAN iteration, `RUN_ID`,
+  and `NEXT_EXPECTED_STEP`. The original PLAN remains authoritative; do not
+  replay it in the completion message.
+- The detached job's existing run directory/status/checkpoint/result is the
+  evidence of execution completion. Do not use a queued message as proof that
+  the job completed or create a second production state store.
+
+Only queue after the job has reached its durable completion gate. Use exactly
+one `codex queue --thread <exact-thread-id> --message <message>` attempt per
+completion event, protected by a durable one-shot claim. The completion message
+should carry only routing and verification data, such as `TASK_ID`, `RUN_ID`,
+the exact result/run reference, `NEXT_EXPECTED_STEP`, and a unique delivery
+sentinel. It asks the existing thread to validate the referenced state and
+continue the existing task at that next step. `codex queue` is a delivery and
+serialization primitive; it does not resume optimizer state or create/acquire
+a second thread writer.
+
+On Windows, run the helper in the qualified normal-user profile context and
+fail closed unless the effective user, `USERPROFILE` versus the Windows
+`UserProfile` special folder, Codex executable/version, and installed
+`codex queue --help` syntax are valid. In particular, confirm explicit
+`--thread` and `--message` support before relying on the route. Do not move the
+queue call to a detached/background identity that has not passed this
+preflight.
+
+When the queued turn arrives, verify the exact original thread, durable job
+completion and result reference, delivery/run markers, absence of duplicate or
+overlapping turns, and the relevant Git baseline before continuing. Resume at
+`NEXT_EXPECTED_STEP` from the existing PLAN/HANDOFF; do not replay the full
+PLAN or rerun completed work. A completion continuation never authorizes a
+subsequent production run.
+
+If the queue call fails or its acknowledgement is ambiguous, leave the
+completed job and its results intact. Do not retry automatically, create a new
+thread, or relaunch the job. Recover explicitly in C2C using the same
+`TASK_ID` and durable state, and determine whether a delivery was already
+accepted before any further action.
+
+This qualification applies to the bounded exact-thread C2C continuation
+workflow. The currently implemented managed production callback still uses
+its captured session through `codex exec resume`; see
+[`../guides/async_orchestration.md`](../guides/async_orchestration.md). A
+production callback migration to `codex queue` requires a separate
+implementation, test, and architecture review.
+
 ### Review routing and timing
 
 Use the roles defined in [`AGENTS.md`](../../AGENTS.md): C2C/ChatGPT owns PLAN
@@ -147,10 +240,37 @@ never automatically launch another production run.
 
 ## EPERM recovery
 
-When a C2C state write returns EPERM, identify the exact C2C state path named
-by the error and confirm the existing `sandbox-allow` setting. Grant only the
-permission needed for that state path and retry the failed operation once.
-Never broaden the workspace, home-directory, or sandbox-wide write boundary.
-Do not casually use administrator privileges, change permanent system
-permissions, or patch C2C. If the narrow permission is unavailable or the one
-retry still fails, stop and report the blocker; do not try wider workarounds.
+Treat the probe's results as follows:
+
+| Result | Action |
+| --- | --- |
+| `PASS` | Continue to the next C2C gate in the same unelevated execution boundary. A later EPERM is a distinct child-path or operation defect; inspect only the exact failing path and stop before retrying. |
+| `ACTIVE_SANDBOX_DENIED` | If persistent configuration already contains the exact root, record `ACTIVE_SANDBOX_STALE` as a suspected cause, not a proven diagnosis. Stop before doctor/session/record and use a fresh managed sandbox. |
+| `STATE_PATH_MISMATCH` | Stop. Reject conflicting `C2C_STATE_DIR` redirects, a symlink/junction/reparse point on the state directory, or an unproven path identity. Do not relocate C2C state. |
+| `STATE_ROOT_MISSING` / `OTHER_IO_FAILURE` | Stop and report the exact classification. Do not create the state directory or attempt C2C operations. |
+| `PROBE_CLEANUP_FAILED` | Stop; report the exact canary filename for manual cleanup after checking it is the probe's own file. Do not continue or retry automatically. |
+
+The only approved operation path is the lexical
+`%LOCALAPPDATA%\codex-with-chatgpt` path. Inspect the state directory with
+`lstat` and fail closed if it is a symlink, junction, or other reparse point.
+If the OS resolves this default path to different text, accept it only when
+both names identify existing directories and `samefile` proves they are the
+same filesystem object. Keep canary creation and deletion on the lexical path.
+This identity check does not authorize the resolved alias as another writable
+root; a noncanonical `C2C_STATE_DIR` remains rejected even if it would resolve
+to the same object.
+
+If `sandbox-allow` reports that the persistent exact root is absent, add only
+that root through the approved normal-user setup, then start a fresh managed
+sandbox before proceeding. If it says `alreadyAllowed=true` but the current
+sandbox probe is denied, do not repeat `sandbox-allow` or request per-command
+approvals as the primary repair. This is consistent with stale sandbox
+materialization but does not prove the host's cause; validate in fresh managed
+sessions. Never broaden the workspace, home-directory, or sandbox-wide write
+boundary, use elevation, change ACLs, or modify the external C2C checkout.
+
+Do not claim the issue fixed until the direct probe and first-attempt doctor,
+session, and supported record operation succeed in two fresh normal-user
+managed sessions. If those sessions still deny access, report a host policy
+blocker; retain the narrow diagnostic and recovery procedure without widening
+permissions.

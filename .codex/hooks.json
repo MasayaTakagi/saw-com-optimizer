@@ -7,6 +7,13 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 .codex/hooks/c2c_state_access_preflight.py --hook-output",
+            "commandWindows": ".codex\\hooks\\c2c_state_access_preflight.cmd --hook-output",
+            "additionalContextLimit": 1000,
+            "timeout": 10
+          },
+          {
+            "type": "command",
             "command": "python3 .codex/hooks/capture_session.py",
             "commandWindows": ".codex\\hooks\\capture_session.cmd",
             "additionalContextLimit": 1000,
