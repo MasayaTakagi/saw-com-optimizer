@@ -32,7 +32,7 @@ from ..problem.dms_topologies import T0, T1, T2, TOPOLOGIES, simulate_topology
 from ..reporting.review_bundle import write_review_bundle_archive
 from .dms_topology_common import (
     MATERIALS, decode_design, fixed_design_sanity, implementation_validation,
-    initial_design, provider_for_material,
+    initial_design, load_common_validation_grid, provider_for_material,
 )
 from .lshade_records import lshade_record
 
@@ -164,22 +164,8 @@ def _selected_study_axes(cfg: Mapping[str, Any]) -> tuple[tuple[str, ...], tuple
 
 
 def _load_common_grid(cfg: Mapping[str, Any]) -> tuple[np.ndarray, str, str, dict[str, Any]]:
-    metadata_path = ROOT / cfg["dms_topology"]["common_validation_grid_metadata"]
-    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-    grid_path = Path(metadata["source"])
-    if not grid_path.is_absolute():
-        grid_path = ROOT / grid_path
-    # Git stores this reference CSV with LF endings; normalize CRLF worktrees
-    # before checking the content hash so Windows and Linux validate the same
-    # immutable bytes.
-    grid_bytes = grid_path.read_bytes().replace(b"\r\n", b"\n")
-    if hashlib.sha256(grid_bytes).hexdigest() != metadata["sha256"]:
-        raise ValueError("common validation grid file hash does not match its metadata")
-    grid = np.loadtxt(grid_path, delimiter=",", skiprows=1).astype(float)
-    grid_id = hashlib.sha256(np.asarray(grid, dtype="<f8").tobytes()).hexdigest()
-    if grid_id != metadata["grid_id"]:
-        raise ValueError(f"validation-grid identity mismatch: {grid_id} != {metadata['grid_id']}")
-    return grid, grid_id, str(metadata_path), metadata
+    """Compatibility wrapper for historical screening tests and callers."""
+    return load_common_validation_grid(cfg)
 
 
 def _source_fingerprint(raw_config: str, grid_id: str) -> str:

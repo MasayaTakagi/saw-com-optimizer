@@ -72,6 +72,37 @@ def circuit_y(dms, branches, ports=(0, 1), dms_nodes=(0, 1), node_count=2):
     return out
 
 
+STAGE4A_TOPOLOGIES = ("D", "P_D", "D_P", "P_D_P")
+
+
+def compose_stage4a_y(dms_y, topology, resonator_ys=()):
+    """Compose a current DMS two-port with zero, one, or two shunt resonators.
+
+    ``P_D`` places one one-port resonator at the source-side terminal, ``D_P``
+    at the load-side terminal, and ``P_D_P`` places one at each terminal.
+    Resonators are independent acoustic tracks and are connected electrically
+    in shunt.  A ``D`` call accepts no resonators and returns the DMS Y matrix
+    exactly through the same nodal-composition implementation.
+    """
+    if topology not in STAGE4A_TOPOLOGIES:
+        raise ValueError(f"unsupported Stage 4A topology {topology!r}")
+    ys = tuple(np.asarray(value, dtype=complex) for value in resonator_ys)
+    expected = {"D": 0, "P_D": 1, "D_P": 1, "P_D_P": 2}[topology]
+    if len(ys) != expected:
+        raise ValueError(f"{topology} requires exactly {expected} resonator admittances")
+    if topology == "D":
+        nodes, branches = (0, 1), []
+    elif topology == "P_D":
+        nodes, branches = (0, 1), [(0, -1)]
+    elif topology == "D_P":
+        nodes, branches = (0, 1), [(1, -1)]
+    else:
+        nodes, branches = (0, 1), [(0, -1), (1, -1)]
+    if ys:
+        branches = [(a, b, value) for (a, b), value in zip(branches, ys)]
+    return circuit_y(dms_y, branches, dms_nodes=nodes, node_count=2)
+
+
 # (DMS nodes, resonator terminals, node count). Added resonators are independent.
 TOPOLOGIES = {
     'D': ((0, 1), [], 2),

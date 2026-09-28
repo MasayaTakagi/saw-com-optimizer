@@ -29,6 +29,28 @@ ROOT = Path(__file__).resolve().parents[3]
 MATERIALS = ("M0", "MLIT")
 
 
+def load_common_validation_grid(
+    cfg: Mapping[str, Any],
+) -> tuple[np.ndarray, str, str, dict[str, Any]]:
+    """Load and verify the shared immutable DMS/hybrid validation grid."""
+    metadata_path = ROOT / cfg["dms_topology"]["common_validation_grid_metadata"]
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    grid_path = Path(metadata["source"])
+    if not grid_path.is_absolute():
+        grid_path = ROOT / grid_path
+    # Git stores this reference CSV with LF endings; normalize CRLF worktrees
+    # before checking the content hash so Windows and Linux validate the same
+    # immutable bytes.
+    grid_bytes = grid_path.read_bytes().replace(b"\r\n", b"\n")
+    if hashlib.sha256(grid_bytes).hexdigest() != metadata["sha256"]:
+        raise ValueError("common validation grid file hash does not match its metadata")
+    grid = np.loadtxt(grid_path, delimiter=",", skiprows=1).astype(float)
+    grid_id = hashlib.sha256(np.asarray(grid, dtype="<f8").tobytes()).hexdigest()
+    if grid_id != metadata["grid_id"]:
+        raise ValueError(f"validation-grid identity mismatch: {grid_id} != {metadata['grid_id']}")
+    return grid, grid_id, str(metadata_path), metadata
+
+
 def evaluate_topology_design(design, provider, cfg, frequencies_hz, topology: str, *,
                             rs: float = 50.0, rl: float = 50.0) -> dict[str, Any]:
     """Evaluate one topology while preserving the existing metrics/objective."""

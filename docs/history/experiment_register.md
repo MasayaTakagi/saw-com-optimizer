@@ -454,6 +454,45 @@ availability is not established by Git and must be verified separately.
   run `runs/stage3_9b_mlit_t1_50ohm_budget_extension_20260927`, ID
   `20260927_053504_a62960`.
 
+## Stage 4A — hybrid protocol qualification
+
+**Evidence level:** implementation validation, D-only parity, four bounded
+protocol smoke cells, full regression output, and C2C acceptance are recorded
+under the current Stage 4A run and review bundle.
+
+- **Question:** Can the current MLIT/T1 DMS path compose with the existing
+  one-port COM resonator model under the current L-SHADE, unique-evaluation,
+  validation, provenance, checkpoint, and review-bundle contracts?
+- **Conditions:** MLIT/T1, 50/50 Ω, cold independent initialization, seed
+  `20260929`, 256 unique evaluations for each of `D`, `P_D`, `D_P`, and
+  `P_D_P`; 1,001-point search grid and shared 9,113-point validation grid.
+- **Qualification result:** D-only parity was exact (maximum absolute
+  difference 0.0). Each smoke cell reached its 256-unique budget, completed
+  common-grid validation, and recorded zero physics failures. Focused
+  regressions passed 36/36; the full suite passed 238 tests and 20 subtests.
+  C2C accepted Stage 4A at iteration 2; the accepted closeout then transitioned
+  the run to `COMPLETED`, finalized all four checkpoint streams, and refreshed
+  the lifecycle evidence in the review bundle. Schema-v2 computation fingerprint:
+  `2120b2046bb424ec0445919ce1d4f6ca8c4de08e8b2d0b16a00d1e77d16cc3c2`.
+- **Decision:** C2C task `c2c_0b52`, iteration 2, accepted Stage 4A with no
+  mandatory remaining findings. The protocol is qualified for the requested
+  implementation/smoke scope only. These smoke metrics are explicitly
+  non-scientific and do not rank topology families or establish a preferred
+  design.
+- **Stage 4B boundary:** Do not launch Stage 4B from this qualification. The
+  measured estimate for four topologies × two seeds × 4,000 unique evaluations
+  is 0.56 hours centrally (0.42–0.84 hours), which invokes the managed
+  long-running production path. A separate task must resolve comparison
+  fairness for 10/13/13/16-dimensional families, add and validate supported
+  orchestration dispatch, obtain Sol's budget judgment, and pass C2C
+  pre-launch review.
+- **References:** Run
+  `runs/stage4a-hybrid-protocol-qualification-final-c2c-iteration2`;
+  review bundle
+  `artifacts/review_bundles/stage4a-hybrid-protocol-qualification-final-c2c-iteration2_review.zip`.
+  Neither smoke response values nor this protocol qualification constitute a
+  scientific topology comparison.
+
 ## Cleanup rule
 
 At each future study closeout, add the result and decision here, update

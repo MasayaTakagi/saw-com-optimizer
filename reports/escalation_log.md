@@ -1,5 +1,27 @@
 # Luna → Sol Escalation Log
 
+## 2026-09-29 — Stage 4A hybrid protocol pre-implementation judgment
+
+- C2C PLAN `c2c_0b52`, iteration 0, classified pre-edit Sol judgment as
+  required because Stage 4A adds hybrid design variables, comparison
+  conditions, and a T1/resonator composition interface.
+- Escalation packet:
+  `reports/escalation_packets/stage4a_hybrid_sol_judgment_2026-09-29.md`.
+- Requested target: `gpt-6-sol`; backend model identity is not exposed.
+  Bounded judgment: approve qualification with gates. Reuse the complete
+  MLIT provider for both T1 and existing resonator physics; stop if provider
+  validation or existing assumptions fail rather than borrowing M0 values.
+  Keep current T1 and resonator bounds and exactly D/P_D/D_P/P_D_P. Use a
+  common 32-member cold initial population, 256 unique evaluations per family,
+  checkpoints at 128/256, and require mutation plus checkpoint-continuation
+  telemetry. Preserve matched 50/50 conditions, geometry-first comparison,
+  fail-closed D-only parity, and `REVIEW_WAITING` pending C2C acceptance.
+  This is qualification only and does not authorize Stage 4B or production.
+- Sol corrected the dimensional count: T1 is 10 DOFs, so P_D_P is 16 DOFs;
+  the default 18-per-DOF initializer would consume 288 candidates and cannot
+  be used for a 256-evaluation smoke.
+- No implementation or optimizer run was performed before the judgment.
+
 Pilot: Stage 1
 Status: stopped at mandatory review gate
 
