@@ -136,6 +136,56 @@ identity and behavior.
   this managed execution identity. Its shared-principal and descendant
   write/delete scope is the residual permission risk.
 
+### Qualification closeout — 2026-09-28
+
+- **Status: CLOSED / RESOLVED.** The original access failure was an effective
+  managed-session ACL boundary: the exact persistent writable root was
+  configured, but the `CodexSandboxOffline` execution identity initially
+  lacked write/delete access to the canonical C2C state directory. The
+  user-authorized exact-root inheritable `Modify, Synchronize` ACE and the
+  canonical writable-root representation were followed by two independent
+  fresh managed-session qualifications. No wider ACL or root was authorized.
+- **Qualification: PASS 1/2 and PASS 2/2.** Both sessions passed the direct
+  unelevated state-access preflight with canary cleanup, `sandbox-allow`
+  (`alreadyAllowed=true`, `added=false`), normal Doctor/documented recovery,
+  first-attempt Session read, workspace identity (`saw-com-optimizer` /
+  `workspace:/`), and first-attempt Record with `changedFiles=0`. Neither had a
+  permission/state-access failure. The project and external C2C checkout
+  integrity and persistent configuration were preserved.
+- The verified persistent declaration is:
+
+  ```toml
+  [sandbox_workspace_write]
+  writable_roots = ["C:/Users/sub/AppData/Local/codex-with-chatgpt"]
+  ```
+
+  The configuration SHA-256 remained unchanged during qualification; the
+  second session recorded `0e25c82c3402138d92a1946e9eb76d3b4195b1d0140e13d195279c0e479bb9fe`
+  before and after. That session used C2C 0.1.3 at
+  `9663b88753e35c76796c5bce000293e0bd22cd9e`; the C2C checkout remained clean.
+  The project branch was `codex/c2c-state-access-20260928` at
+  `a7bab2612fa6049a20388547f524cc745d41711c`, with a clean working tree before
+  and after qualification.
+- **Bounded C2C 0.1.3 parser compatibility note:** an observed single-quoted
+  Windows backslash literal for `writable_roots` was valid TOML but was not
+  recognized by `sandbox-allow` as the existing path (`alreadyAllowed=false`).
+  The forward-slash double-quoted form above was recognized as the exact
+  existing root (`alreadyAllowed=true`, `added=false`). This is external C2C
+  behavior, not a SAW source defect; the sibling C2C checkout was not changed.
+- In the second qualification, `update-check` returned
+  `checked=false`, `updateAvailable=false`, `exit=0` because update detection
+  was skipped offline. This was informational. Normal Doctor recovery
+  re-established the secure connection and finished with bridge, MCP, OAuth,
+  tunnel, sandbox, and workspace checks green; no ACL/config change, root
+  expansion, or elevation was needed during recovery.
+- Execution summary contained a pre-existing and a new successful record for
+  `c2c_88b2`, iteration 0. The duplicate record identity was not a qualification
+  failure; use a unique task ID for future qualification or diagnostic records.
+- The exact-root inherited ACE remains the residual security risk: if the
+  managed-session principal is shared, it permits write/delete access throughout
+  the canonical state directory and descendants. No additional fresh-session
+  qualification is requested for this closeout.
+
 ## 2026-09-27 — Stage 3.9B overlap retry orchestration recovery
 
 ### Packet and decision

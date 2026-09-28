@@ -8,6 +8,15 @@ runtime inputs, and ChatGPT UI route. For this workspace, the IAB-only route
 below is the project-specific exception to generic UI-control restrictions in
 the installed Skill; its task protocol and recovery rules still apply.
 
+In managed sessions where `c2c` is not on `PATH`, invoke the installed checkout
+directly (and prefer this form in project-specific procedures):
+
+```powershell
+node "C:\Users\sub\Documents\ChatGPT\codex-with-chatgpt\bin\c2c.js" <command>
+```
+
+Do not create a global link or change `PATH` as a qualification prerequisite.
+
 ## Normal startup
 
 Follow this sequence for a C2C-controlled task:
@@ -24,17 +33,34 @@ Codex task start
 → INIT
 ```
 
-Before the C2C-using task starts, run `c2c sandbox-allow --json` as the normal
-user according to the installed Skill. Never update on detection. Confirm the
-C2C-related persistent Codex writable-root declaration is exactly
+Before the C2C-using task starts, run the installed CLI's
+`sandbox-allow --json` subcommand as the normal user, using the explicit Node
+invocation above. Follow the installed Skill. Never update on detection.
+Confirm the C2C-related persistent Codex writable-root declaration is exactly
 `%LOCALAPPDATA%\codex-with-chatgpt`; preserve unrelated pre-existing roots.
+For this Windows workspace, use this canonical TOML representation:
+
+```toml
+[sandbox_workspace_write]
+writable_roots = ["C:/Users/sub/AppData/Local/codex-with-chatgpt"]
+```
+
+C2C 0.1.3 `sandbox-allow` did not recognize an observed single-quoted Windows
+path using backslashes as the same path, although it is valid TOML.
+Use the forward-slash representation above for compatibility with that parser;
+this is a bounded observation about C2C 0.1.3, not a general TOML rule.
+
 `alreadyAllowed=true` confirms only persistent
 configuration, not access in an already-created managed sandbox. If the root
 was added or changed, start a fresh managed Codex sandbox before C2C use.
 
-At task start, run `c2c update-check --json` for detection only. Then use the
-SessionStart state-access hook as an early warning and, immediately before any
-C2C `doctor`, `session`, or `record` command, run the direct unelevated probe
+At task start, run the installed CLI's `update-check --json` subcommand using
+the explicit Node invocation above, for detection only. The result
+`checked=false`, `updateAvailable=false`, `exit=0` can mean an offline/skipped
+check and does not by itself fail state-access qualification. Treat
+`updateAvailable=true` as a separate update workflow. Then use the SessionStart
+state-access hook as an early warning and, immediately before any C2C
+`doctor`, `session`, or `record` command, run the direct unelevated probe
 through the same execution boundary:
 
 ```powershell
@@ -49,7 +75,9 @@ relocate C2C state. A SessionStart `PASS` is informational because hooks and
 the later command may have different effective access; the direct probe is the
 operational gate and is necessary but does not prove every child path used by
 doctor/session/record. Those operations must still succeed on their first
-normal-user attempt.
+normal-user attempt. Keep the probe JSON status, probe/child exit code, and
+wrapper exit code distinct where available; wrapper exit 0 alone is not proof
+that the child operation succeeded.
 
 The normal order is: persistent exact-root declaration → fresh managed
 sandbox if configuration changed → SessionStart diagnostic → direct probe
@@ -78,9 +106,14 @@ download, replace, or install it; winget is not approved for this baseline.
 
 ### Doctor gate
 
-Run `c2c doctor -w <saw-com-optimizer workspace> --json` with the approved
-process-local cloudflared path. Before opening the saved C2C conversation or
-sending INIT, confirm:
+Run the installed CLI's normal `doctor -w <saw-com-optimizer workspace> --json`
+subcommand with the approved process-local cloudflared path; `--no-fix` is not
+required for operational qualification. A stopped tunnel at fresh-session
+startup is recoverable state, not by itself a state-access failure. Allow
+Doctor's documented bridge/tunnel recovery, then judge the final gates.
+Recovery must not require ACL or persistent-config changes, writable-root
+expansion, or elevation. Before opening the saved C2C conversation or sending
+INIT, confirm:
 
 - bridge, MCP, OAuth, and tunnel checks are healthy;
 - sandbox/state-directory checks are healthy;
@@ -119,6 +152,10 @@ Use the saved ChatGPT conversation according to `c2c session --json` and the
 installed C2C Skill's conversation-mode rules. Use the IAB for every ChatGPT
 step. Keep the workspace connector read-only and use it only for workspace
 data; UI control does not replace the doctor gate or workspace identity check.
+
+Session command options differ by subcommand. Follow the installed Skill or
+that subcommand's CLI help; do not add `--json` mechanically. For example,
+`session get --json` supports JSON output, while `session set` does not.
 
 Before INIT, use the workspace-bound connector to verify:
 
