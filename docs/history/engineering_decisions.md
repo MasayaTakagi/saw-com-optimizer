@@ -53,8 +53,79 @@ not established. This feature was not on the SAW scientific critical path.
 Keep detached optimizer execution, explicit status, checkpoint lifecycle and
 manual/local resume capability as useful infrastructure.
 
-Do not make SAW experiment progress depend on autonomous Codex session wake or
-automatic thread continuation.
+Do not make scientific SAW progress depend on cold/unattended Codex wake,
+unqualified session ownership, or automatic recovery across an unknown
+thread. A qualified one-shot queue to a known original Desktop thread may be
+used as a control-plane convenience after durable job completion; it must fail
+closed without risking or losing the recorded optimizer result.
+
+### Bounded SDK-first pilot (2026-09-27)
+
+A bounded infrastructure pilot demonstrated the public Python Codex SDK
+process-boundary primitive, but did not change the frozen production decision:
+
+- `openai-codex==0.157.1` created a dedicated thread in Process A; after A
+  exited, Process B resumed the exact public thread ID and recovered context
+  supplied only in the earlier turn.
+- A public active-writer observation showed a second runtime's resume rejected
+  while the first turn was in progress. The thread ended with one completed
+  turn and no duplicate. This is observed behavior for this host and SDK
+  version, not a broader concurrency guarantee.
+- A detached synthetic job and one bounded hypothetical B28 `simulate` run
+  completed through pilot-only SDK callbacks and reached `REVIEWED`. The SAW
+  smoke is labeled `INFRASTRUCTURE_PILOT / NON-SCIENTIFIC`; its numerical
+  results are not evidence for filter comparisons or design decisions.
+- SDK execution succeeded under the normal Windows user identity
+  `desktop-9ipace7\sub`. The restricted `CodexSandboxOffline` identity could
+  not start a thread because the runtime could not resolve a home directory.
+- The public turn-handle operation used by the pilot,
+  `AsyncTurnHandle.run()`, has no timeout argument; later automation would need
+  an external finite supervisor.
+- No production orchestration or callback backend was changed. The production
+  callback remains `codex exec resume`.
+
+The SDK pilot qualifies those SDK and detached-execution primitives for further
+bounded infrastructure work only. It does not establish long-duration
+continuation, unattended wake, or production SDK callback support. The
+subsequent exact-thread queue qualification below establishes a separate,
+bounded message-delivery path; it does not resume the frozen autonomous
+session-resume feature or change the production callback backend.
+
+### Exact-thread asynchronous queue continuation (2026-09-27)
+
+**Decision state:** `QUALIFIED / BOUNDED C2C CONTINUATION`
+
+A one-shot official CLI queue was qualified for returning a completed detached
+job to its known, original Desktop thread on the tested Windows host and
+`codex-cli 0.158.0-alpha.2.1`:
+
+- The pilot (`TASK_ID=c2c_49c9`,
+  `RUN_ID=async_c2c49c9_0647bc562e3f4360a13f82e478b073e7`) targeted the existing
+  Desktop thread `01a0ddf7-8185-7982-8940-72e62875e7ce`.
+- A normal-user/profile-qualified detached helper completed one harmless
+  asynchronous dummy job. Exactly one `codex queue --thread <exact-id>` attempt
+  was accepted for that same thread after the durable completion record.
+- The queued message arrived after the initiating turn completed, as the next
+  sequential user turn in the same thread. The assistant recovered prior
+  context and the job marker; exactly one continuation occurred, with no
+  duplicate or overlapping turn.
+- The helper, dummy, and queue processes exited. Git remained at its recorded
+  baseline. No repository, SAW, or production run state was changed.
+
+This qualifies a bounded delivery mechanism, not autonomous session resume.
+Keep `FROZEN / DEFERRED` for cold/unattended wake, arbitrary thread discovery or
+writer acquisition, Task Scheduler/Resume Agent operation, recovery across
+unknown ownership, and SDK `thread_resume()` against a Desktop-owned thread.
+For new C2C-managed detached work, use the exact-thread one-shot queue after
+durable completion and continue from the existing task's `NEXT_EXPECTED_STEP`.
+The helper must pass the qualified normal-user/profile and CLI preflight, the
+queue claim is one-shot with no automatic retry, and ambiguous failure must
+fail closed while preserving job results. The queue neither restores optimizer
+state nor automatically starts follow-up production work.
+
+The managed production callback remains `codex exec resume` against its
+captured session ID. The queue pilot does not migrate that backend; any such
+change needs a separate implementation, test, and architecture review.
 
 ### Reopen condition
 

@@ -8,6 +8,134 @@ decision, Luna's action, verification, and outcome. Requested model and
 reasoning effort must be kept separate from independently observed backend
 identity and behavior.
 
+## 2026-09-28 — C2C active-sandbox state access boundary
+
+### Packet and judgment
+
+- Scope: determine whether the project may add a least-privilege C2C state
+  preflight to prevent routine `doctor`/`session`/`record` operations from
+  repeatedly stopping on EPERM.
+- Evidence: normal-user `doctor` and `session set` failed with EPERM on files
+  under the exact `%LOCALAPPDATA%\codex-with-chatgpt` root; one retry after
+  narrowly authorizing that exact state directory succeeded. No administrator
+  command or OS ACL change was used. `sandbox-allow --json` reported `alreadyAllowed=true`,
+  while the active managed sandbox's writable-root metadata omitted AppData.
+  No external C2C source changes or broad permission changes are allowed.
+- Judgment requested from GPT-6 Sol: exact canary design, startup/sandbox
+  distinction, failure behavior, and validation threshold. Backend identity
+  and actual internal reasoning effort are not independently verified.
+- Decision: proceed with a project-owned canary inside only the canonical,
+  existing C2C state root. Reject conflicting `C2C_STATE_DIR` redirects; do
+  not create directories, change permissions, use admin, relocate state, or
+  touch C2C source. The probe creates one exclusive random empty file, closes
+  and deletes only that file, with cleanup failure surfaced. Classify observed
+  permission denial separately from suspected `ACTIVE_SANDBOX_STALE`, missing
+  path, mismatch, other I/O, and cleanup failure. SessionStart output is
+  informational; require a direct unelevated probe through the same execution
+  boundary before C2C operations. A root-level PASS is necessary, not
+  sufficient for nested operation paths. Do not claim the issue fixed until
+  two fresh managed sessions pass direct probe and first-attempt
+  doctor/session/record. If fresh sessions still deny, report a host policy
+  blocker without widening access.
+
+### Codex action and outcome
+
+- Added the SessionStart diagnostic and direct-probe entrypoint, preserving the
+  existing session-capture hook. Updated project C2C startup/recovery and
+  security-boundary guidance. No C2C external checkout, ACL, credential, or
+  permission configuration was changed.
+- Implementation validation: 9 focused tests passed using temporary state
+  roots and simulated errors; Python AST parsing, hooks JSON parsing, and
+  `git diff --check` passed. Pytest emitted a non-fatal cache warning because
+  `.pytest_cache` is not writable. The direct probe in this existing task
+  session returned `STATE_PATH_MISMATCH` because the resolved state root
+  redirects outside its declared `%LOCALAPPDATA%` child; the probe created no
+  canary. Per the gate, doctor/session/record were not run after this result.
+- C2C independently accepted the bounded implementation in task `c2c_1b7a`,
+  iteration 3. Fresh-sandbox host validation remains pending; this existing
+  task session cannot prove behavior in fresh managed sandboxes, so no
+  permission fix is claimed until the documented validation is completed.
+
+### Bounded path-identity correction
+
+- Scope: resolve the direct preflight's `STATE_PATH_MISMATCH` caused by the
+  Windows textual resolution of the default lexical state path, without
+  authorizing another root or weakening redirect protection.
+- Judgment requested from `gpt-6-sol`: allow a `samefile` exception for the
+  default `%LOCALAPPDATA%\codex-with-chatgpt` lexical path while keeping canary
+  I/O lexical and all noncanonical overrides rejected. Sol conditionally
+  approved the exception only when `lstat` first rejects symlinks, junctions,
+  and every other reparse point on the state directory; samefile by itself is
+  insufficient because it also succeeds for redirects.
+- Decision implemented: retain the normalized lexical path as the only probe
+  path. Accept different resolved text only if both names are existing
+  directories and `os.path.samefile` proves the same object. Fail closed on
+  reparse-point inspection failure, identity mismatch, or identity error.
+  No elevation, ACL change, broader writable root, state relocation, or
+  external C2C source change is authorized.
+- Validation: 15 focused tests passed; Python AST parsing, hooks JSON parsing,
+  and `git diff --check` passed. The approved `cloudflared` version and hash
+  matched. C2C CLI version 0.1.3 was invoked from the external sibling without
+  modifying it; update detection reported offline and made no update. The
+  direct preflight was attempted exactly once, unelevated, and returned
+  `ACTIVE_SANDBOX_DENIED` (exit 1); a follow-up read-only check found zero
+  canary files. The process identity was `CodexSandboxOffline` while
+  `USERPROFILE` and the Windows user-profile special folder both resolved to
+  `C:\Users\sub`, showing that this managed execution boundary is not running
+  under the profile owner's Windows identity.
+- Read-only C2C connector checks succeeded in one request: `workspace_info`
+  reported `saw-com-optimizer` / `workspace:/` at commit `0168e40`, and
+  `git_status` reported the expected current branch and unstaged work. Because
+  the direct preflight denied access, no C2C `doctor`, `session`, or `record`
+  command was attempted, as required by the fail-closed gate. C2C task
+  `c2c_state_root_identity_20260928`, iteration 1, accepted the bounded path
+  identity implementation while classifying host qualification as blocked.
+  The required next check is in a newly instantiated managed Codex sandbox
+  after read-only confirmation that the exact persistent root is configured;
+  no state-writing C2C operation should run in this denied boundary. The
+  helper maps `ACTIVE_SANDBOX_DENIED` to exit code 2, while the outer command
+  reported exit 1, so a future qualification record should capture both the
+  JSON status and outer process code separately. A second fresh managed session
+  must repeat the successful first-attempt sequence before claiming resolution.
+- Fresh Codex session check requested on 2026-09-28: the direct preflight was
+  run once and returned `ACTIVE_SANDBOX_DENIED` (outer exit code 1), so no
+  C2C `doctor`, `session`, or `record` command was run. The effective process
+  identity was `DESKTOP-9IPACE7\CodexSandboxOffline`. Read-only ACL inspection
+  showed the state directory owner `DESKTOP-9IPACE7\sub`, with
+  `CodexSandboxUsers` granted only `ReadAndExecute` and the profile owner
+  granted `FullControl`. The exact user-level `writable_roots` declaration
+  remains configured, but this new session still could not write the canary.
+  No ACL, persistent configuration, or C2C state was changed. This does not
+  qualify a passing fresh session; the execution boundary must provide
+  least-privilege write/delete access to the exact canonical state root before
+  C2C state operations can proceed.
+
+### User-authorized exact-root ACL qualification
+
+- Bounded Sol judgment: an explicit inheritable grant to
+  `DESKTOP-9IPACE7\CodexSandboxOffline` on only the canonical C2C state root is
+  narrower than a parent-directory or group grant and is within the user's
+  specific authorization. It is not least-privilege across time if this
+  Windows principal is shared by managed sessions: inherited `Modify` permits
+  changing and deleting C2C state throughout that root. Retain it only for
+  C2C use the user intends to support, and disclose that scope.
+- The user asked to grant the necessary permission and verify a new session
+  with it active. Added one explicit `Modify, Synchronize` ACE for that
+  principal on `%LOCALAPPDATA%\codex-with-chatgpt`, inherited by files and
+  subdirectories. No elevation, parent/group ACL, other writable root, global
+  Codex setting, external C2C checkout, or credential was changed.
+- Two fresh managed sessions each passed the direct unelevated canary probe
+  with removal confirmed. In both, the first doctor, session read, and record
+  succeeded; doctor reported the workspace, bridge, MCP, OAuth, and tunnel
+  checks green. The connector returned `saw-com-optimizer` / `workspace:/`.
+  C2C independently reviewed the recorded evidence and returned `DONE` for
+  `c2c_state_root_identity_20260928`, iteration 3. The C2C record used
+  `changedFiles=0`; Git status matched the reviewed pre-existing working-tree
+  baseline before and after.
+- The exact-root ACE remains in place to support future C2C sessions under
+  this managed execution identity. Its shared-principal and descendant
+  write/delete scope is the residual permission risk.
+
 ## 2026-09-27 — Stage 3.9B overlap retry orchestration recovery
 
 ### Packet and decision

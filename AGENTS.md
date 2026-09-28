@@ -63,6 +63,17 @@ identity before INIT. Keep C2C source in its external
 sibling repository; do not vendor it or update it automatically. The reviewed
 baseline and operating policy are documented under [`docs/c2c/`](docs/c2c/README.md).
 
+Before any C2C `doctor`, `session`, or `record` operation, verify the persistent
+exact-root declaration and run `.codex/hooks/c2c_state_access_preflight.cmd
+--json` (Windows) or the Python hook directly in the same unelevated execution
+boundary that will run C2C. Require `PASS`; SessionStart hook output is only an
+early warning and does not prove shell access. If the persistent exact root is
+present but the direct probe is denied, classify the cause as suspected
+`ACTIVE_SANDBOX_STALE`, stop C2C operations, and use a fresh managed sandbox.
+Never broaden writable roots, elevate, change ACLs, or repeat command-specific
+approval retries to work around this gate. Follow
+[`docs/c2c/OPERATIONS.md`](docs/c2c/OPERATIONS.md) for recovery.
+
 ## Review governance
 
 Use one owner for each review responsibility:

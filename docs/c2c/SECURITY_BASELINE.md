@@ -35,6 +35,41 @@ virtual environments, generated/raw optimizer data, checkpoints, temporary
 and cache files, archives, private or credential material, and licensed
 references. The ignore rules must not be weakened to enable C2C.
 
+## Local C2C state write boundary
+
+The only project-approved persistent writable root for C2C control-plane
+state is the exact canonical `%LOCALAPPDATA%\codex-with-chatgpt` directory.
+Do not grant `%LOCALAPPDATA%`, the user profile, `.codex`, the workspace, or
+the external C2C checkout for this purpose. Preserve other pre-existing
+Codex roots, but do not add broader roots to solve C2C access failures.
+
+Persistent Codex `writable_roots` configuration is distinct from the access
+boundary of an already-materialized managed sandbox. Therefore
+`sandbox-allow --json` returning `alreadyAllowed=true` is not evidence that the
+current task can write to the state root. The project SessionStart hook is a
+non-authoritative canary and cannot grant access or prove the permissions of a
+later shell. C2C operations require a direct, unelevated canary through the
+same execution boundary immediately before use; on denial, stop and require a
+fresh managed sandbox. The canary may create one exclusive empty file directly
+inside the existing exact root and remove only that same file. It must not
+create directories, touch endpoint/session/record/auth/config files, inspect
+credentials, change permissions, or relocate the state store.
+
+The approved state root is the lexical
+`%LOCALAPPDATA%\codex-with-chatgpt` path. Inspect that directory with `lstat`
+and reject symlinks, junctions, or other reparse points. If Windows resolves
+the default lexical path to different text, accept the textual alias only
+when both paths are existing directories and `samefile` proves they identify
+the same filesystem object. All canary I/O stays on the lexical path, and a
+noncanonical `C2C_STATE_DIR` override remains rejected. This identity proof
+does not add the resolved alias as a writable root.
+
+Access to this state root is solely for C2C control-plane metadata. It does
+not expand MCP workspace permissions, authorize credential/session-store
+reads, or make the C2C source checkout writable. A passing root canary is
+necessary but not sufficient for each nested C2C operation; any later EPERM
+must be treated as a separate exact-path failure without broadening access.
+
 ## ChatGPT UI control boundary
 
 Read the installed `computer-use` Skill and the current `mcp__cua_repl` tool
