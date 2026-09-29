@@ -273,8 +273,13 @@ when the unit is intended for integration.
 
 Before launching a long-running or high-cost production run, obtain C2C
 acceptance of the implementation and pre-launch configuration/preflight,
-including readiness to capture a valid Codex session. Launch only after that
-acceptance and successful preflight. Immediately after launch, verify
+including readiness to capture and preflight the continuation identity
+required by the selected continuation mode. Queue mode requires the exact
+original Desktop thread ID, accepts neither `--session-id` nor
+`--session-file`, and records `codex_session_id=null`; `legacy_resume`
+requires its captured Codex session identity; disabled continuation requires
+no continuation identity. Launch only after that acceptance and successful
+mode-specific preflight. Immediately after launch, verify
 `run_manifest.json` against the requirements in `AGENTS.md`; do not consider
 the launch valid until those checks pass. After completion, C2C reviews the
 recorded run result; involve Sol only if a defined high-risk escalation
