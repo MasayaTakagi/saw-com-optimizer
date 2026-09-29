@@ -60,7 +60,7 @@ hybrid_comparison:
   cold_start: true
   common_grid_finalists: 16
   primary_and_sensitivity_are_separate: true
-  production_launch_authorized: false
+  production_launch_authorized: true
   decision_policy:
     study_role: screening_only
     authoritative_primary_stratum: equal_budget_B4000
