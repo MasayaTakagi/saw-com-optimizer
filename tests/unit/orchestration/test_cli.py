@@ -22,6 +22,48 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 class CliTests(unittest.TestCase):
+    def test_queue_launch_uses_thread_preflight_not_legacy_resume_preflight(self):
+        thread_id = "01a0e89c-1c65-72a3-beb6-489f0cf01b30"
+        preflight = {
+            "status": "PASS", "thread_id": thread_id,
+            "effective_user": "test-user", "user_profile": "C:/Users/test-user",
+            "windows_user_profile": "C:/Users/test-user",
+            "codex_executable": "C:/tools/codex.exe", "codex_version": "codex-test 1.0",
+            "explicit_thread": True, "explicit_message": True,
+        }
+        with TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "queue-launch"
+            args = cli.build_parser().parse_args([
+                "launch", "--config", "configs/base/b28_dms_baseline.yaml",
+                "--run-dir", str(run_dir), "--continuation-mode", "queue",
+                "--thread-id", thread_id, "--c2c-task-id", "c2c_test",
+                "--plan-iteration", "4", "--next-expected-step", "inspect saved results",
+            ])
+            with mock.patch.object(cli, "run_codex_queue_preflight", return_value=preflight) as queue_gate, \
+                    mock.patch.object(cli, "run_codex_callback_preflight") as legacy_gate, \
+                    mock.patch.object(cli, "launch_detached", return_value=4345):
+                self.assertEqual(cli.launch(args), 0)
+
+            manifest = load_manifest(run_dir)
+            checkpoint = json.loads((run_dir / "session_checkpoint.json").read_text(encoding="utf-8"))
+            status = load_status(run_dir)
+
+        queue_gate.assert_called_once_with(thread_id, project_root=ROOT, codex_executable=None)
+        legacy_gate.assert_not_called()
+        self.assertEqual(manifest.schema_version, 3)
+        self.assertEqual(manifest.continuation_mode, "queue")
+        self.assertEqual(manifest.original_thread_id, thread_id)
+        self.assertEqual(manifest.c2c_task_id, "c2c_test")
+        self.assertEqual(manifest.plan_iteration, 4)
+        self.assertEqual(checkpoint["next_expected_step"], "inspect saved results")
+        self.assertEqual(status["continuation_state"], "PENDING")
+
+    def test_queue_storage_probe_cleans_its_canary_and_temporary_directory(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "future-run"
+            cli._probe_queue_storage(run_dir)
+            self.assertFalse(run_dir.exists())
+
     def test_launch_creates_manifest_and_returns_without_waiting(self):
         with TemporaryDirectory() as temporary:
             run_dir = Path(temporary) / "async-run"
@@ -57,6 +99,8 @@ class CliTests(unittest.TestCase):
                 str(run_dir),
                 "--session-id",
                 "session-A",
+                "--continuation-mode",
+                "legacy_resume",
                 "--callback-timeout-minutes",
                 "12",
             ])
@@ -86,6 +130,7 @@ class CliTests(unittest.TestCase):
             args = cli.build_parser().parse_args([
                 "launch", "--config", "configs/base/b28_dms_baseline.yaml",
                 "--run-dir", str(run_dir), "--session-id", "session-A",
+                "--continuation-mode", "legacy_resume",
             ])
             with mock.patch.object(
                 cli, "run_codex_callback_preflight", side_effect=RuntimeError("preflight denied"),
@@ -102,10 +147,12 @@ class CliTests(unittest.TestCase):
             args_a = cli.build_parser().parse_args([
                 "launch", "--config", "configs/base/b28_dms_baseline.yaml",
                 "--run-dir", str(run_a), "--session-id", "session-A",
+                "--continuation-mode", "legacy_resume",
             ])
             args_b = cli.build_parser().parse_args([
                 "launch", "--config", "configs/base/b28_dms_baseline.yaml",
                 "--run-dir", str(run_b), "--session-id", "session-B",
+                "--continuation-mode", "legacy_resume",
             ])
             with mock.patch.object(
                 cli,

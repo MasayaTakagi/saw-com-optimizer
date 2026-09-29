@@ -52,7 +52,18 @@ def _smoke_config(
     return path
 
 
-def test_prelaunch_config_has_fixed_fairness_and_dimension_contract():
+def _unauthorized_production_config(tmp_path: Path) -> Path:
+    source = ROOT / "configs/studies/hybrid_stage4b_comparison.yaml"
+    cfg = yaml.safe_load(source.read_text(encoding="utf-8"))
+    cfg["base_config"] = str((ROOT / "configs/studies/dms_topology_screening.yaml").resolve())
+    cfg["hybrid_comparison"]["production_launch_authorized"] = False
+    cfg["hybrid"]["production_launch_authorized"] = False
+    path = tmp_path / "unauthorized_stage4b.yaml"
+    path.write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
+    return path
+
+
+def test_authorized_production_config_has_fixed_fairness_and_dimension_contract():
     context = _resolved_context("configs/studies/hybrid_stage4b_comparison.yaml")
     assert context["topologies"] == PRODUCTION_TOPOLOGIES
     assert context["seeds"] == PRODUCTION_SEEDS
@@ -61,7 +72,7 @@ def test_prelaunch_config_has_fixed_fairness_and_dimension_contract():
     assert context["targets"] == {"D": 4000, "P_D": 5200, "D_P": 5200, "P_D_P": 6400}
     assert context["contract"]["baseline_dimension"] == 10
     assert context["contract"]["normalized_targets"] == context["targets"]
-    assert context["contract"]["production_launch_authorized"] is False
+    assert context["contract"]["production_launch_authorized"] is True
     assert context["contract"]["decision_policy"] == {
         "study_role": "screening_only",
         "authoritative_primary_stratum": "equal_budget_B4000",
@@ -300,7 +311,7 @@ def test_production_decision_policy_cannot_be_relaxed_after_predeclaration(tmp_p
 
 
 def test_prelaunch_production_config_cannot_start_without_launch_authorization(tmp_path):
-    config = ROOT / "configs/studies/hybrid_stage4b_comparison.yaml"
+    config = _unauthorized_production_config(tmp_path)
     run = tmp_path / "unauthorized-production"
     try:
         run_hybrid_topology_screening(config, run)

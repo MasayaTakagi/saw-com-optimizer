@@ -200,6 +200,7 @@ class WorkerTests(unittest.TestCase):
             manifest.update({
                 "callback_enabled": True, "review_after_completion": True,
                 "codex_session_id": "session-review",
+                "continuation_mode": "legacy_resume",
             })
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
@@ -249,6 +250,7 @@ class WorkerTests(unittest.TestCase):
             manifest["callback_enabled"] = True
             manifest["review_after_completion"] = True
             manifest["codex_session_id"] = "session-1"
+            manifest["continuation_mode"] = "legacy_resume"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
             calls = []
@@ -264,6 +266,35 @@ class WorkerTests(unittest.TestCase):
             self.assertEqual(status["callback_exit_code"], 9)
             self.assertTrue((run_dir / "result.txt").exists())
 
+    def test_legacy_callback_does_not_depend_on_queue_completion_artifact(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "legacy-no-queue-marker"
+            _create_manifest(run_dir, 0)
+            manifest_path = run_dir / "run_manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest.update({
+                "callback_enabled": True,
+                "review_after_completion": True,
+                "codex_session_id": "legacy-session",
+                "continuation_mode": "legacy_resume",
+            })
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            calls = []
+
+            with patch(
+                "sawopt.orchestration.worker.record_optimizer_completion",
+                side_effect=OSError("queue-only completion artifact unavailable"),
+            ):
+                status = execute_run(
+                    run_dir,
+                    callback_runner=lambda manifest, **kwargs: calls.append(manifest.codex_session_id) or 0,
+                )
+
+            self.assertEqual(status["state"], "REVIEWED")
+            self.assertEqual(status["optimizer_state"], "COMPLETED")
+            self.assertEqual(calls, ["legacy-session"])
+            self.assertFalse((run_dir / "optimizer_completion.json").exists())
+
     def test_optimizer_failure_is_reviewed_without_hiding_failure(self):
         with TemporaryDirectory() as temporary:
             run_dir = Path(temporary) / "failed-review"
@@ -274,6 +305,7 @@ class WorkerTests(unittest.TestCase):
             manifest["callback_enabled"] = True
             manifest["review_after_completion"] = True
             manifest["codex_session_id"] = "session-1"
+            manifest["continuation_mode"] = "legacy_resume"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
             status = execute_run(run_dir, callback_runner=lambda manifest, **kwargs: 0)

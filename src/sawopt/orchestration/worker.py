@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Callable
 
 from .codex_callback import run_codex_callback
+from .codex_queue import send_queue_continuation
 from ..io.checkpoints import complete_study_run, finalize_run_checkpoints
 from ..io.legacy_lifecycle import resolve_process_disposition
 from ..io.lifecycle import RunDisposition
@@ -18,6 +19,7 @@ from .run_manager import (
     load_manifest,
     load_status,
     prepare_callback,
+    record_optimizer_completion,
     transition,
     update_status_fields,
 )
@@ -59,7 +61,9 @@ def _run_optimizer(manifest, run_dir: Path, *, resume: bool = False) -> int:
 
 
 def execute_run(run_dir: Path, *, callback_runner: Callable[..., int] | None = None,
-                codex_executable: str | None = None, resume: bool = False) -> dict:
+                codex_executable: str | None = None, resume: bool = False,
+                queue_preflight_runner: Callable[..., object] | None = None,
+                queue_runner: Callable[..., object] | None = None) -> dict:
     """Execute one durable run and return its final status dictionary."""
     run_dir = Path(run_dir).resolve()
     manifest = load_manifest(run_dir)
@@ -105,7 +109,29 @@ def execute_run(run_dir: Path, *, callback_runner: Callable[..., int] | None = N
             else:
                 update_status_fields(run_dir, checkpoint_finalization=finalization)
 
-    if manifest.callback_enabled and manifest.review_after_completion:
+    if manifest.continuation_mode == "queue":
+        optimizer_status = load_status(run_dir)
+        record_optimizer_completion(
+            run_dir,
+            disposition=str(optimizer_status.get("optimizer_state") or optimizer_status["state"]),
+            exit_code=optimizer_status.get("exit_code"),
+            error=optimizer_status.get("error"),
+        )
+
+    if manifest.continuation_mode == "queue" and manifest.review_after_completion:
+        try:
+            send_queue_continuation(
+                run_dir,
+                codex_executable=(manifest.queue_preflight or {}).get("codex_executable"),
+                preflight_runner=queue_preflight_runner or subprocess.run,
+                queue_runner=queue_runner or subprocess.run,
+                timeout_s=manifest.queue_timeout_seconds or 120.0,
+            )
+        except BaseException as exc:
+            # Notification is separate control state. A claimed sender is left
+            # fail-closed for recovery; optimizer evidence is never rewritten.
+            _append_exception(run_dir, exc)
+    elif manifest.continuation_mode == "legacy_resume" and manifest.callback_enabled and manifest.review_after_completion:
         claimed = False
         lock_path = Path(callback_lock_path(run_dir))
         try:

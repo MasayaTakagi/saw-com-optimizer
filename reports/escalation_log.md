@@ -1690,3 +1690,28 @@ confirmation or a separately approved FEM extraction is required.
   accepted bundle, manifest, or historical fingerprint was rewritten.
 - Independent C2C implementation acceptance is pending before commit/push;
   GitHub CI must then pass before merging PR #13.
+
+## 2026-09-29 — Managed production queue continuation architecture
+
+- C2C PLAN `c2c_6d91`, iteration 0, required a bounded Sol judgment before
+  implementation because the task changes the production continuation
+  interface and recovery semantics.
+- Escalation packet:
+  `reports/escalation_packets/managed_production_queue_sol_judgment_2026-09-29.md`.
+- Requested target: `gpt-6-sol`; judgment only. Backend model identity and
+  actual reasoning effort are not independently verified.
+- Decision: **APPROVE_WITH_CONDITIONS**. An atomic, durably flushed per-run
+  claim before process creation can guarantee at most one locally initiated
+  queue attempt only when every worker/recovery/manual sender shares that
+  cross-process CAS/lock discipline. A claimed event is never retried; crash,
+  timeout, nonzero exit, or lost acknowledgement remains ambiguous. Keep
+  optimizer disposition and delivery state independent. Use immutable target,
+  attempt UUID, sentinel, and timestamp; serialize atomic status/receipt writes.
+  Receiver confirmation must validate trusted same-thread identity and exact
+  task/run/attempt/sentinel plus durable terminal results, idempotently and
+  without rerun. Prefer a new manifest schema version while preserving strict
+  v1/v2 legacy behavior. The one harmless qualification must wait for the
+  initiating turn to yield and prove receipt in the same thread.
+- C2C PLAN authorizes exactly one harmless real queue qualification after the
+  implementation and fake-queue tests pass. No Stage 4B production launch or
+  scientific-contract change is authorized.

@@ -3,23 +3,35 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import secrets
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .codex_callback import run_codex_callback, run_codex_callback_preflight
+from .codex_queue import (
+    run_codex_queue_preflight,
+    send_queue_continuation,
+    validate_thread_id,
+)
 from .models import RunManifest
 from .process_runner import build_worker_command, launch_detached, pid_exists
 from .run_manager import (
     SessionValidationError,
     callback_lock_path,
+    confirm_queue_delivery as _confirm_queue_delivery,
+    continuation_delivery_path,
     create_run,
     atomic_write_json,
     exclusive_lock,
     finish_callback,
     format_status,
     load_manifest,
+    load_continuation_delivery,
     load_status,
+    mark_stranded_queue_attempt_ambiguous,
+    optimizer_completion_path,
     prepare_callback,
     lock_owner_pid,
     reclaim_stale_lock,
@@ -63,18 +75,49 @@ def _build_optimizer_command(
     return command
 
 
+def _probe_queue_storage(run_dir: Path) -> None:
+    """Confirm the future one-shot ledger directory can be durably written."""
+    run_dir = Path(run_dir)
+    existed = run_dir.exists()
+    run_dir.mkdir(parents=True, exist_ok=True)
+    probe = run_dir / f".queue-preflight-{secrets.token_hex(8)}"
+    descriptor = None
+    try:
+        descriptor = os.open(probe, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        os.write(descriptor, b"queue continuation storage preflight\n")
+        os.fsync(descriptor)
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        probe.unlink(missing_ok=True)
+        if not existed:
+            try:
+                run_dir.rmdir()
+            except OSError:
+                # Do not remove anything created by another actor after the probe.
+                pass
+
+
 def _write_session_checkpoint(run_dir: Path, *, mode: str, resume_count: int,
                                session_id: str | None = None) -> Path:
     path = Path(run_dir) / "session_checkpoint.json"
-    atomic_write_json(path, {
+    manifest = load_manifest(Path(run_dir))
+    checkpoint = {
         "schema_version": 1,
-        "run_id": load_manifest(Path(run_dir)).run_id,
+        "run_id": manifest.run_id,
         "run_dir": str(Path(run_dir).resolve()),
         "mode": mode,
         "resume_count": int(resume_count),
         "session_id": session_id,
         "updated_at": utc_now(),
-    })
+        "continuation_mode": manifest.continuation_mode,
+        "original_thread_id": manifest.original_thread_id,
+        "c2c_task_id": manifest.c2c_task_id,
+        "plan_iteration": manifest.plan_iteration,
+        "next_expected_step": manifest.next_expected_step,
+        "delivery_sentinel": manifest.delivery_sentinel,
+    }
+    atomic_write_json(path, checkpoint)
     return path
 
 
@@ -84,6 +127,14 @@ def _resume_launch(args: argparse.Namespace, root: Path) -> int:
     run_dir = resolve_run_dir(args.run_dir, root)
     manifest = load_manifest(run_dir)
     status = load_status(run_dir)
+    if manifest.continuation_mode == "queue" and (
+        optimizer_completion_path(run_dir).is_file()
+        or status.get("state") in {"COMPLETED", "FAILED", "REVIEW_WAITING"}
+    ):
+        raise ValueError(
+            "queue-native run is terminal or has durable completion evidence; resume would rerun work. "
+            "Use status/recover and inspect continuation delivery instead."
+        )
     current_count = int(status.get("resume_count", 0))
     state = status["state"]
     if state in {"STARTING", "RUNNING"}:
@@ -136,8 +187,14 @@ def launch(args: argparse.Namespace) -> int:
     root = project_root()
     if getattr(args, "resume", False):
         return _resume_launch(args, root)
+    requested_mode = getattr(args, "continuation_mode", None)
+    if args.no_callback and requested_mode not in (None, "disabled"):
+        raise ValueError("--no-callback cannot be combined with --continuation-mode")
+    continuation_mode = "disabled" if args.no_callback else (requested_mode or "queue")
     if args.no_callback and getattr(args, "session_id", None):
         raise ValueError("--session-id cannot be combined with --no-callback")
+    if continuation_mode == "disabled" and getattr(args, "session_id", None):
+        raise ValueError("--session-id cannot be combined with disabled continuation")
     config = Path(args.config)
     if not config.is_absolute():
         config = (root / config).resolve()
@@ -150,10 +207,39 @@ def launch(args: argparse.Namespace) -> int:
         raise FileExistsError(f"orchestration directory is not empty: {run_dir}")
     if optimizer_run_dir.exists() and any(optimizer_run_dir.iterdir()):
         raise FileExistsError(f"optimizer output directory is not empty: {optimizer_run_dir}")
-    callback_enabled = not args.no_callback
+    callback_enabled = continuation_mode == "legacy_resume"
+    continuation_enabled = continuation_mode != "disabled"
     session = None
     callback_preflight = None
-    if callback_enabled:
+    queue_preflight = None
+    original_thread_id = None
+    c2c_task_id = None
+    plan_iteration = None
+    next_expected_step = None
+    delivery_sentinel = None
+    if continuation_mode == "queue":
+        if getattr(args, "session_id", None) or getattr(args, "session_file", None):
+            raise ValueError("queue mode requires --thread-id; session IDs are a distinct identity")
+        if not getattr(args, "thread_id", None):
+            raise ValueError("queue mode requires an exact --thread-id captured before detach")
+        original_thread_id = validate_thread_id(args.thread_id)
+        c2c_task_id = str(getattr(args, "c2c_task_id", "") or "").strip()
+        if not c2c_task_id:
+            raise ValueError("queue mode requires --c2c-task-id")
+        plan_iteration = getattr(args, "plan_iteration", None)
+        if plan_iteration is None or int(plan_iteration) < 0:
+            raise ValueError("queue mode requires a non-negative --plan-iteration")
+        next_expected_step = str(getattr(args, "next_expected_step", "") or "").strip()
+        if not next_expected_step:
+            raise ValueError("queue mode requires --next-expected-step")
+        queue_preflight = run_codex_queue_preflight(
+            original_thread_id,
+            project_root=root,
+            codex_executable=getattr(args, "codex_executable", None),
+        )
+        _probe_queue_storage(run_dir)
+        delivery_sentinel = secrets.token_hex(16)
+    elif continuation_mode == "legacy_resume":
         session_path = Path(args.session_file) if args.session_file else root / ".codex" / "runtime" / "current_session.json"
         if not session_path.is_absolute():
             session_path = (root / session_path).resolve()
@@ -173,7 +259,7 @@ def launch(args: argparse.Namespace) -> int:
         workers=args.workers,
     )
     manifest = RunManifest(
-        schema_version=2,
+        schema_version=3 if continuation_mode == "queue" else 2,
         run_id=run_id,
         experiment_name=args.experiment_name or config.stem,
         created_at=utc_now(),
@@ -184,7 +270,7 @@ def launch(args: argparse.Namespace) -> int:
         codex_session_id=None if session is None else str(session["session_id"]),
         codex_model=None if session is None else session.get("model"),
         callback_enabled=callback_enabled,
-        review_after_completion=callback_enabled,
+        review_after_completion=continuation_enabled,
         callback_timeout_minutes=(
             None if args.callback_timeout_minutes is None
             else float(args.callback_timeout_minutes)
@@ -192,6 +278,17 @@ def launch(args: argparse.Namespace) -> int:
         codex_session_source=None if session is None else str(session.get("source", "unknown")),
         optimizer_run_dir=str(optimizer_run_dir),
         callback_preflight=callback_preflight,
+        continuation_mode=continuation_mode,
+        original_thread_id=original_thread_id,
+        c2c_task_id=c2c_task_id,
+        plan_iteration=None if plan_iteration is None else int(plan_iteration),
+        next_expected_step=next_expected_step,
+        delivery_sentinel=delivery_sentinel,
+        queue_preflight=queue_preflight,
+        queue_timeout_seconds=(
+            None if getattr(args, "queue_timeout_seconds", None) is None
+            else float(args.queue_timeout_seconds)
+        ),
     )
     create_run(manifest)
     checkpoint = _write_session_checkpoint(
@@ -210,7 +307,7 @@ def launch(args: argparse.Namespace) -> int:
     print(f"run_id: {run_id}")
     print(f"pid: {worker_pid}")
     print(f"run_dir: {Path(run_dir).resolve()}")
-    print(f"Codex callback: {'enabled' if callback_enabled else 'disabled'}")
+    print(f"Codex continuation: {continuation_mode}")
     return 0
 
 
@@ -218,6 +315,11 @@ def review(args: argparse.Namespace) -> int:
     run_dir = resolve_run_dir(args.run_id)
     manifest = load_manifest(run_dir)
     status = load_status(run_dir)
+    if manifest.continuation_mode == "queue":
+        raise ValueError(
+            "review is a legacy resume action and cannot send queue messages; "
+            "use status, recover, notify (first attempt only), or verify-queue"
+        )
     if not manifest.codex_session_id:
         raise SessionValidationError("run manifest has no captured Codex session ID")
     if status["state"] in {"RUNNING", "STARTING", "CREATED"}:
@@ -253,8 +355,45 @@ def review(args: argparse.Namespace) -> int:
         return 0 if code == 0 else code
 
 
+def notify(args: argparse.Namespace) -> int:
+    """Perform the sole explicit first queue attempt when none was claimed."""
+    run_dir = resolve_run_dir(args.run_id)
+    manifest = load_manifest(run_dir)
+    if manifest.continuation_mode != "queue":
+        raise ValueError("notify is only valid for queue-native manifests")
+    if continuation_delivery_path(run_dir).exists():
+        raise ValueError("a queue attempt is already claimed; resend is forbidden")
+    delivery = send_queue_continuation(
+        run_dir,
+        codex_executable=args.codex_executable or (manifest.queue_preflight or {}).get("codex_executable"),
+        timeout_s=(manifest.queue_timeout_seconds or 120.0),
+    )
+    print(f"continuation.state: {delivery.get('state')}")
+    print(f"continuation.attempt_count: {delivery.get('attempt_count', 0)}")
+    if delivery.get("preflight_error"):
+        print(f"continuation.preflight_error: {delivery['preflight_error']}")
+        return 1
+    return 0 if delivery.get("state") in {"SENDER_ACCEPTED", "RECEIVER_CONFIRMED"} else 1
+
+
+def verify_queue(args: argparse.Namespace) -> int:
+    run_dir = resolve_run_dir(args.run_ref)
+    delivery = _confirm_queue_delivery(
+        run_dir,
+        task_id=args.task_id,
+        run_id=args.run_id,
+        delivery_id=args.delivery_id,
+        delivery_sentinel=args.delivery_sentinel,
+    )
+    print(f"continuation.state: {delivery['state']}")
+    print(f"continuation.delivery_id: {delivery['delivery_id']}")
+    print(f"continuation.receiver_thread_id: {delivery['receiver_thread_id']}")
+    return 0
+
+
 def recover(args: argparse.Namespace) -> int:
     run_dir = resolve_run_dir(args.run_id)
+    manifest = load_manifest(run_dir)
     status = load_status(run_dir)
     if status["state"] in {"STARTING", "RUNNING"}:
         pid = status.get("worker_pid")
@@ -290,6 +429,16 @@ def recover(args: argparse.Namespace) -> int:
             owner_pid = lock_owner_pid(lock_path)
             if not pid_exists(owner_pid):
                 reclaim_stale_lock(lock_path, stale_after_s=0.0)
+    if manifest.continuation_mode == "queue" and status["state"] not in {"STARTING", "RUNNING"}:
+        try:
+            delivery = load_continuation_delivery(run_dir)
+        except (OSError, ValueError, json.JSONDecodeError):
+            delivery = {"state": "AMBIGUOUS"}
+            print("continuation.state: AMBIGUOUS (delivery ledger is unreadable; resend forbidden)")
+        if delivery is not None and delivery.get("state") == "CLAIMED":
+            worker_alive = pid_exists(status.get("worker_pid"))
+            if not worker_alive:
+                mark_stranded_queue_attempt_ambiguous(run_dir)
     print(format_status(run_dir))
     return 0
 
@@ -315,6 +464,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     launch_parser.add_argument("--session-id", help="explicit Codex callback session ID")
     launch_parser.add_argument("--no-callback", action="store_true")
+    launch_parser.add_argument(
+        "--continuation-mode", choices=("queue", "legacy_resume", "disabled"),
+        help="queue is the current exact-thread mode; legacy_resume reads older callback semantics",
+    )
+    launch_parser.add_argument("--thread-id", help="exact original Desktop thread UUID for queue mode")
+    launch_parser.add_argument("--c2c-task-id", help="accepted C2C task ID for queue mode")
+    launch_parser.add_argument("--plan-iteration", type=int, help="accepted C2C PLAN iteration")
+    launch_parser.add_argument("--next-expected-step", help="small durable continuation checkpoint")
+    launch_parser.add_argument("--codex-executable", help="pinned native Codex executable for queue mode")
+    launch_parser.add_argument("--queue-timeout-seconds", type=float, default=120.0)
     launch_parser.add_argument("--session-file")
     launch_parser.add_argument("--session-max-age-hours", type=float, default=24.0)
     launch_parser.add_argument("--callback-timeout-minutes", type=float, default=30.0)
@@ -328,6 +487,21 @@ def build_parser() -> argparse.ArgumentParser:
         else:
             subparser.set_defaults(handler=review if name == "review" else recover)
     subparsers.choices["review"].add_argument("--codex-executable")
+
+    notify_parser = subparsers.add_parser("notify", help="perform the one pending first queue attempt")
+    notify_parser.add_argument("run_id")
+    notify_parser.add_argument("--codex-executable")
+    notify_parser.set_defaults(handler=notify)
+
+    verify_parser = subparsers.add_parser(
+        "verify-queue", help="validate and record receipt in the exact queued thread",
+    )
+    verify_parser.add_argument("run_ref", help="run ID or path used to locate the run directory")
+    verify_parser.add_argument("--run-id", required=True, help="queued manifest RUN_ID to validate")
+    verify_parser.add_argument("--task-id", required=True)
+    verify_parser.add_argument("--delivery-id", required=True)
+    verify_parser.add_argument("--delivery-sentinel", required=True)
+    verify_parser.set_defaults(handler=verify_queue)
 
     worker_parser = subparsers.add_parser("worker", help="internal detached worker")
     worker_parser.add_argument("--run-dir", required=True)

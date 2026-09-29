@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import socket
 import time
 from contextlib import contextmanager
@@ -173,6 +174,18 @@ def callback_lock_path(run_dir: Path) -> Path:
     return Path(run_dir) / "callback.lock"
 
 
+def continuation_lock_path(run_dir: Path) -> Path:
+    return Path(run_dir) / ".continuation.lock"
+
+
+def continuation_delivery_path(run_dir: Path) -> Path:
+    return Path(run_dir) / "continuation_delivery.json"
+
+
+def optimizer_completion_path(run_dir: Path) -> Path:
+    return Path(run_dir) / "optimizer_completion.json"
+
+
 def load_manifest(run_dir: Path) -> RunManifest:
     path = manifest_path(Path(run_dir))
     return RunManifest.from_dict(json.loads(path.read_text(encoding="utf-8")))
@@ -201,6 +214,11 @@ def create_run(manifest: RunManifest) -> None:
         state="CREATED",
         updated_at=manifest.created_at,
         callback_enabled=manifest.callback_enabled,
+        continuation_mode=manifest.continuation_mode or "disabled",
+        continuation_state=(
+            "PENDING" if manifest.continuation_mode == "queue" else
+            "DISABLED" if manifest.continuation_mode == "disabled" else "PENDING"
+        ),
     ).to_dict())
 
 
@@ -296,6 +314,274 @@ def finish_callback(run_dir: Path, *, success: bool, exit_code: int | None,
     )
 
 
+def record_optimizer_completion(
+    run_dir: Path,
+    *,
+    disposition: str,
+    exit_code: int | None,
+    error: str | None = None,
+) -> dict[str, Any]:
+    """Persist a durable orchestration completion marker before notification."""
+    run_dir = Path(run_dir).resolve()
+    manifest = load_manifest(run_dir)
+    if disposition not in {"COMPLETED", "FAILED", "REVIEW_WAITING"}:
+        raise ValueError(f"invalid optimizer completion disposition: {disposition}")
+    result = {
+        "schema_version": 1,
+        "run_id": manifest.run_id,
+        "disposition": disposition,
+        "exit_code": exit_code,
+        "error": error,
+        "result_reference": str(run_dir),
+        "optimizer_run_dir": manifest.effective_optimizer_run_dir,
+        "completed_at": utc_now(),
+    }
+    atomic_write_json(optimizer_completion_path(run_dir), result)
+    return result
+
+
+def _read_delivery(run_dir: Path) -> dict[str, Any] | None:
+    path = continuation_delivery_path(Path(run_dir))
+    if not path.exists():
+        return None
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict) or value.get("schema_version") != 1:
+        raise ValueError("invalid continuation delivery ledger")
+    if value.get("attempt_count") != 1:
+        raise ValueError("continuation delivery ledger violates one-attempt contract")
+    return value
+
+
+def load_continuation_delivery(run_dir: Path) -> dict[str, Any] | None:
+    """Read the authoritative per-run delivery claim and state ledger."""
+    return _read_delivery(Path(run_dir))
+
+
+def _write_delivery_locked(run_dir: Path, delivery: dict[str, Any]) -> None:
+    atomic_write_json(continuation_delivery_path(run_dir), delivery)
+    _mirror_delivery_status(run_dir, delivery)
+
+
+def _mirror_delivery_status(run_dir: Path, delivery: dict[str, Any]) -> None:
+    update_status_fields(
+        run_dir,
+        continuation_mode="queue",
+        continuation_state=str(delivery["state"]),
+        continuation_attempt_count=1,
+        continuation_delivery_id=str(delivery["delivery_id"]),
+        continuation_claimed_at=str(delivery["claimed_at"]),
+        continuation_command_started_at=delivery.get("command_started_at"),
+        continuation_exit_code=delivery.get("exit_code"),
+        continuation_acknowledged=delivery.get("queue_acknowledged"),
+        continuation_error=delivery.get("error"),
+        continuation_receiver_confirmed_at=delivery.get("receiver_confirmed_at"),
+        continuation_receiver_thread_id=delivery.get("receiver_thread_id"),
+    )
+
+
+def record_continuation_preflight_failure(run_dir: Path, error: str) -> None:
+    """Record a sender preflight failure without consuming the one-shot claim."""
+    if continuation_delivery_path(Path(run_dir)).exists():
+        raise ValueError("queue claim already exists; cannot alter preflight outcome")
+    update_status_fields(
+        run_dir,
+        continuation_mode="queue",
+        continuation_state="PENDING",
+        continuation_error=str(error),
+    )
+
+
+def claim_queue_delivery(run_dir: Path) -> dict[str, Any]:
+    """Durably claim the sole sender attempt before spawning ``codex queue``."""
+    run_dir = Path(run_dir).resolve()
+    manifest = load_manifest(run_dir)
+    if manifest.continuation_mode != "queue":
+        raise ValueError("run manifest is not queue-native")
+    status = load_status(run_dir)
+    if status.get("state") not in {"COMPLETED", "FAILED", "REVIEW_WAITING"}:
+        raise ValueError("queue delivery requires a durable terminal optimizer state")
+    completion_path = optimizer_completion_path(run_dir)
+    if not completion_path.is_file():
+        raise ValueError("durable optimizer completion marker is missing")
+    completion = json.loads(completion_path.read_text(encoding="utf-8"))
+    if completion.get("run_id") != manifest.run_id:
+        raise ValueError("optimizer completion marker run_id does not match manifest")
+    if completion.get("disposition") != status.get("optimizer_state"):
+        raise ValueError("optimizer completion marker disposition does not match status")
+    if completion.get("result_reference") != str(run_dir):
+        raise ValueError("optimizer completion result reference does not match run directory")
+
+    # The exclusive create is the cross-process compare-and-set. A process
+    # crash while writing still leaves the path claimed, so recovery fails
+    # closed instead of creating a second delivery attempt.
+    ledger_path = continuation_delivery_path(run_dir)
+    now = utc_now()
+    delivery = {
+        "schema_version": 1,
+        "state": "CLAIMED",
+        "attempt_count": 1,
+        "delivery_id": secrets.token_hex(16),
+        "run_id": manifest.run_id,
+        "c2c_task_id": manifest.c2c_task_id,
+        "plan_iteration": manifest.plan_iteration,
+        "original_thread_id": manifest.original_thread_id,
+        "delivery_sentinel": manifest.delivery_sentinel,
+        "next_expected_step": manifest.next_expected_step,
+        "result_reference": completion["result_reference"],
+        "claimed_at": now,
+        "command_started_at": None,
+        "exit_code": None,
+        "queue_acknowledged": None,
+        "error": None,
+        "receiver_confirmed_at": None,
+        "receiver_thread_id": None,
+    }
+    encoded = (json.dumps(delivery, ensure_ascii=False, indent=2, allow_nan=False) + "\n")
+    try:
+        fd = os.open(ledger_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as exc:
+        raise ValueError(
+            "queue delivery attempt is already claimed; automatic resend is forbidden"
+        ) from exc
+    try:
+        payload = memoryview(encoded.encode("utf-8"))
+        while payload:
+            written = os.write(fd, payload)
+            if written <= 0:
+                raise OSError("short write while persisting queue delivery claim")
+            payload = payload[written:]
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    _mirror_delivery_status(run_dir, delivery)
+    return delivery
+
+
+def mark_queue_command_started(run_dir: Path) -> dict[str, Any]:
+    run_dir = Path(run_dir).resolve()
+    with exclusive_lock(continuation_lock_path(run_dir)):
+        delivery = _read_delivery(run_dir)
+        if delivery is None or delivery.get("state") != "CLAIMED":
+            raise ValueError("queue command requires the one-shot CLAIMED delivery")
+        if delivery.get("command_started_at") is not None:
+            raise ValueError("queue command has already been started")
+        delivery["command_started_at"] = utc_now()
+        _write_delivery_locked(run_dir, delivery)
+        return delivery
+
+
+def record_queue_sender_result(
+    run_dir: Path,
+    *,
+    exit_code: int | None,
+    error: str | None = None,
+    stdout_sha256: str | None = None,
+    stderr_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Persist sender acknowledgement; every non-clean result stays ambiguous."""
+    run_dir = Path(run_dir).resolve()
+    with exclusive_lock(continuation_lock_path(run_dir)):
+        delivery = _read_delivery(run_dir)
+        if delivery is None:
+            raise ValueError("queue sender has no durable one-shot claim")
+        if delivery.get("state") == "RECEIVER_CONFIRMED":
+            return delivery
+        if delivery.get("state") != "CLAIMED":
+            raise ValueError(f"queue sender result cannot update {delivery.get('state')}")
+        delivery["exit_code"] = exit_code
+        clean_ack = exit_code == 0 and error is None
+        delivery["queue_acknowledged"] = True if clean_ack else None
+        delivery["state"] = "SENDER_ACCEPTED" if clean_ack else "AMBIGUOUS"
+        delivery["stdout_sha256"] = stdout_sha256
+        delivery["stderr_sha256"] = stderr_sha256
+        delivery["error"] = error if error is not None else (
+            None if clean_ack else f"codex queue exited with code {exit_code}"
+        )
+        delivery["sender_finished_at"] = utc_now()
+        _write_delivery_locked(run_dir, delivery)
+        return delivery
+
+
+def mark_stranded_queue_attempt_ambiguous(run_dir: Path) -> dict[str, Any] | None:
+    """Fail closed when a claimed sender disappeared before reporting outcome."""
+    run_dir = Path(run_dir).resolve()
+    if not continuation_delivery_path(run_dir).exists():
+        return None
+    with exclusive_lock(continuation_lock_path(run_dir)):
+        delivery = _read_delivery(run_dir)
+        if delivery is None or delivery.get("state") != "CLAIMED":
+            return delivery
+        delivery["state"] = "AMBIGUOUS"
+        delivery["error"] = "queue sender ended without a durable outcome; resend forbidden"
+        delivery["sender_finished_at"] = utc_now()
+        _write_delivery_locked(run_dir, delivery)
+        return delivery
+
+
+def confirm_queue_delivery(
+    run_dir: Path,
+    *,
+    task_id: str,
+    run_id: str,
+    delivery_id: str,
+    delivery_sentinel: str,
+) -> dict[str, Any]:
+    """Idempotently confirm arrival in the exact original Desktop thread."""
+    from .codex_queue import current_codex_thread_id
+
+    run_dir = Path(run_dir).resolve()
+    thread_id = current_codex_thread_id()
+    manifest = load_manifest(run_dir)
+    if manifest.continuation_mode != "queue":
+        raise ValueError("run manifest is not queue-native")
+    if thread_id != (manifest.original_thread_id or "").lower():
+        raise ValueError("current thread does not match the immutable queue target")
+    if task_id != manifest.c2c_task_id or run_id != manifest.run_id:
+        raise ValueError("queued task/run identity does not match the manifest")
+    if not delivery_id:
+        raise ValueError("queued delivery ID is required")
+    if delivery_sentinel != manifest.delivery_sentinel:
+        raise ValueError("queued delivery sentinel does not match the manifest")
+    status = load_status(run_dir)
+    if status.get("optimizer_state") not in {"COMPLETED", "FAILED", "REVIEW_WAITING"}:
+        raise ValueError("optimizer has not reached a durable terminal state")
+    completion_path = optimizer_completion_path(run_dir)
+    if not completion_path.is_file():
+        raise ValueError("durable optimizer completion marker is missing")
+    completion = json.loads(completion_path.read_text(encoding="utf-8"))
+    if completion.get("run_id") != manifest.run_id or completion.get("disposition") != status.get("optimizer_state"):
+        raise ValueError("optimizer completion evidence does not match current status")
+    if completion.get("result_reference") != str(run_dir) or not Path(completion["result_reference"]).exists():
+        raise ValueError("durable result reference is missing or mismatched")
+
+    with exclusive_lock(continuation_lock_path(run_dir)):
+        delivery = _read_delivery(run_dir)
+        if delivery is None or delivery.get("attempt_count") != 1:
+            raise ValueError("queued turn has no single durable delivery claim")
+        if delivery.get("original_thread_id") != thread_id:
+            raise ValueError("delivery claim target does not match current thread")
+        if delivery.get("c2c_task_id") != task_id or delivery.get("run_id") != run_id:
+            raise ValueError("delivery claim task/run identity does not match")
+        if delivery.get("delivery_id") != delivery_id:
+            raise ValueError("queued delivery ID does not match the one-shot claim")
+        if delivery.get("delivery_sentinel") != delivery_sentinel:
+            raise ValueError("delivery claim sentinel does not match")
+        if not delivery.get("command_started_at"):
+            raise ValueError("queue command start was not durably recorded")
+        if delivery.get("state") == "RECEIVER_CONFIRMED":
+            if delivery.get("receiver_thread_id") != thread_id:
+                raise ValueError("previous receipt was recorded for a different thread")
+            return delivery
+        if delivery.get("state") not in {"CLAIMED", "SENDER_ACCEPTED", "AMBIGUOUS"}:
+            raise ValueError(f"delivery cannot be confirmed from {delivery.get('state')}")
+        delivery["state"] = "RECEIVER_CONFIRMED"
+        delivery["receiver_confirmed_at"] = utc_now()
+        delivery["receiver_thread_id"] = thread_id
+        delivery["error"] = None
+        _write_delivery_locked(run_dir, delivery)
+        return delivery
+
+
 def read_current_session(path: Path, project_root: Path, *, max_age_s: float = 86400.0,
                          now: datetime | None = None) -> dict[str, Any]:
     """Load and validate the Hook-captured session bound to this project root."""
@@ -385,9 +671,15 @@ def format_status(run_dir: Path) -> str:
     run_dir = Path(run_dir).resolve()
     manifest = load_manifest(run_dir)
     status = load_status(run_dir)
+    delivery = None
+    try:
+        delivery = load_continuation_delivery(run_dir)
+    except (OSError, ValueError, json.JSONDecodeError):
+        delivery = {"state": "AMBIGUOUS", "attempt_count": 1}
     started = parse_timestamp(status.get("started_at")) or parse_timestamp(manifest.created_at)
     elapsed = max(0.0, (datetime.now(timezone.utc) - started).total_seconds()) if started else 0.0
     callback = (
+        "queue" if manifest.continuation_mode == "queue" else
         "review-waiting" if status.get("state") == "REVIEW_WAITING" else
         "completed" if status.get("callback_completed") else
         "failed" if status.get("state") == "CALLBACK_FAILED" else
@@ -405,6 +697,13 @@ def format_status(run_dir: Path) -> str:
         f"optimizer.exit_code: {status.get('exit_code')}",
         f"callback.state: {callback}",
         f"callback.attempts: {status.get('callback_attempts', 0)}",
+        f"continuation.mode: {manifest.continuation_mode or 'legacy_resume'}",
+        f"continuation.state: {delivery.get('state') if delivery else status.get('continuation_state', 'DISABLED')}",
+        f"continuation.attempt_count: {delivery.get('attempt_count', 0) if delivery else status.get('continuation_attempt_count', 0)}",
+        f"continuation.delivery_id: {delivery.get('delivery_id') if delivery else status.get('continuation_delivery_id')}",
+        f"continuation.target_thread: {manifest.original_thread_id or 'n/a'}",
+        f"continuation.exit_code: {delivery.get('exit_code') if delivery else status.get('continuation_exit_code')}",
+        f"continuation.error: {delivery.get('error') if delivery else status.get('continuation_error')}",
         f"worker_pid: {worker_pid} ({worker_liveness})",
         f"optimizer_pid: {optimizer_pid} ({optimizer_liveness})",
         f"elapsed: {elapsed:.1f}s",
@@ -414,9 +713,13 @@ def format_status(run_dir: Path) -> str:
 
 __all__ = [
     "SessionValidationError", "atomic_write_json", "callback_lock_path",
-    "create_run", "exclusive_lock", "finish_callback", "format_status",
-    "load_manifest", "load_status", "lock_owner_pid", "manifest_path",
+    "claim_queue_delivery", "confirm_queue_delivery", "continuation_delivery_path",
+    "continuation_lock_path", "create_run", "exclusive_lock", "finish_callback",
+    "format_status", "load_continuation_delivery", "load_manifest", "load_status",
+    "lock_owner_pid", "manifest_path", "mark_queue_command_started",
+    "mark_stranded_queue_attempt_ambiguous", "optimizer_completion_path",
     "prepare_callback", "read_current_session", "read_lock_metadata",
-    "reclaim_stale_lock", "resolve_session", "status_path", "transition",
-    "update_status_fields", "utc_now",
+    "record_continuation_preflight_failure", "record_optimizer_completion",
+    "record_queue_sender_result", "reclaim_stale_lock", "resolve_session",
+    "status_path", "transition", "update_status_fields", "utc_now",
 ]
