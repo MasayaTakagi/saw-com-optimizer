@@ -215,11 +215,13 @@ Only queue after the job has reached its durable completion gate. Use exactly
 one `codex queue --thread <exact-thread-id> --message <message>` attempt per
 completion event, protected by a durable one-shot claim. The completion message
 should carry only routing and verification data, such as `TASK_ID`, `RUN_ID`,
-the exact result/run reference, `NEXT_EXPECTED_STEP`, and a unique delivery
-sentinel. It asks the existing thread to validate the referenced state and
-continue the existing task at that next step. `codex queue` is a delivery and
-serialization primitive; it does not resume optimizer state or create/acquire
-a second thread writer.
+the exact result/run reference, `NEXT_EXPECTED_STEP`, the claim-generated
+`DELIVERY_ID`, and a unique delivery sentinel. The receiver must verify that
+`DELIVERY_ID` matches the durable one-shot claim, along with the task, run,
+sentinel, and exact thread, before confirming receipt. It asks the existing
+thread to validate the referenced state and continue the existing task at that
+next step. `codex queue` is a delivery and serialization primitive; it does not
+resume optimizer state or create/acquire a second thread writer.
 
 On Windows, run the helper in the qualified normal-user profile context and
 fail closed unless the effective user, `USERPROFILE` versus the Windows
@@ -242,12 +244,16 @@ thread, or relaunch the job. Recover explicitly in C2C using the same
 `TASK_ID` and durable state, and determine whether a delivery was already
 accepted before any further action.
 
-This qualification applies to the bounded exact-thread C2C continuation
-workflow. The currently implemented managed production callback still uses
-its captured session through `codex exec resume`; see
-[`../guides/async_orchestration.md`](../guides/async_orchestration.md). A
-production callback migration to `codex queue` requires a separate
-implementation, test, and architecture review.
+The queue-native route is qualified for new managed C2C continuations. Use it
+with the exact original Desktop thread and the durable one-shot delivery and
+receiver-validation gates above. Existing manifests and runs using
+`legacy_resume` retain their captured-session `codex exec resume` behavior;
+do not reinterpret or rewrite those historical runs as queue mode. Queue
+receipt confirms delivery to the intended thread, not optimizer recovery,
+scientific acceptance, topology promotion, or authorization for another
+production run. See
+[`../guides/async_orchestration.md`](../guides/async_orchestration.md) for the
+mode-specific launch and manifest contracts.
 
 ### Review routing and timing
 

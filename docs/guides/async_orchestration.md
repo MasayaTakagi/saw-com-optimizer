@@ -4,18 +4,31 @@
 
 ## 起動
 
-Codex Hookが保存した `.codex/runtime/current_session.json` を使うため、プロジェクトHookをレビュー・信頼した後に実行します。
-
-production callbackの対象を取り違えないため、可能なら現在のCodex session IDを明示して起動します。明示IDはHookの自動取得値より優先され、manifestへ固定保存されます。
+新しいC2C管理下の非同期作業では、元のDesktop threadを起動前に確定し、queue continuationとして起動します。`--thread-id` はその正確なthread ID、C2C task ID、PLAN iteration、完了後に続ける `NEXT_EXPECTED_STEP` と組にして渡します。実行前にqueue preflightを通し、manifestに固定されたthreadへ一度だけ通知します。
 
 ```powershell
 python -m sawopt.orchestration.cli launch `
   --config configs/studies/dms_topology_screening.yaml `
-  --session-id <CURRENT_CODEX_SESSION_ID> `
+  --continuation-mode queue `
+  --thread-id <EXACT_ORIGINAL_DESKTOP_THREAD_ID> `
+  --c2c-task-id <C2C_TASK_ID> `
+  --plan-iteration <PLAN_ITERATION> `
+  --next-expected-step "verify the run and continue the accepted task" `
   --run-dir runs/async-dms-topology-screening
 ```
 
-callbackを使わない検証は明示的に無効化できます。
+queue modeではschema-v3 manifestの `continuation_mode`、`original_thread_id`、
+`queue_preflight.status=PASS`、`review_after_completion=true` を検証します。
+このmodeでは旧callbackを無効にするため `callback_enabled=false` となり、
+`codex_session_id` は不要です。session IDとthread IDは異なる識別子です。
+
+既存manifestの再接続や、明示的に選択した歴史的な `legacy_resume` runでは、
+保存済みCodex sessionを使うcallbackを維持します。Hookが保存した
+`.codex/runtime/current_session.json` を利用でき、明示的な `--session-id` は
+Hookの自動取得値より優先されmanifestに保存されます。
+
+callback/continuationを使わないローカル検証では明示的にdisabledにできます。次の例は
+`legacy_resume` callbackを使うproduction launchではなく、完了後の継続を無効にした検証です。
 
 ```powershell
 python -m sawopt.orchestration.cli launch `
@@ -35,13 +48,13 @@ python -m sawopt.orchestration.cli review <run_id>
 python -m sawopt.orchestration.cli recover <run_id>
 ```
 
-各runには `run_manifest.json`（immutable）、`status.json`、`stdout.log`、`stderr.log`、`callback.log` が保存されます。callbackはmanifestに保存されたsession IDを明示して `codex exec resume <SESSION_ID>` を実行し、`--last` は使用しません。callback timeoutはmanifestへ保存された設定（既定30分）で有限化され、timeout後もOptimizer結果は保持されます。
+各runには `run_manifest.json`（immutable）、`status.json`、`stdout.log`、`stderr.log` が保存されます。`legacy_resume` runは `callback.log` を持ち、callbackはmanifestに保存されたsession IDを明示して `codex exec resume <SESSION_ID>` を実行し、`--last` は使用しません。callback timeoutはmanifestへ保存された設定（既定30分）で有限化され、timeout後もOptimizer結果は保持されます。queue modeの送信状態とattempt数は `status.json` と `continuation_delivery.json` で確認します。
 
-自動callbackは1回だけです。callbackだけが失敗した場合もOptimizerの `COMPLETED`/`FAILED` 結果は保持され、`review` で手動再実行できます。callbackから次のproduction runは起動しません。
+`legacy_resume` callbackは保存済みsessionに対して1回だけ実行されます。callbackだけが失敗した場合もOptimizerの `COMPLETED`/`FAILED` 結果は保持され、`review` で手動再実行できます。callbackから次のproduction runは起動しません。queue modeではworkerが完了後に固定済みthreadへ1回だけ `codex queue` を送り、delivery ledgerでattemptとreceiptを管理します。失敗またはacknowledgement不明時に自動再送せず、既存runのdurable evidenceを使って同じC2C taskから復旧します。
 
 ## 完了後のCodex継続
 
-新規のC2C管理下の非同期作業では、detached jobの完了後に公式CLIの
+Queue modeではdetached jobの完了後に公式CLIの
 `codex queue --thread <開始前に取得した元Desktop thread ID> --message <完了参照>`
 を1回だけ呼び、元のDesktop threadへ戻る方式を標準にします。スレッドIDを
 推測・後から探索せず、`--last` や新規threadを使いません。キューはメッセージを
@@ -50,23 +63,25 @@ writer ownership取得は行いません。運用条件、重複防止、Windows
 手動復旧は [`../c2c/OPERATIONS.md`](../c2c/OPERATIONS.md) を参照してください。
 
 キューに含めるのは `TASK_ID`、`RUN_ID`、完了済みrun/resultの正確な参照、
-`NEXT_EXPECTED_STEP`、delivery sentinelなど、元の計画と実行結果を結び付ける最小情報です。
+`NEXT_EXPECTED_STEP`、one-shot claimで生成された `DELIVERY_ID`、delivery sentinelなど、
+元の計画と実行結果を結び付ける最小情報です。receiverは `DELIVERY_ID` がdurableなclaimと
+一致することをtask/run/sentinel/threadと合わせて検証してからreceiptを確定します。
 元のPLANを貼り直さず、到着したturnで同じthreadとrunの完了・結果・重複有無を確認し、
 既存のC2C PLAN/HANDOFFにある `NEXT_EXPECTED_STEP` から作業を続けます。キューが失敗・
 不確定なときは自動再送やjob再実行をせず、結果を保持して同じ `TASK_ID` のまま手動復旧します。
 
-この一般的なC2C継続標準と、現行のproduction callback実装は区別します。managed production
-runnerは引き続きmanifestに固定された `codex_session_id` を指定して
-`codex exec resume <session-id>` を実行します。callbackはlockと有限timeoutで保護され、
-自動実行は1回です。失敗時はoptimizer結果を保持し、`review` による手動確認・再実行を
-使います。production callbackをqueue方式へ移行したことをこの文書変更で意味するものでは
-ありません。移行には別の実装・テスト・architecture reviewが必要です。
+既存の `legacy_resume` manifestはmanifestに固定された `codex_session_id` を指定して
+`codex exec resume <session-id>` を実行します。`legacy_resume` callbackはlockと有限timeoutで
+保護され、自動実行は1回です。失敗時はoptimizer結果を保持し、`review` による手動確認・再実行を
+使います。新しいqueue-mode manifestはschema-v3でthread/task/PLAN/送信preflightを固定し、
+completion後の通知にはone-shot delivery claimと同一threadでのreceiver validationを要求します。
+これらのmodeを既存run上で切り替えたり、履歴runをqueue-modeへ読み替えたりしません。
 
 productionの復帰時は既存のrun artifactを根拠にします。`run_manifest.json` はimmutableな
-run/session binding、`status.json` はrunとcallbackの状態・結果、`session_checkpoint.json` は
-launch/reattach/resumeの記録、optimizer checkpoint/resultは計算状態を保持します。完了通知は
-これらを参照し、会話本文だけを計算完了の証拠にしません。callbackやqueued continuationは
-次のproduction runを起動しません。
+run/continuation binding、`status.json` はrunとcallback/queue deliveryの状態・結果、
+`session_checkpoint.json` はlaunch/reattach/resumeの記録、optimizer checkpoint/resultは
+存在する場合に計算状態を保持します。完了通知はこれらを参照し、会話本文だけを計算完了の
+証拠にしません。callbackやqueued continuationは次のproduction runを起動しません。
 
 ## 検証範囲
 

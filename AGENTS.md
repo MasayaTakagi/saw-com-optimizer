@@ -92,19 +92,31 @@ Before launching a long-running or high-cost production run, obtain C2C acceptan
   production run. If duration is uncertain, use this policy conservatively.
 - Do not run a long production optimization synchronously from the Codex shell.
 - Use `python -m sawopt.orchestration.cli launch` for production runs.
-- Long-running launches must capture a Codex session for completion callback and
-  reattachment. Do not pass `--no-callback` unless the user explicitly requests
-  callback suppression for that specific run.
-- Prefer an explicit valid `--session-id` or `--session-file` when launching.
-  After launch, verify `run_manifest.json` before considering the launch valid:
-  `codex_session_id` must be non-null, `callback_enabled` must be true, and
-  `review_after_completion` must be true. If any check fails, stop and repair
-  the launch configuration before relying on the run.
-- If no valid Codex session can be captured, do not start the long-running
-  program silently; report the blocker and request a session or explicit user
-  instruction to run without automatic callback.
+- New C2C-managed asynchronous work uses the qualified queue continuation mode.
+  Capture the exact original Desktop thread before detaching and pass it with
+  `--thread-id`, together with the C2C task, PLAN iteration, and next step. Do
+  not substitute a Codex session ID, use `--last`, or create a continuation
+  thread. The queue preflight must pass before launch.
+- After a queue-mode launch, verify the immutable schema-v3 `run_manifest.json`
+  records `continuation_mode: queue`, the exact `original_thread_id`, a passing
+  `queue_preflight`, and `review_after_completion: true`. Queue mode disables
+  the legacy callback, so `callback_enabled: false` and no `codex_session_id`
+  are expected in this mode. Stop if the recorded target or preflight differs.
+- Existing manifests and explicitly selected `legacy_resume` runs retain their
+  captured-session behavior: use an explicit valid `--session-id` or
+  `--session-file`, and verify `codex_session_id` is non-null,
+  `callback_enabled: true`, and `review_after_completion: true`. The legacy
+  callback resumes only that session with `codex exec resume`; never use
+  `--last` or reinterpret an existing manifest as queue mode.
+- If the required identity for the selected continuation mode cannot be
+  captured, do not start the long-running program; report the blocker.
 - Once the launcher reports a detached worker, do not poll `stdout.log` or wait for optimizer completion.
-- The worker stores state and invokes the callback against the explicitly captured Codex session.
+- The worker stores run state and sends a queue continuation or invokes the
+  explicitly captured legacy callback according to the immutable manifest.
+- A queue continuation is a one-shot notification and serialization step, not
+  optimizer recovery. Verify the durable run and exact-thread receiver state;
+  never retry an ambiguous send or let receipt authorize another production
+  run.
 - Use the orchestration `--resume` path for reattachment or recovery. Do not
   substitute a new production run when an existing detached run can be resumed.
 - Callback review must not automatically start another production run; user approval is required.
