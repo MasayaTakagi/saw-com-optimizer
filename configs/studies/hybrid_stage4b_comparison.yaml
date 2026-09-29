@@ -1,0 +1,71 @@
+base_config: dms_topology_screening.yaml
+study:
+  type: hybrid_topology_screening
+  revision: hybrid_topology_screening_prelaunch_v1
+  stage3_9_reference: stage3_9b_mlit_t1_50ohm_overlap_parity.yaml
+dms_topology:
+  budget: 4000
+  initial_population_per_dimension: 18
+  population_schedule_terminal_budget: 4000
+  checkpoints: [2000, 4000]
+  seeds: [20260917, 20260918]
+  cold_start: true
+  impedance_ohm: 50.0
+  selection:
+    materials: [MLIT]
+    topologies: [T1_SYMMETRIC_5IDT]
+  lshade:
+    min_population: 4
+hybrid:
+  supported_topologies: [D, P_D, D_P, P_D_P]
+  source_impedance_ohm: 50.0
+  load_impedance_ohm: 50.0
+  common_grid_finalists: 16
+  resonator_bounds:
+    - [4.5, 5.6]
+    - [10, 60]
+    - [30, 150]
+  resonator_aperture_bounds_um: [30, 150]
+  resonator_model:
+    reflector_electrodes: 40
+    gap_lambda: 0.0
+    metallization_ratio: 0.5
+    thickness_over_lambda: 0.04
+  initializer:
+    method: independent_uniform_rejection_v1
+    max_attempts: 100000
+    seed_derivation: sha256(hybrid-topology-screening-v1/seed/material/topology/initial_population)
+    include_historical_seed: false
+  layout:
+    model: hypothetical_separate_rows
+    die_um: [900, 700]
+    length_margin_um: 60
+    width_margin_um: 60
+    max_total_electrodes: 500
+    qualification_only: false
+  parity:
+    rtol: 1.0e-10
+    atol: 1.0e-12
+hybrid_comparison:
+  material: MLIT
+  dms_topology: T1_SYMMETRIC_5IDT
+  topologies: [D, P_D, D_P, P_D_P]
+  primary_budget: 4000
+  baseline_dimension: 10
+  evaluations_per_dimension: 400
+  normalized_targets: {D: 4000, P_D: 5200, D_P: 5200, P_D_P: 6400}
+  population_schedule_terminal_budget: 4000
+  checkpoint_budgets: [2000, 4000]
+  diagnostic_lattice_evaluations_per_dimension: [100, 200, 300, 400]
+  cold_start: true
+  common_grid_finalists: 16
+  primary_and_sensitivity_are_separate: true
+  production_launch_authorized: false
+  decision_policy:
+    study_role: screening_only
+    authoritative_primary_stratum: equal_budget_B4000
+    normalized_sensitivity_may_replace_primary: false
+    automatic_topology_promotion: false
+    automatic_topology_elimination: false
+    post_stage4b_candidate_topologies: [D, P_D, D_P, P_D_P]
+    narrowing_gate: separately_predeclared_selection_gate

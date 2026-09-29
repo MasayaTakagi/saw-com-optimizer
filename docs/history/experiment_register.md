@@ -493,6 +493,46 @@ under the current Stage 4A run and review bundle.
   Neither smoke response values nor this protocol qualification constitute a
   scientific topology comparison.
 
+## Stage 4B — production protocol pre-launch qualification
+
+**Evidence level:** current MLIT/T1 hybrid implementation validation,
+D-only numerical parity, regression suite, a bounded non-production managed
+orchestration smoke, schema-v2 provenance, review bundle, and C2C iteration-2
+acceptance. No Stage 4B production optimization was run.
+
+- **Protocol:** `D`, `P_D`, `D_P`, and `P_D_P`; MLIT / `T1_SYMMETRIC_5IDT`,
+  50/50 Ω, cold independent seeds `20260917` / `20260918`, and 18 initial
+  members per dimension. B4000 is the authoritative equal-resource primary
+  stratum (32,000 unique evaluations total). A separately reported,
+  unconditional dimension-normalized sensitivity stratum uses endpoints
+  4,000 / 5,200 / 5,200 / 6,400 (41,600 evaluations across both seeds), with
+  the L-SHADE schedule horizon fixed at B4000.
+- **Predeclared decision policy:** this two-seed study is screening only;
+  normalized sensitivity cannot replace primary B4000 evidence; no topology
+  is automatically promoted or eliminated; all four remain candidates until
+  a separately predeclared selection gate.
+- **Qualification result:** implementation validation passed. D-only parity
+  maximum absolute difference was 0.0 on both the 1,001-point search grid and
+  9,113-point common validation grid (`rtol=1e-10`, `atol=1e-12`). Focused
+  Stage 4B/lifecycle regressions passed 75/75; the full suite passed 263 tests
+  plus 20 subtests. The managed `D` / seed 303 / 16-evaluation orchestration
+  smoke is non-scientific and non-production. Its smoke manifest exists; no
+  Stage 4B production worker or production run manifest exists. The production
+  config remains launch-gated.
+- **Review and decision:** C2C task `c2c_a4f9`, iteration 2, returned
+  `DONE / READY_FOR_STAGE4B_LAUNCH` with no mandatory findings after resolving
+  the iteration-1 findings. Schema-v2 computation fingerprint:
+  `8446be2b43afdc93e0213bf4d35f6b796231a4db3e986ca6bdd247a5d38ef4af`.
+  This accepts implementation and protocol qualification only; it is not a
+  scientific topology ranking and does not authorize a launch in this task.
+- **Next-step boundary:** a separate user-authorized launch task must review
+  the exact committed config, explicitly enable the authorization gate, pass a
+  then-current live session/callback preflight and C2C pre-launch review, use
+  managed asynchronous orchestration, and immediately verify its manifest.
+- **References:** run and evidence under
+  `runs/stage4b_prelaunch_qualification/`; review bundle
+  `artifacts/review_bundles/stage4b_prelaunch_qualification_review.zip`.
+
 ## Cleanup rule
 
 At each future study closeout, add the result and decision here, update

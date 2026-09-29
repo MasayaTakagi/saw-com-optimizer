@@ -10,7 +10,7 @@ import yaml
 from .core.models import FilterDesign
 from .io.checkpoints import complete_study_run
 from .io.config import load_experiment_config
-from .io.legacy_lifecycle import legacy_process_disposition
+from .io.legacy_lifecycle import resolve_process_disposition
 from .optimization.runner import dense, initialize, run, save
 from .reporting.report import report
 
@@ -37,13 +37,16 @@ def _run_study(config_path, run_path, *, resume=False):
     cfg = load_experiment_config(config_path)
     study = cfg.get("study", {})
     protocol = study.get("type") if isinstance(study, dict) else None
-    if protocol != "dms_topology_screening":
-        raise ValueError(
-            f"Unknown study.type {protocol!r}; expected 'dms_topology_screening'"
-        )
-    from .studies.dms_topology_screening import run_dms_topology_screening
-
-    return run_dms_topology_screening(config_path, run_path, resume=resume)
+    if protocol == "dms_topology_screening":
+        from .studies.dms_topology_screening import run_dms_topology_screening
+        return run_dms_topology_screening(config_path, run_path, resume=resume)
+    if protocol == "hybrid_topology_screening":
+        from .studies.hybrid_comparison import run_hybrid_topology_screening
+        return run_hybrid_topology_screening(config_path, run_path, resume=resume)
+    raise ValueError(
+        f"Unknown study.type {protocol!r}; expected 'dms_topology_screening' or "
+        "'hybrid_topology_screening'"
+    )
 
 
 def main():
@@ -64,7 +67,7 @@ def main():
         result = _run_study(args.config, args.run, resume=args.resume)
         complete_study_run(
             args.run, result,
-            disposition=legacy_process_disposition(args.run, return_code=0),
+            disposition=resolve_process_disposition(args.run, return_code=0),
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return

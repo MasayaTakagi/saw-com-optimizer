@@ -1,5 +1,37 @@
 # Luna → Sol Escalation Log
 
+## 2026-09-29 — Stage 4B fairness and budget pre-implementation judgment
+
+- C2C PLAN `c2c_a4f9` authorized a bounded Sol judgment before implementation
+  because Stage 4B sets matched evaluation budgets, initialization policy,
+  normalized continuation, and checkpoint compatibility requirements.
+- Escalation packet:
+  `reports/escalation_packets/stage4b_fairness_sol_judgment_2026-09-29.md`.
+- Requested target: `gpt-6-sol`; judgment only. Backend identity and actual
+  reasoning effort are not independently verified.
+- Decision: **APPROVE_AS_STATED**, conditional on pre-launch lifecycle
+  correction and split-versus-uninterrupted checkpoint parity. Use 4,000
+  unique decoded evaluations per topology/seed as the primary screen. For all
+  `d > 10` cells and both seeds, continue deterministically to
+  `max(4,000, 400 × d)`, yielding 4,000 / 5,200 / 5,200 / 6,400 by topology.
+  The 41,600 total normalized tier remains separate from the 32,000 primary
+  stratum. Initialize at `18 × d`; report initializer diagnostics and differing
+  primary-budget fractions without equalizing raw acceptance rates.
+- Keep the L-SHADE schedule horizon fixed at B4000 and set each final hard
+  maximum before its cold start. Save exact B4000 state/result and continue the
+  same RNG/backend stream; never reload a 4,000-hard-cap checkpoint under a
+  changed configuration. Prove B4000 and final-target split/resume parity and
+  exact counts. Post-B4000 minimum population is four; with two seeds the
+  screen is exploratory, not a definitive topology ranking.
+- Sol selected unconditional structural continuation over the original
+  outcome-conditional rescue wording to avoid post-result selection bias. This
+  judgment does not authorize a production run. The lifecycle finding is a
+  launch blocker until the worker/direct run-study path preserves explicit
+  `REVIEW_WAITING` and avoids checkpoint finalization.
+- Codex sent the decision and requested C2C confirmation of the rule and next
+  authorized step under task `c2c_a4f9`; integrated implementation acceptance
+  remains a later C2C gate.
+
 ## 2026-09-29 — Stage 4A hybrid protocol pre-implementation judgment
 
 - C2C PLAN `c2c_0b52`, iteration 0, classified pre-edit Sol judgment as

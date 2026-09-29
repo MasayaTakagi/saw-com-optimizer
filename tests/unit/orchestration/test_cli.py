@@ -28,7 +28,7 @@ class CliTests(unittest.TestCase):
             args = cli.build_parser().parse_args([
                 "launch",
                 "--config",
-                "configs/base/b28_dms_baseline.yaml",
+                "configs/studies/hybrid_stage4b_comparison.yaml",
                 "--run-dir",
                 str(run_dir),
                 "--no-callback",
@@ -52,7 +52,7 @@ class CliTests(unittest.TestCase):
             args = cli.build_parser().parse_args([
                 "launch",
                 "--config",
-                "configs/base/b28_dms_baseline.yaml",
+                "configs/studies/hybrid_stage4b_comparison.yaml",
                 "--run-dir",
                 str(run_dir),
                 "--session-id",
@@ -73,6 +73,12 @@ class CliTests(unittest.TestCase):
             self.assertEqual(manifest.codex_session_source, "explicit")
             self.assertEqual(manifest.callback_timeout_minutes, 12.0)
             self.assertEqual(manifest.callback_preflight["status"], "PASS")
+            self.assertTrue(manifest.callback_enabled)
+            self.assertTrue(manifest.review_after_completion)
+            self.assertEqual(
+                manifest.command[manifest.command.index("--config") + 1],
+                str((ROOT / "configs/studies/hybrid_stage4b_comparison.yaml").resolve()),
+            )
 
     def test_preflight_failure_prevents_run_creation_and_worker_launch(self):
         with TemporaryDirectory() as temporary:
@@ -198,6 +204,31 @@ class CliTests(unittest.TestCase):
             command = launch_mock.call_args.kwargs["command"]
             self.assertIn("--resume", command)
             self.assertEqual(load_manifest(run_dir).effective_optimizer_run_dir, str(optimizer_dir))
+
+    def test_resume_refuses_completed_review_waiting_run_without_mutating_it(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "review-waiting"
+            create_run(RunManifest(
+                schema_version=2, run_id="review-waiting", experiment_name="dummy",
+                created_at=datetime.now(timezone.utc).isoformat(),
+                project_root=str(run_dir), run_dir=str(run_dir),
+                optimizer_run_dir=str(run_dir / "optimizer"), command=["dummy"],
+                config_path=None, codex_session_id=None, codex_model=None,
+                callback_enabled=False, review_after_completion=False,
+            ))
+            transition(run_dir, "STARTING")
+            transition(run_dir, "RUNNING")
+            transition(run_dir, "REVIEW_WAITING", exit_code=0)
+            args = cli.build_parser().parse_args([
+                "launch", "--config", "unused.yaml", "--run-dir", str(run_dir),
+                "--resume", "--no-callback",
+            ])
+            before = load_status(run_dir)
+            with mock.patch.object(cli, "launch_detached") as launch_mock:
+                with self.assertRaisesRegex(ValueError, "cannot be resumed from state REVIEW_WAITING"):
+                    cli.launch(args)
+            launch_mock.assert_not_called()
+            self.assertEqual(load_status(run_dir), before)
 
     def test_session_id_cannot_be_silently_ignored_when_callback_is_disabled(self):
         args = cli.build_parser().parse_args([

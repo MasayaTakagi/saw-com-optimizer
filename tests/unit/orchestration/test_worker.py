@@ -119,6 +119,101 @@ class WorkerTests(unittest.TestCase):
             )
             self.assertEqual(disposition["disposition"], "REVIEW_WAITING")
 
+    def test_explicit_review_waiting_survives_worker_and_retains_checkpoints(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "explicit-review"
+            _create_manifest(run_dir, 0, separate_optimizer_output=True)
+            optimizer_run_dir = run_dir / "optimizer"
+            store = CheckpointStore(
+                optimizer_run_dir / "checkpoints", run_directory=optimizer_run_dir,
+            )
+            store.write(lambda path: path.write_text('{"value":1}', encoding="utf-8"))
+            store.write(lambda path: path.write_text('{"value":2}', encoding="utf-8"))
+
+            def successful_study(manifest, current_run_dir, *, resume=False):
+                study_run_dir = Path(manifest.effective_optimizer_run_dir)
+                metadata = study_run_dir / "metadata"
+                metadata.mkdir(exist_ok=True)
+                (metadata / "run_completion.json").write_text(json.dumps({
+                    "status": "REVIEW_WAITING", "disposition": "REVIEW_WAITING",
+                }), encoding="utf-8")
+                return 0
+
+            with patch("sawopt.orchestration.worker._run_optimizer", side_effect=successful_study):
+                status = execute_run(run_dir)
+
+            self.assertEqual(status["state"], "REVIEW_WAITING")
+            self.assertEqual(status["optimizer_state"], "REVIEW_WAITING")
+            self.assertTrue(store.latest_path.is_file())
+            self.assertTrue(store.previous_path.is_file())
+            self.assertFalse(store.final_path.exists())
+            disposition = json.loads(
+                (optimizer_run_dir / "metadata" / "run_completion.json").read_text()
+            )
+            self.assertEqual(disposition["disposition"], "REVIEW_WAITING")
+
+    def test_explicit_failed_disposition_overrides_clean_exit_and_retains_checkpoints(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "explicit-failed"
+            _create_manifest(run_dir, 0, separate_optimizer_output=True)
+            optimizer_run_dir = run_dir / "optimizer"
+            store = CheckpointStore(
+                optimizer_run_dir / "checkpoints", run_directory=optimizer_run_dir,
+            )
+            store.write(lambda path: path.write_text('{"value":1}', encoding="utf-8"))
+            store.write(lambda path: path.write_text('{"value":2}', encoding="utf-8"))
+
+            def failed_study(manifest, current_run_dir, *, resume=False):
+                metadata = Path(manifest.effective_optimizer_run_dir) / "metadata"
+                metadata.mkdir(parents=True, exist_ok=True)
+                (metadata / "run_completion.json").write_text(json.dumps({
+                    "status": "FAILED", "disposition": "FAILED",
+                }), encoding="utf-8")
+                return 0
+
+            with patch("sawopt.orchestration.worker._run_optimizer", side_effect=failed_study):
+                status = execute_run(run_dir)
+
+            self.assertEqual(status["state"], "FAILED")
+            self.assertEqual(status["optimizer_state"], "FAILED")
+            self.assertTrue(store.latest_path.is_file())
+            self.assertTrue(store.previous_path.is_file())
+            self.assertFalse(store.final_path.exists())
+
+    def test_callback_reviews_explicit_review_waiting_without_finalizing_recovery(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "review-callback"
+            _create_manifest(run_dir, 0, separate_optimizer_output=True)
+            optimizer_run_dir = run_dir / "optimizer"
+            store = CheckpointStore(
+                optimizer_run_dir / "checkpoints", run_directory=optimizer_run_dir,
+            )
+            store.write(lambda path: path.write_text('{"value":1}', encoding="utf-8"))
+            store.write(lambda path: path.write_text('{"value":2}', encoding="utf-8"))
+            metadata = optimizer_run_dir / "metadata"
+            metadata.mkdir(parents=True, exist_ok=True)
+            (metadata / "run_completion.json").write_text(json.dumps({
+                "status": "REVIEW_WAITING", "disposition": "REVIEW_WAITING",
+            }), encoding="utf-8")
+            manifest_path = run_dir / "run_manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest.update({
+                "callback_enabled": True, "review_after_completion": True,
+                "codex_session_id": "session-review",
+            })
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            with patch("sawopt.orchestration.worker._run_optimizer", return_value=0):
+                status = execute_run(
+                    run_dir, callback_runner=lambda manifest, **kwargs: 0,
+                )
+
+            self.assertEqual(status["state"], "REVIEWED")
+            self.assertEqual(status["optimizer_state"], "REVIEW_WAITING")
+            self.assertTrue(store.latest_path.is_file())
+            self.assertTrue(store.previous_path.is_file())
+            self.assertFalse(store.final_path.exists())
+
     def test_successful_worker_records_explicit_disposition_then_finalizes(self):
         with TemporaryDirectory() as temporary:
             run_dir = Path(temporary) / "run"

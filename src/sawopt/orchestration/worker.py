@@ -9,7 +9,7 @@ from typing import Callable
 
 from .codex_callback import run_codex_callback
 from ..io.checkpoints import complete_study_run, finalize_run_checkpoints
-from ..io.legacy_lifecycle import legacy_process_disposition
+from ..io.legacy_lifecycle import resolve_process_disposition
 from ..io.lifecycle import RunDisposition
 from .run_manager import (
     callback_lock_path,
@@ -84,7 +84,7 @@ def execute_run(run_dir: Path, *, callback_runner: Callable[..., int] | None = N
         exit_code = None
     else:
         optimizer_run_dir = Path(manifest.effective_optimizer_run_dir)
-        disposition = legacy_process_disposition(optimizer_run_dir, return_code=exit_code)
+        disposition = resolve_process_disposition(optimizer_run_dir, return_code=exit_code)
         transition(
             run_dir,
             disposition.value,

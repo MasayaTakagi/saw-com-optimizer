@@ -14,6 +14,7 @@ from sawopt.io.lifecycle import RunDisposition
 from sawopt.io.legacy_lifecycle import (
     LEGACY_REVIEW_WAITING_MARKERS,
     legacy_process_disposition,
+    resolve_process_disposition,
 )
 from sawopt.optimizers.checkpoint_session import LShadeCheckpointSession
 from sawopt.optimizers.lshade import LShadeBackend
@@ -322,6 +323,43 @@ def test_legacy_complete_stop_without_review_marker_remains_completed(tmp_path):
     (tmp_path / "STAGE3_6_GATE2A_COMPLETE_STOP.txt").write_text("complete\n", encoding="utf-8")
     assert legacy_process_disposition(tmp_path, return_code=0) is RunDisposition.COMPLETED
     assert legacy_process_disposition(tmp_path, return_code=2) is RunDisposition.FAILED
+
+
+def test_process_disposition_prefers_explicit_study_marker(tmp_path):
+    metadata = tmp_path / "metadata"
+    metadata.mkdir()
+    _write_json(metadata / "run_completion.json", {
+        "status": "REVIEW_WAITING", "disposition": "REVIEW_WAITING",
+    })
+    (tmp_path / LEGACY_REVIEW_WAITING_MARKERS[0]).write_text("legacy", encoding="utf-8")
+
+    assert resolve_process_disposition(tmp_path, return_code=0) is RunDisposition.REVIEW_WAITING
+    assert resolve_process_disposition(tmp_path, return_code=1) is RunDisposition.FAILED
+
+
+@pytest.mark.parametrize(("explicit", "expected"), [
+    ("COMPLETED", RunDisposition.COMPLETED),
+    ("REVIEW_WAITING", RunDisposition.REVIEW_WAITING),
+    ("FAILED", RunDisposition.FAILED),
+])
+def test_process_disposition_honors_each_valid_explicit_state(tmp_path, explicit, expected):
+    metadata = tmp_path / "metadata"
+    metadata.mkdir()
+    _write_json(metadata / "run_completion.json", {"disposition": explicit})
+    assert resolve_process_disposition(tmp_path, return_code=0) is expected
+
+
+@pytest.mark.parametrize("payload", [
+    {"status": "UNKNOWN", "disposition": "UNKNOWN"},
+    {"status": "not-a-state"},
+    ["invalid"],
+])
+def test_invalid_explicit_process_disposition_fails_safe_to_review_waiting(tmp_path, payload):
+    metadata = tmp_path / "metadata"
+    metadata.mkdir()
+    _write_json(metadata / "run_completion.json", payload)
+
+    assert resolve_process_disposition(tmp_path, return_code=0) is RunDisposition.REVIEW_WAITING
 
 
 def test_generic_core_honors_explicit_disposition_without_inspecting_stage_markers(tmp_path):
