@@ -49,19 +49,6 @@ def capture_payload(payload: dict, destination: Path) -> dict:
     return captured
 
 
-def build_additional_context(session_id: str) -> str:
-    """Explain which continuation mode uses each runtime identity."""
-    return (
-        f"Current Codex session ID: {session_id}. "
-        "This captured session identity is for legacy_resume continuation only. "
-        "Use it with --session-id only when continuation_mode is explicitly legacy_resume. "
-        "For queue mode, use the exact original Desktop thread ID with --thread-id; "
-        "do not pass --session-id or --session-file. "
-        "For continuation_mode=disabled, neither identity is required. "
-        "The session ID and Desktop thread ID are distinct."
-    )
-
-
 def _record_hook_error(cwd: Path, exc: BaseException) -> None:
     try:
         root = _project_root()
@@ -87,13 +74,7 @@ def main() -> int:
         normalized = dict(payload)
         normalized["session_cwd"] = str(Path(payload.get("cwd") or os.getcwd()).resolve())
         normalized["project_root"] = str(root)
-        captured = capture_payload(normalized, root / ".codex" / "runtime" / "current_session.json")
-        print(json.dumps({
-            "hookSpecificOutput": {
-                "hookEventName": "SessionStart",
-                "additionalContext": build_additional_context(captured["session_id"]),
-            }
-        }, ensure_ascii=False))
+        capture_payload(normalized, root / ".codex" / "runtime" / "current_session.json")
     except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
         _record_hook_error(cwd, exc)
         print(f"capture_session hook failed: {exc}", file=sys.stderr)
