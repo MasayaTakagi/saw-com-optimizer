@@ -4,7 +4,7 @@
 
 - Baseline: `origin/main` at `13d62dbde48ecbe5333e5b47fab6f68cba528544`.
 - Stage 4B branch: `codex/stage4b-hybrid-production-20261003`.
-- Implementation and shakedown source: `e1875ef9de0a096472fadb73df5ba113af4919a0`.
+- Initial implementation and shakedown source: `e1875ef9de0a096472fadb73df5ba113af4919a0`; the launch-gate fix and prelaunch regression are included in the current clean launch source commit and recorded on the PR/manifest.
 - Normal checkout is in use; no new worktree was created for Stage 4B.
 - The prior `codex/production-queue-continuation` branch and its saved WIP commit remain available separately.
 
@@ -18,18 +18,19 @@
 - Budget: 24,000 unique decoded evaluations per cell; terminal schedule budget 24,000; checkpoints 4,000 / 8,000 / 16,000 / 24,000. Total planned unique evaluations: 480,000.
 - Initial population: `18 * dimension`: D=180 (10 DOF), P_D=234 (13), D_P=234 (13), P_D_P=288 (16).
 - Search grid: 1,001 points; common validation grid: 9,113 points, identity `2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f`, SHA-256 `54c1daf67dd2bb9242f95e638d7bd801db536acc2c7d6f00c1f62a788bead554`.
-- Schema-v2 computation fingerprint: `28e7babd41b175c24f89fb4951f58b95bd1685b6ae445aec2fba51e6e54286db`.
+- Schema-v2 computation fingerprint for the corrected launch source: `f37b836eebdfdf1a9ad82abff378e9e6874d4dbde6a630a20978b1a60a5e04d2`.
 - Reporting fingerprint: `b57c4b5365c96a22d65d2c82e0dd904f1484a4fd1139b062fc5e24c7fc1a65eb`.
 - Production authorization is a one-shot CLI flag bound to the current exact protocol and source. The scientific config does not grant persistent production authorization.
 
 ## Validation and shakedown
 
-- Focused Stage 4B / Stage 4A regression tests: PASS, 42 passed and 9 subtests passed.
-- Full suite: PASS, 248 passed and 20 subtests passed.
-- Stage 4B shakedown: `runs/stage4b-shakedown-20261003`; four topologies, dedicated seed `20261001`, 512 unique evaluations per topology, cold starts. Manifest and summary report `PASS`; checks cover dispatch/topology count, dimension-scaled populations, unique accounting, checkpoints, cold initialization, common-grid identity, resume metadata, production separation, aggregation and output paths.
-- Shakedown resume reused all four completed cells without recomputing them. The lightweight source artifacts are under `runs/stage4b-shakedown-20261003/metadata/`; detailed run data remains local and ignored.
-- Shakedown is marked `ranking_eligible=false`; none of its performance values are evidence for production topology ranking.
-- `git diff --check`: PASS before this evidence note was added; it will be rerun before commit and launch.
+- Focused Stage 4B / Stage 4A / orchestration regression tests after the launch-gate fix: PASS, 56 passed and 9 subtests passed.
+- Full suite after the launch-gate fix: PASS, 249 passed.
+- Initial Stage 4B shakedown: `runs/stage4b-shakedown-20261003`; four topologies, dedicated seed `20261001`, 512 unique evaluations per topology, cold starts, all checks PASS, and resume reused all four completed cells. Its manifest uses the earlier fingerprint `28e7babd…`; it is retained as history but does not qualify the corrected launch source.
+- A separate shakedown on the corrected launch source and fingerprint `f37b836e…` is required before production. Its final summary/path will be added here before the production launch.
+- Both shakedown directories are ranking-ineligible; no shakedown performance values are evidence for production topology ranking.
+- One initial launch command stopped before callback preflight, authorization claim, run directory creation, or worker dispatch because the CLI lacked its `subprocess` import. The import was added and a positive authorized-launch manifest/claim regression test now passes. This did not change the scientific protocol or start a production worker.
+- `git diff --check`: PASS before the launch-gate fix; rerun after the current changes and before launch.
 
 ## Runtime estimate and launch plan
 

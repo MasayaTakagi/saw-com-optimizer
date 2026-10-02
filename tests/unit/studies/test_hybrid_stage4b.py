@@ -108,6 +108,66 @@ def test_stage4b_production_authorization_gate(monkeypatch):
         orchestration_cli.launch(args)
 
 
+def test_authorized_stage4b_launch_records_preflight_and_one_shot_claim(tmp_path, monkeypatch):
+    source_sha = "e57332bdb6a65fceff36364dd5eb086a0b2cc36d"
+    run_id = "stage4b-cli-test"
+    context = {
+        "fingerprint": {"computation_fingerprint": "stage4b-test-fingerprint"},
+        "matrix": _expected_matrix(),
+        "authorization_scope": "stage4b-hybrid-topology-production-exact-protocol-v1",
+    }
+    monkeypatch.setattr(orchestration_cli, "project_root", lambda: tmp_path)
+    monkeypatch.setattr(orchestration_cli, "_new_run_id", lambda: run_id)
+    monkeypatch.setattr(
+        "sawopt.studies.hybrid_stage4b.load_stage4b_context",
+        lambda _config: context,
+    )
+    monkeypatch.setattr(
+        orchestration_cli,
+        "resolve_session",
+        lambda **_kwargs: {"session_id": "captured-session", "source": "explicit"},
+    )
+    monkeypatch.setattr(
+        orchestration_cli,
+        "run_codex_callback_preflight",
+        lambda session_id, **_kwargs: {
+            "status": "PASS",
+            "session_id": session_id,
+            "validated_target_id": session_id,
+            "executable": "codex-test",
+        },
+    )
+
+    def git_output(command, **_kwargs):
+        return {
+            "branch": "codex/stage4b-hybrid-production-20261003\n",
+            "rev-parse": source_sha + "\n",
+            "status": "",
+        }[command[1]]
+
+    monkeypatch.setattr(orchestration_cli.subprocess, "check_output", git_output)
+    monkeypatch.setattr(orchestration_cli, "launch_detached", lambda *_args, **_kwargs: 8192)
+    run_dir = tmp_path / "runs" / "stage4b-hybrid-topology-production-20261003"
+    args = orchestration_cli.build_parser().parse_args([
+        "launch", "--config", str((Path.cwd() / CONFIG).resolve()),
+        "--run-dir", "runs/stage4b-hybrid-topology-production-20261003",
+        "--session-id", "captured-session", "--authorize-stage4b-production",
+    ])
+
+    assert orchestration_cli.launch(args) == 0
+    manifest = json.loads((run_dir / "run_manifest.json").read_text(encoding="utf-8"))
+    metadata = manifest["experiment_metadata"]
+    assert manifest["codex_session_id"] == "captured-session"
+    assert manifest["callback_enabled"] is True
+    assert manifest["review_after_completion"] is True
+    assert manifest["callback_preflight"]["status"] == "PASS"
+    assert metadata["source_commit_sha"] == source_sha
+    assert metadata["user_authorized_production"] is True
+    claim_path = Path(metadata["authorization_claim_path"])
+    assert claim_path.is_file()
+    assert json.loads(claim_path.read_text(encoding="utf-8"))["claim_id"] == metadata["authorization_claim_id"]
+
+
 def test_production_manifest_fingerprint_mismatch_rejected(tmp_path, monkeypatch):
     root = tmp_path / "repo"
     root.mkdir()
