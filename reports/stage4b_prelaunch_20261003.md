@@ -27,14 +27,15 @@
 - Focused Stage 4B / Stage 4A / orchestration regression tests after the launch-gate fix: PASS, 56 passed and 9 subtests passed.
 - Full suite after the launch-gate fix: PASS, 249 passed.
 - Initial Stage 4B shakedown: `runs/stage4b-shakedown-20261003`; four topologies, dedicated seed `20261001`, 512 unique evaluations per topology, cold starts, all checks PASS, and resume reused all four completed cells. Its manifest uses the earlier fingerprint `28e7babd…`; it is retained as history but does not qualify the corrected launch source.
-- A separate shakedown on the corrected launch source and fingerprint `f37b836e…` is required before production. Its final summary/path will be added here before the production launch.
+- Corrected-source shakedown: `runs/stage4b-shakedown-launchfix-20261003`; four topologies × dedicated seed `20261001`, 512 unique evaluations per cell, dimension-scaled populations, cold starts, checkpoints 400/512. All ten checks PASS, including the matching source/fingerprint/grid, aggregation and outputs. A same-directory resume reused 4/4 completed cells. Source SHA `a4c5b7c88530f22a9630e5b0b7af83cdceb4cf94`; computation fingerprint `f37b836e…`.
+- Lightweight evidence: `reports/stage4b_shakedown_launchfix_summary_20261003.json`. The full cell data remains under ignored `runs/`.
 - Both shakedown directories are ranking-ineligible; no shakedown performance values are evidence for production topology ranking.
 - One initial launch command stopped before callback preflight, authorization claim, run directory creation, or worker dispatch because the CLI lacked its `subprocess` import. The import was added and a positive authorized-launch manifest/claim regression test now passes. This did not change the scientific protocol or start a production worker.
 - `git diff --check`: PASS before the launch-gate fix; rerun after the current changes and before launch.
 
 ## Runtime estimate and launch plan
 
-- Rough estimate: approximately 31,187 seconds (8.7 hours), derived from the shakedown's measured search-evaluation, common-validation and per-cell overhead components scaled to 480,000 evaluations, 1,280 finalist validations and 20 cells. This is an estimate from a single short shakedown and is not a service-time guarantee.
+- Rough estimate: approximately 31,558 seconds (8.8 hours), derived from measured search-evaluation, common-validation and per-cell overhead components scaled to 480,000 evaluations, 1,280 finalist validations and 20 cells. This is an estimate from one small shakedown and is not a service-time guarantee.
 - Output directory: `runs/stage4b-hybrid-topology-production-20261003` (must be new at launch).
 - Launch command:
 
