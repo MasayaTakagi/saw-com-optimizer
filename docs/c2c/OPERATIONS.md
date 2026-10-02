@@ -50,9 +50,11 @@ path using backslashes as the same path, although it is valid TOML.
 Use the forward-slash representation above for compatibility with that parser;
 this is a bounded observation about C2C 0.1.3, not a general TOML rule.
 
-`alreadyAllowed=true` confirms only persistent
-configuration, not access in an already-created managed sandbox. If the root
-was added or changed, start a fresh managed Codex sandbox before C2C use.
+`alreadyAllowed=true` confirms only persistent configuration, not access in
+the current execution boundary. If the root was added or changed, start a
+fresh managed Codex sandbox so the changed configuration can be materialized.
+That fresh task is tied to an actual configuration change; do not use repeated
+fresh tasks as a remedy for a reproducible ordinary-boundary denial.
 
 At task start, run the installed CLI's `update-check --json` subcommand using
 the explicit Node invocation above, for detection only. The result
@@ -60,29 +62,57 @@ the explicit Node invocation above, for detection only. The result
 check and does not by itself fail state-access qualification. Treat
 `updateAvailable=true` as a separate update workflow. Then use the SessionStart
 state-access hook as an early warning and, immediately before any C2C
-`doctor`, `session`, or `record` command, run the direct unelevated probe
-through the same execution boundary:
+`doctor`, `session`, or `record` command, run the direct probe through the same
+execution boundary that will run C2C:
 
 ```powershell
 .codex\hooks\c2c_state_access_preflight.cmd --json
 ```
 
-Proceed only when its result is `PASS`. The hook only creates one exclusive,
-empty, uniquely named canary directly inside the existing canonical state
-directory, flushes and closes it, then removes that exact file. It does not
-create directories, alter C2C files, grant permissions, read credentials, or
-relocate C2C state. A SessionStart `PASS` is informational because hooks and
-the later command may have different effective access; the direct probe is the
-operational gate and is necessary but does not prove every child path used by
-doctor/session/record. Those operations must still succeed on their first
-normal-user attempt. Keep the probe JSON status, probe/child exit code, and
-wrapper exit code distinct where available; wrapper exit 0 alone is not proof
-that the child operation succeeded.
+The hook only creates one exclusive, empty, uniquely named canary directly
+inside the existing canonical state directory, flushes and closes it, then
+removes that exact file. It does not create directories, alter C2C files, grant
+permissions, read credentials, or relocate C2C state. A SessionStart result is
+informational because hooks and the later command may have different effective
+access. Keep the probe JSON status, probe/child exit code, and wrapper exit code
+distinct where available; wrapper exit 0 alone is not proof that the child
+operation succeeded.
 
-The normal order is: persistent exact-root declaration → fresh managed
-sandbox if configuration changed → SessionStart diagnostic → direct probe
-`PASS` → doctor → workspace identity → saved conversation/session/INIT. Never
-broaden permissions for convenience.
+Use this access decision:
+
+1. Ordinary direct preflight `PASS`: continue in the ordinary execution
+   boundary; do not use `require_escalated`.
+2. Ordinary direct preflight `ACTIVE_SANDBOX_DENIED`: do not infer
+   `ACTIVE_SANDBOX_STALE` or create a fresh task from this result alone. If the
+   current operation explicitly authorizes the qualified, bounded C2C
+   escalation path, use one targeted `require_escalated` command boundary.
+   Verify `whoami` is `desktop-9ipace7\sub`, `USERPROFILE` is
+   `C:\Users\sub`, and Windows `UserProfile` is `C:\Users\sub`; then run the
+   direct preflight in that boundary. Continue with the C2C operation only
+   if it returns `PASS`, in the same targeted boundary. Without explicit
+   authorization, stop as `ACTIVE_SANDBOX_DENIED`.
+3. Any other preflight result: stop and preserve its exact fail-closed
+   classification. Targeted escalation does not bypass path, root, identity,
+   or cleanup failures.
+
+The qualified path is a bounded Codex sandbox escalation, not Windows
+Administrator/UAC or SYSTEM elevation. It is limited to the explicitly
+authorized C2C state preflight, C2C Doctor, documented workspace/session/
+state/record operations, the C2C/orchestration launcher, or bounded
+qualification commands named by the task. It does not authorize arbitrary
+shell work, unrelated AppData access, broader writable roots, ACL changes, or
+broad permanent allow rules. On the currently qualified host, these targeted
+commands are automatically approved; this does not grant unrestricted standing
+permission or imply that other hosts have the same approval behavior. The
+`with_additional_permissions` mode is unavailable in this environment and is
+not a fallback path.
+
+The normal order is: verify the persistent exact-root declaration → check for
+an actual configuration change requiring a fresh task → read the SessionStart
+diagnostic → run the ordinary direct probe → continue in the ordinary boundary
+on `PASS`, or use the explicitly authorized targeted path on
+`ACTIVE_SANDBOX_DENIED` → doctor → workspace identity → saved
+conversation/session/INIT. Never broaden permissions for convenience.
 
 ### Approved cloudflared
 
@@ -111,9 +141,11 @@ subcommand with the approved process-local cloudflared path; `--no-fix` is not
 required for operational qualification. A stopped tunnel at fresh-session
 startup is recoverable state, not by itself a state-access failure. Allow
 Doctor's documented bridge/tunnel recovery, then judge the final gates.
-Recovery must not require ACL or persistent-config changes, writable-root
-expansion, or elevation. Before opening the saved C2C conversation or sending
-INIT, confirm:
+Recovery must not require ACL or persistent-config changes or writable-root
+expansion. A task-authorized targeted C2C `require_escalated` boundary may be
+used after an ordinary `ACTIVE_SANDBOX_DENIED` and the identity/preflight gates
+above. Do not use Windows Administrator/UAC or SYSTEM elevation. Before
+opening the saved C2C conversation or sending INIT, confirm:
 
 - bridge, MCP, OAuth, and tunnel checks are healthy;
 - sandbox/state-directory checks are healthy;
@@ -292,8 +324,10 @@ Treat the probe's results as follows:
 
 | Result | Action |
 | --- | --- |
-| `PASS` | Continue to the next C2C gate in the same unelevated execution boundary. A later EPERM is a distinct child-path or operation defect; inspect only the exact failing path and stop before retrying. |
-| `ACTIVE_SANDBOX_DENIED` | If persistent configuration already contains the exact root, record `ACTIVE_SANDBOX_STALE` as a suspected cause, not a proven diagnosis. Stop before doctor/session/record and use a fresh managed sandbox. |
+| `PASS` | Continue to the next C2C gate in the ordinary execution boundary. Do not use `require_escalated`. A later EPERM is a distinct child-path or operation defect; inspect only the exact failing path and stop before retrying. |
+| `ACTIVE_SANDBOX_DENIED` | Do not infer `ACTIVE_SANDBOX_STALE` from this result alone. If the current operation explicitly authorizes targeted C2C escalation, verify the normal Windows user/profile, run the direct probe in one bounded `require_escalated` boundary, and continue only on `PASS` in that same targeted boundary. Otherwise stop as `ACTIVE_SANDBOX_DENIED`. |
+| Targeted identity mismatch | Stop as `C2C_TARGETED_ESCALATION_IDENTITY_INVALID`; do not run the state operation. |
+| Targeted preflight not `PASS` | Stop as `C2C_TARGETED_ESCALATION_FAILED` for an access denial, or preserve the exact non-access result classification. Do not run the state operation. |
 | `STATE_PATH_MISMATCH` | Stop. Reject conflicting `C2C_STATE_DIR` redirects, a symlink/junction/reparse point on the state directory, or an unproven path identity. Do not relocate C2C state. |
 | `STATE_ROOT_MISSING` / `OTHER_IO_FAILURE` | Stop and report the exact classification. Do not create the state directory or attempt C2C operations. |
 | `PROBE_CLEANUP_FAILED` | Stop; report the exact canary filename for manual cleanup after checking it is the probe's own file. Do not continue or retry automatically. |
@@ -309,16 +343,20 @@ root; a noncanonical `C2C_STATE_DIR` remains rejected even if it would resolve
 to the same object.
 
 If `sandbox-allow` reports that the persistent exact root is absent, add only
-that root through the approved normal-user setup, then start a fresh managed
-sandbox before proceeding. If it says `alreadyAllowed=true` but the current
-sandbox probe is denied, do not repeat `sandbox-allow` or request per-command
-approvals as the primary repair. This is consistent with stale sandbox
-materialization but does not prove the host's cause; validate in fresh managed
-sessions. Never broaden the workspace, home-directory, or sandbox-wide write
-boundary, use elevation, change ACLs, or modify the external C2C checkout.
+that root through the approved normal-user setup. Because this changes
+persistent sandbox configuration, start one fresh managed sandbox so the
+change can materialize before retrying the ordinary preflight. If it says
+`alreadyAllowed=true` but the ordinary probe is denied, do not repeat
+`sandbox-allow` or create more fresh tasks as the repair. Use the targeted path
+only when the current operation explicitly authorizes it. Never broaden the
+workspace, home-directory, or sandbox-wide write boundary, change ACLs, or
+modify the external C2C checkout.
 
-Do not claim the issue fixed until the direct probe and first-attempt doctor,
-session, and supported record operation succeed in two fresh normal-user
-managed sessions. If those sessions still deny access, report a host policy
-blocker; retain the narrow diagnostic and recovery procedure without widening
-permissions.
+`ACTIVE_SANDBOX_STALE` is reserved for direct evidence that sandbox
+configuration changed after task creation or that the task has a materially
+stale boundary. Persistent exact-root configuration plus ordinary denial is
+not sufficient evidence. The two-fresh-normal-session requirement in the
+2026-09-28 escalation-log entry records that historical qualification and is
+not a current recovery prerequisite. Historical outcomes remain valid for
+their recorded environment and time; evaluate current operations using the
+decision path above.

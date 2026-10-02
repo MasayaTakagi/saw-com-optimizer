@@ -1715,3 +1715,81 @@ confirmation or a separately approved FEM extraction is required.
 - C2C PLAN authorizes exactly one harmless real queue qualification after the
   implementation and fake-queue tests pass. No Stage 4B production launch or
   scientific-contract change is authorized.
+
+## 2026-09-30 — Stage 4B duplicate-gate process inventory
+
+- Escalation packet: `reports/escalation_packets/stage4b_duplicate_gate_process_inventory_2026-09-30.md`.
+- Requested target: `gpt-6-sol`; the runtime's backend model identity and
+  reasoning effort were not independently verified.
+- Sol judgment: the no-active-worker gate passes when the read-only
+  `Get-Process` Python process query completes without errors and returns zero
+  rows. The project worker and optimizer launch as Python processes; the
+  manifest, run-source metadata, and process-name evidence are sufficient even
+  though WMI command-line inspection is denied.
+- Codex repeated the stricter query with `-ErrorAction Stop`; enumeration
+  completed and returned zero `python` / `pythonw` processes. The `runs/`
+  scan found 21 manifests and 20 run-source metadata files, with only the
+  qualification orchestration-smoke manifest related to Stage 4B and no
+  `stage4b_launched=true` value. The production target directory is absent.
+- This judgment covers duplicate evidence only and is not Stage 4B launch
+  authorization. The exact `run_codex_queue_preflight` then failed closed
+  because its Windows `SHGetFolderPathW(CSIDL_PROFILE)` lookup returned
+  HRESULT `0x80070002` (profile unavailable), even though PowerShell's
+  `USERPROFILE` and `Environment.SpecialFolder.UserProfile` both returned
+  `C:\Users\sub`. Therefore no prelaunch queue `PASS`, final C2C authorization,
+  or production launch occurred.
+
+## 2026-10-01 — C2C targeted state-access policy decision
+
+- Evidence basis: the current task's reported Desktop/CLI qualification. It
+  records that ordinary managed Local tasks reproducibly return
+  `ACTIVE_SANDBOX_DENIED` for canonical C2C state access and that creating a
+  fresh Local task did not change that result.
+- The bounded targeted Codex `require_escalated` path retained the effective
+  Windows user `desktop-9ipace7\sub`, `USERPROFILE=C:\Users\sub`, and matching
+  Windows `UserProfile`. In that boundary, the direct C2C state preflight and
+  C2C Doctor passed, and approval was automatic without routine user
+  confirmation. `with_additional_permissions` is unavailable in this
+  environment.
+- This path is Codex sandbox escalation under the normal user identity. It is
+  not Windows Administrator/UAC or SYSTEM elevation and does not grant broad
+  or permanent permission.
+- Decision: ordinary direct `PASS` continues in the ordinary boundary. An
+  ordinary `ACTIVE_SANDBOX_DENIED` uses the targeted path only when the current
+  operation explicitly authorizes it; verify identity and require the direct
+  preflight to pass before continuing in that targeted boundary. Without
+  authorization, stop as `ACTIVE_SANDBOX_DENIED`. Preserve all non-access
+  fail-closed results.
+- This decision supersedes the earlier current operational inference
+  `ACTIVE_SANDBOX_DENIED` → suspected `ACTIVE_SANDBOX_STALE` → mandatory fresh
+  task. A fresh task is appropriate after a persistent sandbox configuration
+  change, not as a remedy for the known ordinary-boundary limitation.
+- Earlier entries remain valid historical evidence for their recorded dates,
+  identities, and execution boundaries; this decision does not rewrite or
+  invalidate them. The old two-fresh-session qualification requirement is
+  historical, not a current policy gate.
+- No C2C source, `config.toml`, ACL, sandbox backend, connector, or tunnel was
+  changed as part of this policy decision.
+
+## 2026-10-03 — Stage 4B matched-production fairness and launch binding
+
+- Requested target: `gpt-6-sol`; runtime backend model identity and reasoning
+  effort were not independently verified.
+- Scope: assess the fixed 24,000-evaluation L-SHADE horizon, dimension-scaled
+  initializer, and one-shot production authorization design for the exact
+  Stage 4B topology comparison.
+- Judgment: fixing the same 24,000 terminal horizon from cold start preserves
+  the matched budget; initial populations 18 × dimension (180/234/234/288)
+  fit before the first 4,000-evaluation checkpoint. Report initialization
+  shares and geometry rejection counts; fail closed on initializer shortfall,
+  search-space exhaustion, or checkpoint/fingerprint mismatch. The 9,113-point
+  common-grid finalist validations are outside unique search accounting and
+  must be reported separately. The matrix contains 480,000 unique search
+  evaluations; conclusions remain relative to the current provisional model.
+- Authorization judgment: a CLI flag alone is not a one-shot gate. Bind child
+  execution to the persisted manifest and recheck config, fingerprint, source
+  revision, output path, and authorization scope before optimization. Resume
+  from that same manifest. Use a durable exclusive claim if exactly one launch
+  must be enforced across run directories.
+- This bounded judgment does not itself authorize a launch. The current user
+  task authorizes one exact-protocol launch only after all stated gates pass.
