@@ -1658,3 +1658,29 @@ confirmation or a separately approved FEM extraction is required.
   accepted bundle, manifest, or historical fingerprint was rewritten.
 - Independent C2C implementation acceptance is pending before commit/push;
   GitHub CI must then pass before merging PR #13.
+
+### Stage 4B matched-topology comparison decisions
+
+- Bounded high-risk judgment was requested from the existing Sol review agent
+  before production implementation. The review considered fixed-horizon L-SHADE
+  fairness, dimension-scaled cold populations, immutable launch authorization,
+  and the P_D/D_P symmetry rule. Recommendation: retain one 24k terminal
+  schedule per cell, 18 initial members per design dimension, independent
+  per-cell streams, and bind resume/worker execution to the exact immutable
+  authorization manifest, source SHA, config, fingerprint, and output path.
+- A second bounded judgment found that the initial decision classifier needed
+  explicit paired metrics and fallback criteria. The revised descriptive rule
+  compares each matched seed lexicographically by maximum normalized violation,
+  sum normalized violation, and worst passband IL; exact ties do not count as
+  wins. A provisional primary and fallback each require at least four of five
+  strict paired wins against every relevant competitor. Otherwise, include all
+  topologies within the maximum observed five-seed IQR on the first
+  discriminating median metric, using NumPy's linear/type-7 quartiles; if that
+  leaves fewer than two topologies, report inconclusive. IQR is seed spread,
+  not a confidence interval. This rule handles all-feasible cases by proceeding
+  to sum violation and IL, and does not turn five seeds into a global-optimum
+  claim. Symmetry warnings remain review flags, not evidence of physical
+  superiority or failure.
+- The Stage 4B report must remain `STAGE4B_EXECUTED_REVIEW_PENDING`; none of
+  these judgments accept the Stage 4B result or authorize automatic follow-up
+  runs.

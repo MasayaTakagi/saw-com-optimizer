@@ -76,9 +76,51 @@ Required actions:
 6. Do NOT automatically launch another production optimization run.
 """
 
+STAGE4B_COMPLETED_PROMPT = """Stage 4B hybrid topology production run completed.
+
+run_id: {run_id}
+orchestration_root: {run_dir}
+optimizer_output_dir: {optimizer_run_dir}
+status: COMPLETED
+exit_code: {exit_code}
+
+Complete Stage 4B result review and GitHub closeout in this same task.
+
+Required actions:
+1. Read the immutable run_manifest.json, status.json, and Stage 4B batch manifest.
+2. Verify the exact production source SHA, protocol revision, schema-v2 computation fingerprint, authorization scope, callback identity, grid, and 20-cell matrix.
+3. Confirm 20/20 cells reached 24,000 unique evaluations with all four checkpoints, matching seeds/topologies, cold starts, accounting identities, and no warm transfer. If any gate fails, do not report a complete ranking.
+4. Review per-cell results, convergence, topology summary, all six paired comparisons, active-bound pressure, failure counts, runtime/accounting, and P_D/D_P symmetry status.
+5. Ensure the execution report uses one of the authorized classifications and remains STAGE4B_EXECUTED_REVIEW_PENDING. Keep all stated scientific limitations. Do not claim real-device feasibility or STAGE4B_ACCEPTED.
+6. Build or verify the review bundle under artifacts/review_bundles/. Prepare and commit only lightweight summaries/evidence; never commit optimizer checkpoint bodies or other large run data.
+7. Find and update the existing Stage 4B GitHub PR for the current branch with the prelaunch SHA, postrun SHA, run ID, fingerprint, 20/20 status, tests/CI, runtime, comparison result, limitations, and review-bundle path. Push the closeout commit. Do not create a duplicate PR or merge.
+8. Report C2C FROZEN / invocations 0. Do not start any follow-up experiment, budget extension, extra seed, impedance sweep, or new production run.
+"""
+
+STAGE4B_FAILED_PROMPT = """The Stage 4B production worker stopped before successful completion.
+
+run_id: {run_id}
+orchestration_root: {run_dir}
+optimizer_output_dir: {optimizer_run_dir}
+status: FAILED
+exit_code: {exit_code}
+
+Inspect the immutable authorization/run manifests, batch manifest, cell status files, and durable checkpoints. Confirm the original source SHA, protocol fingerprint, grid, seed, and checkpoint identities before taking action. If incomplete cells can safely resume, use the existing asynchronous orchestration --resume path against this same run directory and captured session; never create a replacement run directory or change protocol/config/source. Do not poll stdout.log after a detached worker starts. If same-run recovery is not valid, preserve evidence, prohibit final ranking, and report BLOCKED. A resume must not be treated as a new production experiment. Never launch an extension, extra seed, topology rerun, or other follow-up study.
+"""
+
 
 def callback_prompt(manifest: RunManifest, *, exit_code: int | None,
                     optimizer_failed: bool) -> str:
+    metadata = manifest.experiment_metadata or {}
+    if (metadata.get("study_type") == "hybrid_stage4b_topology_comparison"
+            and metadata.get("protocol_revision") == "stage4b_hybrid_topology_production_v1"):
+        template = STAGE4B_FAILED_PROMPT if optimizer_failed else STAGE4B_COMPLETED_PROMPT
+        return template.format(
+            run_id=manifest.run_id,
+            run_dir=manifest.run_dir,
+            optimizer_run_dir=manifest.effective_optimizer_run_dir,
+            exit_code="unknown" if exit_code is None else exit_code,
+        )
     template = FAILED_PROMPT if optimizer_failed else COMPLETED_PROMPT
     return template.format(
         run_id=manifest.run_id,

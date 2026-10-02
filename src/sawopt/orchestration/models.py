@@ -49,6 +49,7 @@ class RunManifest:
     codex_session_source: str | None = None
     optimizer_run_dir: str | None = None
     callback_preflight: dict[str, Any] | None = None
+    experiment_metadata: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if self.callback_timeout_minutes is not None and self.callback_timeout_minutes <= 0:
@@ -111,6 +112,10 @@ class RunManifest:
             callback_preflight=(
                 None if value.get("callback_preflight") is None
                 else dict(value["callback_preflight"])
+            ),
+            experiment_metadata=(
+                None if value.get("experiment_metadata") is None
+                else dict(value["experiment_metadata"])
             ),
         )
 

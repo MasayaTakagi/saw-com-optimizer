@@ -13,6 +13,7 @@ from sawopt.orchestration.codex_callback import (
     CodexCallbackTimeoutError,
     CodexCallbackTargetMismatchError,
     build_resume_command,
+    callback_prompt,
     run_codex_callback,
     run_codex_callback_preflight,
 )
@@ -20,6 +21,35 @@ from sawopt.orchestration.models import RunManifest
 
 
 class CallbackTests(unittest.TestCase):
+    def test_stage4b_callback_performs_closeout_without_follow_up_run(self):
+        manifest = RunManifest(
+            schema_version=1,
+            run_id="stage4b-run",
+            experiment_name="Stage 4B",
+            created_at=datetime.now(timezone.utc).isoformat(),
+            project_root="C:/repo",
+            run_dir="C:/repo/runs/stage4b",
+            command=["worker"],
+            config_path="C:/repo/config.yaml",
+            codex_session_id="session-stage4b",
+            codex_model=None,
+            callback_enabled=True,
+            review_after_completion=True,
+            experiment_metadata={
+                "study_type": "hybrid_stage4b_topology_comparison",
+                "protocol_revision": "stage4b_hybrid_topology_production_v1",
+            },
+        )
+        completed = callback_prompt(manifest, exit_code=0, optimizer_failed=False)
+        self.assertIn("20/20 cells", completed)
+        self.assertIn("existing Stage 4B GitHub PR", completed)
+        self.assertIn("never commit optimizer checkpoint bodies", completed)
+        self.assertIn("Do not start any follow-up experiment", completed)
+        failed = callback_prompt(manifest, exit_code=1, optimizer_failed=True)
+        self.assertIn("same run directory", failed)
+        self.assertIn("--resume", failed)
+        self.assertIn("never create a replacement run directory", failed)
+
     def test_resume_uses_explicit_session_and_workspace_write(self):
         command = build_resume_command("session-123", "review", codex_executable="codex-test")
         self.assertEqual(command[:6], ["codex-test", "exec", "--sandbox", "workspace-write", "resume", "session-123"])

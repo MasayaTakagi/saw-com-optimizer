@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,6 +48,7 @@ def resolve_run_dir(value: str, root: Path | None = None) -> Path:
 
 def _build_optimizer_command(
     config: Path, optimizer_run_dir: Path, *, workers: int | None,
+    stage4b_authorization_manifest: Path | None = None,
 ) -> list[str]:
     command = [
         sys.executable,
@@ -60,7 +62,38 @@ def _build_optimizer_command(
     ]
     if workers is not None:
         command.extend(["--workers", str(workers)])
+    if stage4b_authorization_manifest is not None:
+        command.extend(["--stage4b-authorization-manifest", str(stage4b_authorization_manifest)])
     return command
+
+
+def _claim_stage4b_authorization(root: Path, metadata: dict) -> tuple[str, Path]:
+    """Persist an exclusive one-shot claim for one source/protocol fingerprint."""
+    from ..studies.hybrid_stage4b import authorization_claim_id
+
+    claim_id = authorization_claim_id(metadata)
+    claim_directory = root / "runs" / ".stage4b_authorization_claims"
+    claim_path = claim_directory / f"{claim_id}.json"
+    lock_path = claim_directory / ".claim.lock"
+    claim_directory.mkdir(parents=True, exist_ok=True)
+    with exclusive_lock(lock_path):
+        if claim_path.exists():
+            raise RuntimeError("Stage 4B one-shot production authorization has already been claimed")
+        claim = {
+            "schema_version": 1,
+            "claim_id": claim_id,
+            "authorization_scope": metadata["authorization_scope"],
+            "computation_fingerprint": metadata["computation_fingerprint"],
+            "source_commit_sha": metadata["source_commit_sha"],
+            "run_id": metadata["run_id"],
+            "claimed_at_utc": utc_now(),
+        }
+        with claim_path.open("x", encoding="utf-8") as stream:
+            json.dump(claim, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+    return claim_id, claim_path
 
 
 def _write_session_checkpoint(run_dir: Path, *, mode: str, resume_count: int,
@@ -143,9 +176,47 @@ def launch(args: argparse.Namespace) -> int:
         config = (root / config).resolve()
     if not config.exists():
         raise FileNotFoundError(f"config does not exist: {config}")
+    from ..io.config import load_experiment_config
+
+    configured_study = load_experiment_config(config).get("study", {})
+    stage4b_launch = configured_study.get("type") == "hybrid_stage4b_topology_comparison"
+    if stage4b_launch and not getattr(args, "authorize_stage4b_production", False):
+        raise PermissionError("Stage 4B production requires --authorize-stage4b-production")
+    if not stage4b_launch and getattr(args, "authorize_stage4b_production", False):
+        raise ValueError("--authorize-stage4b-production is valid only for Stage 4B")
+    stage4b_context = None
+    stage4b_source = None
+    if stage4b_launch:
+        if args.no_callback:
+            raise ValueError("Stage 4B production requires the captured-session completion callback")
+        from ..studies.hybrid_stage4b import load_stage4b_context
+
+        stage4b_context = load_stage4b_context(config)
+        stage4b_source = {
+            "branch": subprocess.check_output(
+                ["git", "branch", "--show-current"], cwd=root, text=True,
+                encoding="utf-8", errors="replace",
+            ).strip(),
+            "head": subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True,
+                encoding="utf-8", errors="replace",
+            ).strip(),
+            "status_short": subprocess.check_output(
+                ["git", "status", "--short"], cwd=root, text=True,
+                encoding="utf-8", errors="replace",
+            ).strip(),
+        }
+        if stage4b_source["branch"] != "codex/stage4b-hybrid-production-20261003":
+            raise RuntimeError("Stage 4B production must launch from the named Stage 4B branch")
+        if stage4b_source["status_short"]:
+            raise RuntimeError("Stage 4B production requires a clean committed source tree")
     run_id = _new_run_id()
     run_dir = resolve_run_dir(args.run_dir, root) if args.run_dir else root / "runs" / run_id
     optimizer_run_dir = run_dir / "optimizer"
+    if stage4b_launch:
+        expected_run_dir = (root / "runs" / "stage4b-hybrid-topology-production-20261003").resolve()
+        if run_dir.resolve() != expected_run_dir:
+            raise ValueError(f"Stage 4B production output path is fixed at {expected_run_dir}")
     if run_dir.exists() and any(run_dir.iterdir()):
         raise FileExistsError(f"orchestration directory is not empty: {run_dir}")
     if optimizer_run_dir.exists() and any(optimizer_run_dir.iterdir()):
@@ -171,7 +242,22 @@ def launch(args: argparse.Namespace) -> int:
         config,
         optimizer_run_dir,
         workers=args.workers,
+        stage4b_authorization_manifest=(run_dir / "run_manifest.json") if stage4b_launch else None,
     )
+    experiment_metadata = None
+    if stage4b_launch:
+        from ..studies.hybrid_stage4b import build_authorization_metadata
+
+        experiment_metadata = build_authorization_metadata(
+            stage4b_context,
+            source_commit_sha=stage4b_source["head"],
+            run_id=run_id,
+            authorized_at=utc_now(),
+        )
+        experiment_metadata.update({
+            "orchestration_run_dir": str(run_dir.resolve()),
+            "optimizer_run_dir": str(optimizer_run_dir.resolve()),
+        })
     manifest = RunManifest(
         schema_version=2,
         run_id=run_id,
@@ -192,7 +278,17 @@ def launch(args: argparse.Namespace) -> int:
         codex_session_source=None if session is None else str(session.get("source", "unknown")),
         optimizer_run_dir=str(optimizer_run_dir),
         callback_preflight=callback_preflight,
+        experiment_metadata=experiment_metadata,
     )
+    if stage4b_launch:
+        claim_id, claim_path = _claim_stage4b_authorization(root, experiment_metadata)
+        experiment_metadata["authorization_claim_id"] = claim_id
+        experiment_metadata["authorization_claim_path"] = str(claim_path.resolve())
+        # The manifest is frozen, so build the final object after the exclusive
+        # claim is persisted and include its durable identity.
+        manifest = RunManifest(
+            **{**manifest.to_dict(), "experiment_metadata": experiment_metadata}
+        )
     create_run(manifest)
     checkpoint = _write_session_checkpoint(
         run_dir, mode="launch", resume_count=0,
@@ -315,6 +411,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     launch_parser.add_argument("--session-id", help="explicit Codex callback session ID")
     launch_parser.add_argument("--no-callback", action="store_true")
+    launch_parser.add_argument(
+        "--authorize-stage4b-production", action="store_true",
+        help="consume the current task's one-shot authorization for the exact Stage 4B protocol",
+    )
     launch_parser.add_argument("--session-file")
     launch_parser.add_argument("--session-max-age-hours", type=float, default=24.0)
     launch_parser.add_argument("--callback-timeout-minutes", type=float, default=30.0)
