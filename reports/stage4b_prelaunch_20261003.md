@@ -31,7 +31,8 @@
 - Lightweight evidence: `reports/stage4b_shakedown_launchfix_summary_20261003.json`. The full cell data remains under ignored `runs/`.
 - Both shakedown directories are ranking-ineligible; no shakedown performance values are evidence for production topology ranking.
 - One initial launch command stopped before callback preflight, authorization claim, run directory creation, or worker dispatch because the CLI lacked its `subprocess` import. The import was added and a positive authorized-launch manifest/claim regression test now passes. This did not change the scientific protocol or start a production worker.
-- `git diff --check`: PASS before the launch-gate fix; rerun after the current changes and before launch.
+- Subsequent exact launch attempts stopped before authorization claim, run directory creation and worker dispatch. The standard sandbox denied callback-preflight temporary-directory creation under both the repository and configured task scratch. A bounded managed execution then reached the callback CLI, but preflight returned `CodexCallbackTargetUnavailableError: Codex emitted no session_id/thread_id JSON event`. No callback PASS was recorded, so the production launch gate remains BLOCKED. The run directory and the one-shot authorization claim are absent; no production worker is running. Do not retry or replace this run until the exact callback identity can be verified.
+- `git diff --check`: rerun after this blocked-launch evidence update and before committing it.
 
 ## Runtime estimate and launch plan
 
