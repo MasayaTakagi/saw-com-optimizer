@@ -36,6 +36,13 @@ changed, while Doctor reported `chatgptRepair.needed=false`. The controlled
 `workspace_info` request was therefore not sent. No connector recreation was
 attempted and no ChatGPT-to-workspace data-plane conclusion was made.
 
+The recorded canonical baseline tunnel fingerprint was
+`8901362d54872159`; the diagnostic deployment reported
+`af506f34757d5935`; after restoring the canonical runtime, the final
+fingerprint was `1b294fd1968a82ab`. The changed diagnostic endpoint was the
+stop condition; these observations do not establish which endpoint ChatGPT
+could reach.
+
 The canonical runtime was restored from the reviewed source afterward. Its
 final Doctor reported node, sandbox, workspace, bridge, MCP, OAuth, and tunnel
 checks passing, with `chatgptRepair.needed=false`. The actual ChatGPT
