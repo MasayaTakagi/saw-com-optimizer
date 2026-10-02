@@ -1,4 +1,3 @@
-```markdown
 # SAW COM Filter Optimization Project
 
 ## Project objective
@@ -53,38 +52,44 @@ Review bundles are external artifacts and must always be written to this
 repository root's `artifacts/review_bundles/` directory. Do not place review
 bundles under `runs/`.
 
-## C2C development control plane
+## C2C status — frozen historical reference
 
-When C2C is available for a project task, use it as the standard planning and
-review control plane: ChatGPT plans and reviews; Codex executes. Use only the
-`Codex with ChatGPT · saw-com-optimizer` connector bound to the
-`saw-com-optimizer` workspace, and verify the C2C doctor gate and workspace
-identity before INIT. Keep C2C source in its external
-sibling repository; do not vendor it or update it automatically. The reviewed
-baseline and operating policy are documented under [`docs/c2c/`](docs/c2c/README.md).
+C2C is frozen and is not a project, experiment, or review dependency. Do not
+invoke its runtime, Doctor, queue, workspace tools, session/record/checkpoint
+operations, or connector for ordinary SAW work. No C2C PLAN or ACCEPT gate is
+required for roadmap progress. Keep its source external and preserve its
+reviewed baseline, security records, and historical review provenance. The
+qualification and explicit reactivation conditions are recorded in
+[`docs/c2c/FROZEN.md`](docs/c2c/FROZEN.md); the other files under `docs/c2c/`
+are historical references and are not operating instructions while frozen.
 
-Before any C2C `doctor`, `session`, or `record` operation, verify the persistent
-exact-root declaration and run `.codex/hooks/c2c_state_access_preflight.cmd
---json` (Windows) or the Python hook directly in the same unelevated execution
-boundary that will run C2C. Require `PASS`; SessionStart hook output is only an
-early warning and does not prove shell access. If the persistent exact root is
-present but the direct probe is denied, classify the cause as suspected
-`ACTIVE_SANDBOX_STALE`, stop C2C operations, and use a fresh managed sandbox.
-Never broaden writable roots, elevate, change ACLs, or repeat command-specific
-approval retries to work around this gate. Follow
-[`docs/c2c/OPERATIONS.md`](docs/c2c/OPERATIONS.md) for recovery.
+Reactivation requires a separate explicit user decision and a fresh
+qualification. Do not use a SAW production experiment to qualify C2C.
 
 ## Review governance
 
 Use one owner for each review responsibility:
 
-- **PLAN / ACCEPT — C2C / ChatGPT:** plan project work before changes and independently accept meaningful completed work units from current workspace, Git, and validation evidence.
-- **JUDGMENT — Sol:** provide bounded high-risk judgment only when the escalation criteria below apply; Sol review does not replace C2C acceptance.
-- **IMPLEMENT / self-validation — Codex root:** make the approved changes and run the relevant validation.
+- **PLAN — ChatGPT / user:** set the task or experiment plan and decide when its scope is ready.
+- **IMPLEMENT / self-validation — Codex:** make the requested changes and run relevant local validation.
+- **EXTERNAL REVIEW — ChatGPT through GitHub:** review the pushed branch, commit, PR diff, and committed evidence; request focused corrections when needed.
+- **ACCEPT / MERGE — ChatGPT / user:** decide whether reviewed work is accepted and may be merged or used for the next stage.
+- **JUDGMENT — Sol:** provide bounded high-risk judgment only when the escalation criteria below apply; this does not replace external review or user acceptance.
 
-At task start, obtain the C2C PLAN and classify whether Sol escalation is required. When required, get Sol judgment before implementation, then Codex root resumes execution. Keep routine, fully specified implementation, documentation, tests, formatting, and simple refactoring within Codex without Sol escalation. Do not send the same review question to C2C and Sol by default: Sol resolves the bounded pre-implementation judgment; C2C accepts the integrated result after EXECUTED.
+For meaningful work units, commit and push a review branch, then report its
+branch, commit SHA, and PR or commit URL. Codex self-validation is not an
+independent review. For production experiments, make the implementation,
+configuration, preflight, budget, seed, checkpoint policy, and output path
+available through GitHub before launch. Production execution still requires
+separate user authorization. Keep routine, fully specified documentation,
+tests, formatting, and simple refactoring within Codex without Sol escalation.
 
-Before launching a long-running or high-cost production run, obtain C2C acceptance of the implementation and pre-launch configuration/preflight, including readiness to capture a valid Codex session. Immediately after launch, verify `run_manifest.json` under the requirements below before considering the launch valid. After completion, have C2C review the recorded result. Escalate to Sol only when the high-risk criteria below apply; a completion callback must not start another production run. See [`docs/c2c/OPERATIONS.md`](docs/c2c/OPERATIONS.md) for the control loop and timing.
+For long-running production runs, immediately verify the immutable
+`run_manifest.json` against the selected continuation mode after launch. After
+completion, review the recorded result through the GitHub workflow. A
+completion callback must not start another production run; user authorization
+is required. See
+[`docs/guides/github_review_workflow.md`](docs/guides/github_review_workflow.md).
 
 ## Long-running production run policy
 
@@ -92,19 +97,20 @@ Before launching a long-running or high-cost production run, obtain C2C acceptan
   production run. If duration is uncertain, use this policy conservatively.
 - Do not run a long production optimization synchronously from the Codex shell.
 - Use `python -m sawopt.orchestration.cli launch` for production runs.
-- Long-running launches must capture a Codex session for completion callback and
-  reattachment. Do not pass `--no-callback` unless the user explicitly requests
-  callback suppression for that specific run.
-- Prefer an explicit valid `--session-id` or `--session-file` when launching.
-  After launch, verify `run_manifest.json` before considering the launch valid:
-  `codex_session_id` must be non-null, `callback_enabled` must be true, and
-  `review_after_completion` must be true. If any check fails, stop and repair
-  the launch configuration before relying on the run.
-- If no valid Codex session can be captured, do not start the long-running
-  program silently; report the blocker and request a session or explicit user
-  instruction to run without automatic callback.
+- The supported production continuation uses the explicitly captured Codex
+  session: pass a valid `--session-id` or `--session-file`. Do not pass
+  `--no-callback` for a production run unless the user explicitly selects that
+  mode for the specific run.
+- After launch, verify the immutable `run_manifest.json` records a non-null
+  `codex_session_id`, `callback_enabled: true`, and
+  `review_after_completion: true`. The callback resumes only that session with
+  `codex exec resume`; never use `--last`.
+- If a valid session identity cannot be captured and preflighted, do not start
+  the long-running program; report the blocker.
 - Once the launcher reports a detached worker, do not poll `stdout.log` or wait for optimizer completion.
-- The worker stores state and invokes the callback against the explicitly captured Codex session.
+- The worker stores run state and invokes the callback against the explicitly
+  captured legacy session according to the immutable manifest. A callback is a
+  completion notification and review handoff, not optimizer recovery.
 - Use the orchestration `--resume` path for reattachment or recovery. Do not
   substitute a new production run when an existing detached run can be resumed.
 - Callback review must not automatically start another production run; user approval is required.
@@ -638,4 +644,3 @@ Report:
 Do not restate the entire task.
 
 Do not include long explanations unless explicitly requested.
-```

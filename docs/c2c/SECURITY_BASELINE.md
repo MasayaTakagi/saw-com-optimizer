@@ -1,4 +1,9 @@
-# C2C security baseline
+# C2C security baseline reference
+
+> **FROZEN / HISTORICAL REFERENCE — effective 2026-10-02.** These security
+> records are preserved for a future explicit requalification. They do not
+> authorize or require C2C use in the current project workflow. See
+> [FROZEN.md](FROZEN.md).
 
 ## Approved dependency
 
@@ -48,12 +53,35 @@ boundary of an already-materialized managed sandbox. Therefore
 `sandbox-allow --json` returning `alreadyAllowed=true` is not evidence that the
 current task can write to the state root. The project SessionStart hook is a
 non-authoritative canary and cannot grant access or prove the permissions of a
-later shell. C2C operations require a direct, unelevated canary through the
-same execution boundary immediately before use; on denial, stop and require a
-fresh managed sandbox. The canary may create one exclusive empty file directly
-inside the existing exact root and remove only that same file. It must not
-create directories, touch endpoint/session/record/auth/config files, inspect
-credentials, change permissions, or relocate the state store.
+later shell. Run a direct canary in the same execution boundary immediately
+before C2C use. On ordinary `PASS`, continue in that ordinary boundary. An
+ordinary `ACTIVE_SANDBOX_DENIED` does not by itself mean the task is stale and
+does not authorize broadening the persistent root. If and only if the current
+operation explicitly authorizes the qualified targeted C2C `require_escalated`
+path, verify `whoami` is `desktop-9ipace7\sub`, `USERPROFILE` is
+`C:\Users\sub`, and Windows `UserProfile` is `C:\Users\sub`; rerun the direct
+canary in that bounded boundary and continue there only on `PASS`. Without
+explicit authorization, stop as `ACTIVE_SANDBOX_DENIED`.
+
+`require_escalated` here means a bounded Codex sandbox escalation under the
+same normal Windows user. It is not Administrator/UAC or SYSTEM elevation and
+does not grant broad or permanent access. The currently qualified host
+automatically approves these targeted commands; that approval behavior does
+not authorize arbitrary commands or generalize to other hosts. Do not use
+Windows Administrator/UAC or SYSTEM, add broad allow rules, expand writable
+roots, or change ACLs. Start a fresh managed sandbox only after a persistent
+sandbox-configuration change that needs to materialize or other direct
+evidence that the current task has a stale boundary; an ordinary denial alone
+is not a fresh-task trigger. Reserve `ACTIVE_SANDBOX_STALE` for direct evidence
+of stale task materialization, not for the known ordinary-boundary denial by
+itself.
+
+The canary may create one exclusive empty file directly inside the existing
+exact root and remove only that same file. It must not create directories,
+touch endpoint/session/record/auth/config files, inspect credentials, change
+permissions, or relocate the state store. Preserve all existing path identity,
+cleanup, and fail-closed checks below; targeted escalation does not bypass
+them.
 
 The approved state root is the lexical
 `%LOCALAPPDATA%\codex-with-chatgpt` path. Inspect that directory with `lstat`

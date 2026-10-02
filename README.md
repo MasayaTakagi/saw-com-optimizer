@@ -10,6 +10,11 @@ for historical results and decisions.
 See [`docs/project_roadmap.md`](docs/project_roadmap.md) for the long-term goal,
 sequencing, and phase exit gates.
 
+The current scientific baseline is after Stage 4A. Stage 4A qualified the
+hybrid implementation and protocol only; Stage 4B production comparison is
+still pending. See the [experiment register](docs/history/experiment_register.md)
+for evidence and limitations.
+
 ## Current workflows
 
 - DMS topology screening: `configs/studies/dms_topology_screening.yaml`
@@ -47,6 +52,13 @@ for session capture, detached launch, and recovery.
 Review bundles belong under `artifacts/review_bundles/`. Build one from a saved
 run with `ReviewBundleSpec` and `sawopt.reporting.review_bundle`; see
 [`docs/guides/review_bundles.md`](docs/guides/review_bundles.md).
+
+## Repository review
+
+The active external review path is GitHub branches, commits, and pull requests.
+See [`docs/guides/github_review_workflow.md`](docs/guides/github_review_workflow.md).
+C2C is frozen as a historical reference; its status and retained diagnosis
+are in [`docs/c2c/FROZEN.md`](docs/c2c/FROZEN.md).
 
 ## Development
 

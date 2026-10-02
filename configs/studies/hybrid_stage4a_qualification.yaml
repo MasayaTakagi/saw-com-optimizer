@@ -1,0 +1,50 @@
+base_config: dms_topology_screening.yaml
+study:
+  type: hybrid_stage4a_qualification
+  revision: stage4a_hybrid_protocol_qualification_v1
+  stage3_9_reference: stage3_9b_mlit_t1_50ohm_overlap_parity.yaml
+dms_topology:
+  budget: 256
+  initial_population: 32
+  population_schedule_terminal_budget: 256
+  checkpoints: [128, 256]
+  seeds: [20260929]
+  cold_start: true
+  impedance_ohm: 50.0
+  selection:
+    materials: [MLIT]
+    topologies: [T1_SYMMETRIC_5IDT]
+  lshade:
+    initial_population: 32
+    min_population: 4
+hybrid:
+  supported_topologies: [D, P_D, D_P, P_D_P]
+  source_impedance_ohm: 50.0
+  load_impedance_ohm: 50.0
+  common_grid_finalists: 4
+  resonator_bounds:
+    - [4.5, 5.6]
+    - [10, 60]
+    - [30, 150]
+  resonator_aperture_bounds_um: [30, 150]
+  resonator_model:
+    reflector_electrodes: 40
+    gap_lambda: 0.0
+    metallization_ratio: 0.5
+    thickness_over_lambda: 0.04
+  initializer:
+    method: independent_uniform_rejection_v1
+    max_attempts: 10000
+    seed_derivation: sha256(stage4a-v1/seed/material/topology/initial_population)
+    include_historical_seed: false
+  layout:
+    model: hypothetical_separate_rows
+    die_um: [900, 700]
+    length_margin_um: 60
+    width_margin_um: 60
+    max_total_electrodes: 500
+    qualification_only: true
+  parity:
+    rtol: 1.0e-10
+    atol: 1.0e-12
+  production_launch_authorized: false
