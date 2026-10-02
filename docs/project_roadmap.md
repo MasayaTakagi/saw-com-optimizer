@@ -1,7 +1,9 @@
 # SAW COM Filter Optimizer — Project Goal and Long-Term Roadmap
 
 **Status:** Active project roadmap
-**Baseline date:** 2026-09-26
+**Baseline date:** 2026-10-02
+
+**Current baseline:** after Stage 4A
 **Repository:** `saw-com-optimizer`
 
 ---
@@ -65,9 +67,9 @@ The project should report a Pareto set when meaningful trade-offs remain rather 
 
 ---
 
-## 4. Current baseline — after Stage 3.9
+## 4. Current baseline — after Stage 4A
 
-The project currently has a reusable software architecture with separate `core`, `problem`, `optimizers`, `optimization`, `studies`, `io`, `reporting`, and orchestration layers.
+The project currently has a reusable software architecture with separate `core`, `problem`, `optimizers`, `optimization`, `studies`, `io`, `reporting`, and orchestration layers. Stage 4A's hybrid implementation and protocol smoke qualification are complete. The D-only parity and regression gates passed, but the smoke did not compare scientific topology performance or establish a feasible B28 design. See [`history/current_baseline.md`](history/current_baseline.md) and [`history/experiment_register.md`](history/experiment_register.md).
 
 The historical cleanup is complete, and closed experiment knowledge is retained in the history documents and the annotated Git recovery tag.
 
@@ -99,7 +101,8 @@ Accordingly, the project is **not ready for the final 2-D impedance sweep**.
 | Phase | Main question | Core work | Exit gate |
 |---|---|---|---|
 | **Stage 3.9 — Search viability and 50 Ω reference recovery (CLOSED 2026-09-27, branch b scoped to MLIT/T1)** | Can the current model/topology/search space produce a credible feasible or near-feasible 50 Ω design? | Decompose active violations by constraint/frequency; improve search coverage and parameterization without silently relaxing physical constraints; resolve obviously inefficient/redundant DOFs; keep common dense validation and reproducible L-SHADE accounting; align material bounds before direct M0-vs-MLIT comparisons or keep the material tracks separate. | Closed for the selected MLIT/T1 50/50 Ω DMS reference path after two accepted 16k trajectories remained materially infeasible near max normalized violation 0.43. MLIT/T2 remains unresolved and unpromoted. This is not a global impossibility result. |
-| **Stage 4 — 50 Ω hybrid topology qualification** | Which DMS + ladder architecture should be carried forward? | At fixed 50/50 Ω, compare the most defensible DMS candidates with ladder additions. Start with low-complexity hybrid variants and add ladder DOFs only when justified. Keep topology and optimizer comparisons under matched budgets and common validation. T2 should not be promoted merely because it remains underexplored. | Freeze a small set of hybrid topology candidates, preferably one primary and one fallback, with reproducible 50 Ω evidence. |
+| **Stage 4A — hybrid protocol qualification (COMPLETED)** | Can the hybrid representation use the current accounting, validation, provenance, and checkpoint contracts? | Completed implementation validation, D-only parity, and bounded smoke cells at 50/50 Ω. | Hybrid software baseline is available; no scientific topology ranking or feasible-filter claim follows from the smoke. |
+| **Stage 4B — hybrid topology comparison (NEXT; plan not yet set)** | Which DMS + ladder architecture should be carried forward? | Plan the next 50/50 Ω hybrid qualification separately after this documentation closeout. Preserve matched-comparison principles and existing physical-model limitations; do not infer or predeclare a ranking here. | A future plan must specify its own scope and acceptance criteria before execution. |
 | **Model Qualification Track — run in parallel, become mandatory before final impedance optimization** | Is the physical model accurate enough for a real impedance conclusion? | Extract/fit COM parameters from FEM and/or measurement; resolve electrode/material assumptions, terminal/phase registry, attenuation/loss conventions, aperture dependence, and parasitics; validate against resonator/device S-parameters; version the calibrated provider. | A calibrated model with documented uncertainty and validation error. No final impedance recommendation is allowed before this gate. |
 | **Stage 5 — Calibrated-model re-baseline and geometry release** | Does the selected topology remain valid after physical calibration, and which geometry DOFs are actually needed? | Re-run the 50 Ω reference and selected hybrid topology under the calibrated model; release left/right/asymmetric or additional geometry DOFs progressively; re-check active bounds and parameter correlations; reconsider topology if calibration materially changes the ranking. | A calibrated, converged 50/50 Ω production reference and a frozen design-space definition for impedance exploration. |
 | **Stage 6 — Asymmetric impedance exploration** | Where in `(Zs, Zl)` space does the independently re-optimized filter perform best? | Use an outer impedance search and a full inner filter re-optimization for every impedance pair. Preserve separate `Zs` and `Zl`. Begin with a coarse 20–200 Ω real-impedance region or an adaptively selected representative subset, retain 50/50 Ω as a control, then refine promising regions. Warm starts may accelerate computation but must not replace independent global-search protection. | A reproducible impedance-performance map with a small set of candidate regions; no optimum claim based only on sparse screening. |
@@ -133,6 +136,10 @@ F^*(Z_s,Z_l)=F(x^*(Z_s,Z_l);Z_s,Z_l).
 \]
 
 The project is therefore a nested optimization problem, not a termination sweep of one fixed geometry.
+
+The active repository review path is GitHub-mediated external review. C2C is
+frozen as a historical reference and is not a roadmap gate; see
+[`guides/github_review_workflow.md`](guides/github_review_workflow.md).
 
 ---
 

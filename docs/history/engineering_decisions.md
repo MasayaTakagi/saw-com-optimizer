@@ -95,6 +95,10 @@ session-resume feature or change the production callback backend.
 
 **Decision state:** `QUALIFIED / BOUNDED C2C CONTINUATION`
 
+> **Historical decision:** this qualification remains evidence of the tested
+> delivery path. Its use as an active project workflow was superseded by the
+> 2026-10-02 C2C freeze decision below.
+
 A one-shot official CLI queue was qualified for returning a completed detached
 job to its known, original Desktop thread on the tested Windows host and
 `codex-cli 0.158.0-alpha.2.1`:
@@ -116,12 +120,14 @@ This qualifies a bounded delivery mechanism, not autonomous session resume.
 Keep `FROZEN / DEFERRED` for cold/unattended wake, arbitrary thread discovery or
 writer acquisition, Task Scheduler/Resume Agent operation, recovery across
 unknown ownership, and SDK `thread_resume()` against a Desktop-owned thread.
-For new C2C-managed detached work, use the exact-thread one-shot queue after
-durable completion and continue from the existing task's `NEXT_EXPECTED_STEP`.
-The helper must pass the qualified normal-user/profile and CLI preflight, the
-queue claim is one-shot with no automatic retry, and ambiguous failure must
-fail closed while preserving job results. The queue neither restores optimizer
-state nor automatically starts follow-up production work.
+At the time of this qualification, the project policy selected the
+exact-thread one-shot queue for new C2C-managed detached work after durable
+completion, continuing from the existing task's `NEXT_EXPECTED_STEP`. The
+helper had to pass the qualified normal-user/profile and CLI preflight, use a
+one-shot claim without automatic retry, and fail closed on ambiguous delivery
+while preserving job results. The queue did not restore optimizer state or
+automatically start follow-up production work. The 2026-10-02 freeze decision
+below supersedes this historical workflow selection.
 
 The managed production callback remains `codex exec resume` against its
 captured session ID. The queue pilot does not migrate that backend; any such
@@ -146,3 +152,23 @@ Earlier controlled validation did establish:
 
 These are historical infrastructure capabilities, not authorization to restore
 autonomous session-resume as a project requirement.
+
+## 2026-10-02 — Freeze C2C and adopt GitHub-mediated external review
+
+**Decision category:** engineering / workflow; not a scientific conclusion.
+
+- C2C is frozen and is no longer a project progression dependency.
+- C2C runtime use, diagnosis, session operations, and review gates are not part
+  of ordinary project work. Reactivation requires a separate explicit user
+  decision and fresh qualification.
+- ChatGPT repository review uses GitHub branches, commits, pull requests, and
+  committed evidence. Codex self-validation is not independent review.
+- The Windows-native Codex workflow remains unchanged.
+- Git metadata operations continue to use limited, on-request permission
+  escalation only. No standing broad access or ACL change is introduced.
+- Historical C2C security records, the reviewed baseline, and past experiment
+  review provenance are retained.
+
+See [`../c2c/FROZEN.md`](../c2c/FROZEN.md) for the preserved last diagnosis
+and reactivation conditions, and [`../guides/github_review_workflow.md`](../guides/github_review_workflow.md)
+for the active review process.

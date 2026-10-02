@@ -1,4 +1,8 @@
-# C2C upgrade policy
+# C2C upgrade policy reference
+
+> **FROZEN / HISTORICAL REFERENCE — effective 2026-10-02.** No C2C upgrade is
+> part of active project work. Retain this policy for any separately approved
+> requalification; see [FROZEN.md](FROZEN.md).
 
 The reviewed baseline is repository `XiaoDuoYa/codex-with-chatgpt`, SHA
 `9663b88753e35c76796c5bce000293e0bd22cd9e`, package `0.1.3`. Automatic

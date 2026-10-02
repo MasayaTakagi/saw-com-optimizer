@@ -456,42 +456,65 @@ availability is not established by Git and must be verified separately.
 
 ## Stage 4A — hybrid protocol qualification
 
-**Evidence level:** implementation validation, D-only parity, four bounded
-protocol smoke cells, full regression output, and C2C acceptance are recorded
-under the current Stage 4A run and review bundle.
+**Status:** COMPLETED / finalized. **Evidence level:** implementation and
+protocol qualification only; no scientific topology comparison.
 
-- **Question:** Can the current MLIT/T1 DMS path compose with the existing
-  one-port COM resonator model under the current L-SHADE, unique-evaluation,
-  validation, provenance, checkpoint, and review-bundle contracts?
-- **Conditions:** MLIT/T1, 50/50 Ω, cold independent initialization, seed
-  `20260929`, 256 unique evaluations for each of `D`, `P_D`, `D_P`, and
-  `P_D_P`; 1,001-point search grid and shared 9,113-point validation grid.
-- **Qualification result:** D-only parity was exact (maximum absolute
-  difference 0.0). Each smoke cell reached its 256-unique budget, completed
-  common-grid validation, and recorded zero physics failures. Focused
-  regressions passed 36/36; the full suite passed 238 tests and 20 subtests.
-  C2C accepted Stage 4A at iteration 2; the accepted closeout then transitioned
-  the run to `COMPLETED`, finalized all four checkpoint streams, and refreshed
-  the lifecycle evidence in the review bundle. Schema-v2 computation fingerprint:
-  `2120b2046bb424ec0445919ce1d4f6ca8c4de08e8b2d0b16a00d1e77d16cc3c2`.
-- **Decision:** C2C task `c2c_0b52`, iteration 2, accepted Stage 4A with no
-  mandatory remaining findings. The protocol is qualified for the requested
-  implementation/smoke scope only. These smoke metrics are explicitly
-  non-scientific and do not rank topology families or establish a preferred
-  design.
-- **Stage 4B boundary:** Do not launch Stage 4B from this qualification. The
-  measured estimate for four topologies × two seeds × 4,000 unique evaluations
-  is 0.56 hours centrally (0.42–0.84 hours), which invokes the managed
-  long-running production path. A separate task must resolve comparison
-  fairness for 10/13/13/16-dimensional families, add and validate supported
-  orchestration dispatch, obtain Sol's budget judgment, and pass C2C
-  pre-launch review.
-- **References:** Run
-  `runs/stage4a-hybrid-protocol-qualification-final-c2c-iteration2`;
-  review bundle
+- **Question:** Can the current MLIT/T1 DMS implementation compose with the
+  existing one-port COM resonator representation under the established
+  L-SHADE, unique-evaluation accounting, validation, provenance, checkpoint,
+  and review-bundle contracts?
+- **Scope and conditions:** MLIT/T1, 50/50 Ω, cold independent initialization,
+  seed `20260929`, and 256 unique evaluations for each of `D`, `P_D`, `D_P`,
+  and `P_D_P`. Search used 1,001 frequencies and common validation used 9,113
+  frequencies. The combined row placement is a hypothetical separate-row
+  approximation.
+- **Topology / representation:** `D` is the T1 DMS control. `P_D`, `D_P`, and
+  `P_D_P` compose one-port COM resonator shunts at their defined terminal
+  nodes. The resonator remains the existing placeholder COM model; this result
+  does not qualify its physical parameters.
+- **Implementation introduced:** reusable hybrid composition and design-space
+  support, the Stage 4A study/configuration, and qualification reporting and
+  bundle support. Source files include `src/sawopt/core/hybrid.py`,
+  `src/sawopt/problem/hybrid.py`, `src/sawopt/studies/hybrid.py`,
+  `src/sawopt/reporting/hybrid_qualification.py`, and
+  `configs/studies/hybrid_stage4a_qualification.yaml`.
+- **Parity and smoke result:** D-only parity was exact, with maximum absolute
+  difference `0.0` on both grids (`rtol=1e-10`, `atol=1e-12`). Each of the four
+  smoke cells reached 256 unique evaluations, passed common-grid validation,
+  and recorded zero physics failures. All four checkpoint streams were
+  finalized.
+- **Tests:** 36 focused regressions passed; the full suite passed 238 tests and
+  20 subtests, with zero failures.
+- **Decision:** the implementation and requested smoke protocol were accepted
+  for this qualification scope. The historical C2C record is task
+  `c2c_0b52`, iteration 2, `ACCEPT_STAGE4A`, with no mandatory findings. This
+  preserves provenance only; C2C is now frozen and this acceptance is not a
+  future project gate. Smoke metrics are non-scientific: they do not rank
+  topologies, establish a feasible B28 filter, or select a preferred design.
+- **Limitations:** one seed and 256 evaluations per cell are protocol smoke,
+  not production comparison evidence. The COM profile is uncalibrated and the
+  combined placement is hypothetical. No Stage 4B production comparison,
+  ranking, or production optimum was established.
+- **Carry-forward:** keep 50/50 Ω while Stage 4 hybrid qualification is
+  planned; retain independent `Zs` and `Zl` controls and independently
+  re-optimize each impedance pair in any later impedance study. Final
+  asymmetric impedance conclusions remain premature until topology and the
+  physical COM model are qualified. The next Stage 4 experiment plan is to be
+  set separately after this documentation closeout.
+- **Source provenance:** branch `codex/stage4a-hybrid-protocol`, closeout
+  commit `eeda835f4341b664ac43564358a327000d455dd0`; closeout metadata records
+  a clean tree and disposition `COMPLETED`. At documentation-closeout start,
+  `origin/main` was `fb7bcbd8bddce6f9841798ce38557977a4345341` and did not
+  contain this commit. The recorded experiment completion is distinct from
+  integration into `main`.
+- **Evidence location:** run
+  `runs/stage4a-hybrid-protocol-qualification-final-c2c-iteration2`, including
+  `metadata/run_completion.json`, `metadata/test_summary.json`,
+  `metadata/d_only_parity.json`, and `metadata/c2c_review_status.json`; review
+  bundle
   `artifacts/review_bundles/stage4a-hybrid-protocol-qualification-final-c2c-iteration2_review.zip`.
-  Neither smoke response values nor this protocol qualification constitute a
-  scientific topology comparison.
+  Computation fingerprint (schema v2):
+  `2120b2046bb424ec0445919ce1d4f6ca8c4de08e8b2d0b16a00d1e77d16cc3c2`.
 
 ## Cleanup rule
 

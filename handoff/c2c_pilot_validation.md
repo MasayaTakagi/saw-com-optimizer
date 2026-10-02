@@ -1,5 +1,10 @@
 # C2C Pilot Validation
 
+> **Historical evidence — not an active qualification or operating guide.**
+> Retained pilot notes are superseded for current project workflow by
+> [`docs/c2c/FROZEN.md`](../docs/c2c/FROZEN.md) and
+> [`docs/c2c/README.md`](../docs/c2c/README.md).
+
 ## Environment
 
 - OS: Windows (host details to be completed)

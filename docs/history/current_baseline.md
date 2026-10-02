@@ -1,7 +1,8 @@
 # Current SAW Design Baseline
 
-This is the current decision state after the registered experiments. Read
-`experiment_register.md` for the evidence and limitations behind each item.
+This is the current decision state after Stage 4A (baseline date
+2026-10-02). Read `experiment_register.md` for the evidence and limitations
+behind each item.
 
 ## Physical model
 
@@ -80,6 +81,21 @@ This is the current decision state after the registered experiments. Read
   common grid. T2 remains unresolved and unpromoted; this is not a global
   impossibility result. See the Stage 3.9 closeout in the experiment register.
 
+## Stage 4A hybrid software baseline
+
+- Stage 4A is completed and finalized. The reusable hybrid implementation and
+  its 50/50 Ω qualification workflow are available as a software baseline.
+- D-only parity and the focused/full regression validations passed; the four
+  bounded smoke cells completed. These results qualify implementation and
+  protocol behavior only. They do not establish a feasible B28 filter, rank
+  the hybrid topologies, or identify a production optimum.
+- A Stage 4B production comparison has not been run. The next Stage 4
+  experiment plan is intentionally left open for separate planning.
+- Continue hybrid qualification at fixed 50/50 Ω. Keep the final asymmetric
+  impedance sweep premature until topology is stable and the COM/material
+  model has been physically qualified. Preserve independent source/load
+  control and independently re-optimize the filter for every impedance pair.
+
 ## Current unresolved work
 
 1. Obtain calibrated COM parameters from measurement or FEM and resolve the
@@ -118,3 +134,10 @@ the active tree. The pre-cleanup annotated Git tag
 `archive/pre-historical-deletion-2026-09-25` preserves their exact source for
 inspection; the experiment register retains the findings and decisions needed
 for current work.
+
+## Workflow / review infrastructure
+
+C2C is frozen and is no longer a project progression dependency. Meaningful
+repository work uses the GitHub-mediated external review process documented in
+[`../guides/github_review_workflow.md`](../guides/github_review_workflow.md).
+This workflow decision does not change the scientific baseline above.
