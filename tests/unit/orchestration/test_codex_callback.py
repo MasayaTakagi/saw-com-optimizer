@@ -52,7 +52,18 @@ class CallbackTests(unittest.TestCase):
 
     def test_resume_uses_explicit_session_and_workspace_write(self):
         command = build_resume_command("session-123", "review", codex_executable="codex-test")
-        self.assertEqual(command[:6], ["codex-test", "exec", "--sandbox", "workspace-write", "resume", "session-123"])
+        self.assertEqual(
+            command[:6],
+            [
+                "codex-test",
+                "exec",
+                "-c",
+                'sandbox_mode="workspace-write"',
+                "resume",
+                "session-123",
+            ],
+        )
+        self.assertNotIn("--sandbox", command)
         self.assertNotIn("--last", command)
 
     def test_callback_runner_receives_manifest_session_and_keeps_prompt_out_of_shell(self):
@@ -94,6 +105,8 @@ class CallbackTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(calls[0][0][6], "session-123")
             self.assertIn("--json", calls[0][0])
+            self.assertIn('sandbox_mode="workspace-write"', calls[0][0])
+            self.assertNotIn("--sandbox", calls[0][0])
             self.assertEqual(calls[0][1]["cwd"], str(run_dir))
             self.assertEqual(calls[0][1]["timeout"], 1800.0)
             self.assertEqual(calls[0][1]["encoding"], "utf-8")
@@ -165,7 +178,14 @@ class CallbackTests(unittest.TestCase):
 
             self.assertEqual(result["status"], "PASS")
             self.assertEqual(result["validated_target_id"], "session-123")
+            self.assertEqual(
+                Path(result["scratch_root"]),
+                (Path(temporary) / "runs" / ".callback_preflight").resolve(),
+            )
+            self.assertTrue(Path(result["scratch_root"]).is_dir())
             self.assertIn("--json", calls[0][0])
+            self.assertIn('sandbox_mode="workspace-write"', calls[0][0])
+            self.assertNotIn("--sandbox", calls[0][0])
             self.assertEqual(calls[0][0][6], "session-123")
             self.assertEqual(calls[0][1]["cwd"], temporary)
             self.assertIn("CALLBACK_PREFLIGHT_OK", calls[0][0][-1])
@@ -320,6 +340,26 @@ class CallbackTests(unittest.TestCase):
                     project_root=temporary,
                     codex_executable=sys.executable,
                     runner=timeout_runner,
+                )
+
+    def test_callback_preflight_rejects_extra_completed_agent_messages(self):
+        with TemporaryDirectory() as temporary:
+            response = SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    '{"type":"thread.started","thread_id":"session-123"}\n'
+                    '{"type":"item.completed","item":{"type":"agent_message",'
+                    '"text":"CALLBACK_PREFLIGHT_OK"}}\n'
+                    '{"type":"item.completed","item":{"type":"agent_message",'
+                    '"text":"extra"}}\n'
+                ),
+            )
+            with self.assertRaises(CodexCallbackPreflightError):
+                run_codex_callback_preflight(
+                    "session-123",
+                    project_root=temporary,
+                    codex_executable=sys.executable,
+                    runner=lambda command, **kwargs: response,
                 )
 
     def test_callback_preflight_fails_when_executable_is_unavailable(self):
