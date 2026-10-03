@@ -1,0 +1,22 @@
+{
+  "run_id": "20261003_014817_ea08db",
+  "expected_thread_id": "01a0fcca-3d9f-7a23-8622-1afe71e79c02",
+  "queued_thread_id": null,
+  "stored_thread_id": "01a0ff60-991d-7dc3-bde4-cc3640853a0d",
+  "stored_session_id": "01a0ff60-991d-7dc3-bde4-cc3640853a0d",
+  "worker_session_id": null,
+  "callback_target_thread_id": "01a0ff60-991d-7dc3-bde4-cc3640853a0d",
+  "queued_thread_matches_expected": null,
+  "callback_target_matches_expected": false,
+  "session_id_was_used_as_thread_id": true,
+  "evidence": [
+    "Dedicated callback channel creation captured this value as thread.started.thread_id in reports/stage4b_prelaunch_20261003.md.",
+    "The launch command used --session-id and run_manifest.json stored the same value under codex_session_id.",
+    "callback.log contains one leading exec resume command to that ID and a matched target validation; app history identifies the completed thread by the same ID.",
+    "The original task thread history contains no callback message for this run."
+  ],
+  "interpretation": "Field/CLI identity naming conflated a thread ID with the legacy session-ID slot. The observed target was nevertheless the dedicated thread, not the expected original task thread.",
+  "thread_id_was_passed_as_session_id": true,
+  "session_id_substituted_into_queue_thread_flag": null,
+  "session_id_was_used_as_thread_id_note": "The same identifier originated as a thread.started.thread_id and occupied the codex_session_id/--session-id slot for the legacy exec-resume callback. No codex queue --thread argument was used; therefore queue-specific substitution is not applicable."
+}

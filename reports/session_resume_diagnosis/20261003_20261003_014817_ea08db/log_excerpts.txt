@@ -1,0 +1,34 @@
+# Sanitized, bounded excerpts
+
+Times are UTC. Full logs remain local; SHA-256, size, and mtime are in artifact_inventory.csv.
+
+## Run completion and callback (<SAW_REPO>/runs/stage4b-hybrid-topology-production-20261003/)
+
+run_completion.json:
+- status=COMPLETED
+- disposition=COMPLETED
+- recorded_at_utc=2026-10-03T12:05:18+00:00
+- completed_at_utc=2026-10-03T12:05:18+00:00
+
+status.json:
+- optimizer_state=COMPLETED, optimizer_exit_code=0
+- callback_enabled=true, callback_attempts=1
+- callback_started_at=2026-10-03T12:10:03+00:00
+- callback_completed=true, callback_exit_code=0
+- callback_finished_at=2026-10-03T12:34:05+00:00, state=REVIEWED
+
+callback.log (command/path/prompt redacted):
+> <USERPROFILE>/AppData/Local/OpenAI/Codex/bin/<version-folder>/codex.exe exec resume 01a0ff60-991d-7dc3-bde4-cc3640853a0d <review-prompt>
+> thread.started thread_id=01a0ff60-991d-7dc3-bde4-cc3640853a0d
+> callback target validation: matched 01a0ff60-991d-7dc3-bde4-cc3640853a0d
+> 2026-10-03T12:34:04.028983Z WARN codex_core::tasks: failed to flush rollout after emitting terminal turn event: thread 01a0ff60-991d-7dc3-bde4-cc3640853a0d not found
+
+The callback agent final response reports the GitHub blob write was rejected because approval policy was never; no closeout commit/push or PR update followed.
+
+The app thread-history read confirms a user callback message for run 20261003_014817_ea08db and a completed agent turn in that dedicated thread (turn 01a101ab-e2aa-78f3-a018-7629923f8e37, 12:10:04Z–12:34:03Z). The original task thread history returned nine turns and contains no callback message for this run.
+
+Searches of the preserved run manifest/status/stdout/stderr/callback log and dedicated-thread rollout found no codex queue invocation. The callback log has one leading command record for exec resume; repeated literal occurrences in structured output are not counted as extra process attempts. The durable status count is one callback attempt.
+
+## C2C persistent logs
+
+Three local bridge log files were inventoried. Their latest mtimes are 2026-10-02T11:46:43Z, before the completion window. A bounded scan found none of the run ID or the two relevant thread IDs. These logs do not establish C2C runtime availability at completion.

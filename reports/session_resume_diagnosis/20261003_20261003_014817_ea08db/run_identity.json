@@ -1,0 +1,46 @@
+{
+  "run_id": "20261003_014817_ea08db",
+  "stage": "Stage 4B hybrid topology production comparison",
+  "experiment_name": "hybrid_stage4b_topology_comparison",
+  "run_directory_label": "runs/stage4b-hybrid-topology-production-20261003",
+  "source_commit": "c44798266067fa4b8b7d3b2873a798b7a1600ae8",
+  "source_branch": "codex/stage4b-hybrid-production-20261003",
+  "protocol_revision": "stage4b_hybrid_topology_production_v1",
+  "computation_fingerprint": "c63910623cb9a5d2a05ecb51f3685becf448f8ac91f169752f1b9703beef8464",
+  "common_grid_id": "2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f",
+  "start_utc": "2026-10-03T01:48:27+00:00",
+  "start_local": "2026-10-03T10:48:27+09:00",
+  "finish_utc": "2026-10-03T12:05:18+00:00",
+  "finish_local": "2026-10-03T21:05:18+09:00",
+  "completion_state": "optimizer COMPLETED; orchestration REVIEWED after callback",
+  "exit_code": 0,
+  "callback_exit_code": 0,
+  "callback_thread_id": "01a0ff60-991d-7dc3-bde4-cc3640853a0d",
+  "expected_original_thread_id": "01a0fcca-3d9f-7a23-8622-1afe71e79c02",
+  "topologies": [
+    "D",
+    "P_D",
+    "D_P",
+    "P_D_P"
+  ],
+  "seeds": [
+    20261002,
+    20261003,
+    20261004,
+    20261005,
+    20261006
+  ],
+  "budget_per_cell": 24000,
+  "cells_expected": 20,
+  "cells_completed": 20,
+  "total_unique_evaluations": 480000,
+  "checkpoints": [
+    4000,
+    8000,
+    16000,
+    24000
+  ],
+  "production_manifest_path": "<SAW_REPO>/runs/stage4b-hybrid-topology-production-20261003/run_manifest.json",
+  "result_summary_path": "<SAW_REPO>/runs/stage4b-hybrid-topology-production-20261003/optimizer/metadata/integrity_check.json",
+  "completion_record_path": "<SAW_REPO>/runs/stage4b-hybrid-topology-production-20261003/optimizer/metadata/run_completion.json"
+}

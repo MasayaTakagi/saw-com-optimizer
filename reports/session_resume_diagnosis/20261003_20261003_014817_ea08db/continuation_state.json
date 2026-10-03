@@ -1,0 +1,26 @@
+{
+  "run_id": "20261003_014817_ea08db",
+  "continuation_enabled": true,
+  "continuation_mode": "legacy_codex_exec_resume",
+  "queue_selected_by_run": false,
+  "queue_expected_by_current_forensic_contract": true,
+  "completion_state_eligible": true,
+  "trigger_reached": true,
+  "trigger_timestamp_utc": "2026-10-03T12:10:03+00:00",
+  "callback_owner": "detached orchestration worker; final status worker_pid=10948",
+  "queue_expected": true,
+  "expected_thread_id": "01a0fcca-3d9f-7a23-8622-1afe71e79c02",
+  "stored_session_id": "01a0ff60-991d-7dc3-bde4-cc3640853a0d",
+  "actual_callback_target_thread_id": "01a0ff60-991d-7dc3-bde4-cc3640853a0d",
+  "claim_state": {
+    "queue_claim": "NOT_CREATED",
+    "legacy_callback_attempt": "CLAIMED_ONCE_AND_COMPLETED",
+    "stage4b_authorization_claim": "present; separate from continuation"
+  },
+  "queue_attempt_count": 0,
+  "callback_attempt_count": 1,
+  "notes": [
+    "The run manifest has no queue continuation mode; it records callback_enabled/review_after_completion and codex_session_id.",
+    "The expected_thread_id is the original current task thread in the Codex app. The prior launch task had instead authorized a dedicated callback thread."
+  ]
+}

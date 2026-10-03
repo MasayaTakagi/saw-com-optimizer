@@ -1,0 +1,32 @@
+# Environment and repository context (sanitized)
+
+## Production checkout at task start and after evidence creation
+
+- Repository: <SAW_REPO>
+- Branch: codex/stage4b-hybrid-production-20261003
+- HEAD: c44798266067fa4b8b7d3b2873a798b7a1600ae8
+- git status --short: clean
+- Upstream: origin/codex/stage4b-hybrid-production-20261003
+- No tracked or untracked files were written in the production checkout; forensic run artifacts were read and hashed only.
+
+## Evidence checkout
+
+- Branch: codex/session-resume-failure-evidence-20261003, base c44798266067fa4b8b7d3b2873a798b7a1600ae8.
+- The Codex-managed worktree directory was created but its path was outside the task's writable roots, so ordinary file creation was denied. Evidence was authored in a separate Git linked worktree under an already authorized task-writable root. The production checkout was not switched or modified.
+
+## C2C read-only context
+
+- Canonical checkout: branch main, HEAD 9663b88753e35c76796c5bce000293e0bd22cd9e.
+- Other observed C2C worktree: branch codex/c2c-mcp-data-plane-diagnostics, HEAD b9aafd89072d037c32563c45b8de0d7f36b8f425.
+- The requested codex/c2c-endpoint-diagnostic-integration worktree was not present in the observed worktree list.
+- Persistent root contained three logs/*.log files; mtimes were 2026-10-02, outside the 2026-10-03T11:50:18Z–12:20:18Z completion window. Bounded search found no run/thread IDs. C2C runtime availability at completion: UNKNOWN. C2C state-access failure at completion: UNKNOWN. C2C was not invoked in this forensic task (0 invocations).
+- Quick Tunnel relevance: NOT REQUIRED for the actual local Codex CLI exec resume path. No tunnel was started or inspected for continuation.
+
+## Codex CLI
+
+- Current PATH resolution: <USERPROFILE>/AppData/Local/OpenAI/Codex/bin/<version-folder>/codex.exe.
+- Current codex --version: codex-cli 0.159.0-alpha.12.1; prelaunch evidence recorded the same version.
+- Current codex queue --help lists --thread and --message; historical queue support: UNKNOWN (help was not captured at run completion).
+- Historical callback log records the same executable family invoking exec resume with the explicit dedicated callback ID. No --last or codex queue command is evidenced.
+- Current task environment: USERPROFILE is set (value normalized to <USERPROFILE>); HOME and CODEX_HOME are unset in this shell. The prelaunch callback helper supplied their expected profile-based defaults. Current repository cwd is <SAW_REPO>.
+- Current read-only CLI probes emitted warnings that Codex could not clean/create %USERPROFILE%\.codex\tmp\arg0 aliases under the sandbox. This is current environment context, not evidence about the historical run.

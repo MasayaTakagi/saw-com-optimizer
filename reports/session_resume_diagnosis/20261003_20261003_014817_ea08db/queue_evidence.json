@@ -1,0 +1,38 @@
+{
+  "run_id": "20261003_014817_ea08db",
+  "queue_attempted": false,
+  "attempt_count": 0,
+  "attempt_timestamp_utc": null,
+  "target_thread_id": null,
+  "codex_executable": "<USERPROFILE>/AppData/Local/OpenAI/Codex/bin/<version-folder>/codex.exe",
+  "codex_version": "codex-cli 0.159.0-alpha.12.1 (recorded in prelaunch evidence; same as current)",
+  "queue_help_supported": {
+    "current_cli": true,
+    "historical_cli": "UNKNOWN"
+  },
+  "help_flags_current": [
+    "--thread",
+    "--message"
+  ],
+  "exit_code": null,
+  "stdout_classification": "NO QUEUE PROCESS OUTPUT FOUND",
+  "stderr_classification": "NO QUEUE PROCESS OUTPUT FOUND",
+  "receiver_state": {
+    "dedicated_callback_thread": "RECEIVER_CONFIRMED",
+    "expected_original_thread": "RECEIVER_NOT_CONFIRMED"
+  },
+  "message_length": null,
+  "message_sha256": null,
+  "safe_message_summary": "No queue message was constructed or invoked; the historical callback used the legacy resume prompt, which is omitted.",
+  "evidence_sources": [
+    "run_manifest.json",
+    "status.json",
+    "stdout.log",
+    "stderr.log",
+    "callback.log",
+    "dedicated Codex rollout metadata",
+    "Codex app thread histories",
+    "source control flow"
+  ],
+  "caveat": "Current queue help is not evidence of historical queue support. No queue exit code exists because no queue process was launched."
+}
