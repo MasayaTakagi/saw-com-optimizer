@@ -1,0 +1,65 @@
+{
+  "status": "PASS",
+  "warning": false,
+  "metric": "common-grid selected finalist worst passband insertion loss (dB)",
+  "pairing": "matched seed labels; delta = P_D - D_P",
+  "criterion": "all five deltas share one nonzero sign and abs(median(delta)) exceeds max(P_D IL span, D_P IL span)",
+  "p_d_seed_span_db": 0.8829397809457551,
+  "d_p_seed_span_db": 0.826904232265909,
+  "median_delta_db": 0.025702504401652337,
+  "seed_pairs": [
+    {
+      "seed": 20261002,
+      "p_d_worst_il_db": 3.511933356285674,
+      "d_p_worst_il_db": 3.665893724396066,
+      "delta_p_d_minus_d_p_db": -0.15396036811039204,
+      "p_d_max_violation": 0.36070554606655114,
+      "d_p_max_violation": 0.38772820094128185,
+      "p_d_feasible": false,
+      "d_p_feasible": false
+    },
+    {
+      "seed": 20261003,
+      "p_d_worst_il_db": 3.4863926167455617,
+      "d_p_worst_il_db": 3.4606901123439093,
+      "delta_p_d_minus_d_p_db": 0.025702504401652337,
+      "p_d_max_violation": 0.40553491407029785,
+      "d_p_max_violation": 0.3927126138672666,
+      "p_d_feasible": false,
+      "d_p_feasible": false
+    },
+    {
+      "seed": 20261004,
+      "p_d_worst_il_db": 3.089922970892802,
+      "d_p_worst_il_db": 2.86845786643737,
+      "delta_p_d_minus_d_p_db": 0.2214651044554321,
+      "p_d_max_violation": 0.3807299270539546,
+      "d_p_max_violation": 0.3990106987017748,
+      "p_d_feasible": false,
+      "d_p_feasible": false
+    },
+    {
+      "seed": 20261005,
+      "p_d_worst_il_db": 3.050911253821505,
+      "d_p_worst_il_db": 3.695362098703279,
+      "delta_p_d_minus_d_p_db": -0.6444508448817743,
+      "p_d_max_violation": 0.3647810539133021,
+      "d_p_max_violation": 0.3642542859436932,
+      "p_d_feasible": false,
+      "d_p_feasible": false
+    },
+    {
+      "seed": 20261006,
+      "p_d_worst_il_db": 3.93385103476726,
+      "d_p_worst_il_db": 3.4178760196187827,
+      "delta_p_d_minus_d_p_db": 0.5159750151484772,
+      "p_d_max_violation": 0.4032896907528033,
+      "d_p_max_violation": 0.38104446776442996,
+      "p_d_feasible": false,
+      "d_p_feasible": false
+    }
+  ],
+  "corroborating_diagnostics": "Per-seed common-grid maximum violation and feasibility are reported separately; they do not suppress this flag.",
+  "interpretation_limit": "A warning describes separation in these optimizer results; it does not prove a physical symmetry failure or topology superiority. Five seeds do not establish an absolute engineering threshold.",
+  "rationale": "The predeclared direction-and-seed-span warning rule did not trigger."
+}

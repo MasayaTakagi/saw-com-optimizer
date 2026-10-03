@@ -1,0 +1,30 @@
+{
+  "status": "COMPLETED",
+  "disposition": "COMPLETED",
+  "source": "explicit_run_disposition",
+  "outcome_status": null,
+  "recorded_at_utc": "2026-10-03T12:05:18+00:00",
+  "completed_at_utc": "2026-10-03T12:05:18+00:00",
+  "final_checkpoints": [
+    "optimization/D/seed20261002/checkpoints/final.json",
+    "optimization/D/seed20261003/checkpoints/final.json",
+    "optimization/D/seed20261004/checkpoints/final.json",
+    "optimization/D/seed20261005/checkpoints/final.json",
+    "optimization/D/seed20261006/checkpoints/final.json",
+    "optimization/D_P/seed20261002/checkpoints/final.json",
+    "optimization/D_P/seed20261003/checkpoints/final.json",
+    "optimization/D_P/seed20261004/checkpoints/final.json",
+    "optimization/D_P/seed20261005/checkpoints/final.json",
+    "optimization/D_P/seed20261006/checkpoints/final.json",
+    "optimization/P_D/seed20261002/checkpoints/final.json",
+    "optimization/P_D/seed20261003/checkpoints/final.json",
+    "optimization/P_D/seed20261004/checkpoints/final.json",
+    "optimization/P_D/seed20261005/checkpoints/final.json",
+    "optimization/P_D/seed20261006/checkpoints/final.json",
+    "optimization/P_D_P/seed20261002/checkpoints/final.json",
+    "optimization/P_D_P/seed20261003/checkpoints/final.json",
+    "optimization/P_D_P/seed20261004/checkpoints/final.json",
+    "optimization/P_D_P/seed20261005/checkpoints/final.json",
+    "optimization/P_D_P/seed20261006/checkpoints/final.json"
+  ]
+}

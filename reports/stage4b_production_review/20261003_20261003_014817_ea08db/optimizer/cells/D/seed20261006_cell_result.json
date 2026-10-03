@@ -1,0 +1,369 @@
+{
+  "schema_version": 1,
+  "topology": "D",
+  "seed": 20261006,
+  "dimension": 10,
+  "budget": 24000,
+  "population_schedule_terminal_budget": 24000,
+  "checkpoints": [
+    4000,
+    8000,
+    16000,
+    24000
+  ],
+  "initial_population": 180,
+  "initial_population_rule": "18 * dimension",
+  "cold_start": true,
+  "warm_start": false,
+  "parent_transfer": false,
+  "topology_transfer": false,
+  "historical_population_injection": false,
+  "mode": "production",
+  "computation_fingerprint": "c63910623cb9a5d2a05ecb51f3685becf448f8ac91f169752f1b9703beef8464",
+  "source_commit_sha": "c44798266067fa4b8b7d3b2873a798b7a1600ae8",
+  "common_validation_grid_id": "2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f",
+  "status": "COMPLETED",
+  "unique_evaluations": 24000,
+  "initialization": {
+    "method": "independent_uniform_rejection_v1",
+    "seed": 20261006,
+    "topology": "D",
+    "initial_sampling_seed": 2210273613,
+    "requested_population_size": 180,
+    "accepted_population_size": 180,
+    "candidate_draws": 192,
+    "geometry_rejections": 12,
+    "duplicate_rejections": 0,
+    "historical_seed_count": 0,
+    "warm_start": false,
+    "parent_transfer": false,
+    "topology_transfer": false
+  },
+  "search_incumbent": {
+    "evaluation_status": "PHYSICS_EVALUATED",
+    "topology": "D",
+    "candidate_vector": [
+      5.122198053097868,
+      4.999772360860597,
+      5.1206719357011306,
+      4.776872431020253,
+      13.0,
+      11.0,
+      17.0,
+      0.27142802103888347,
+      2.2041460904950654,
+      174.03493339109798
+    ],
+    "dms_design": {
+      "wavelength_A_um": 5.122198053097868,
+      "wavelength_B_um": 4.999772360860597,
+      "wavelength_C_um": 5.1206719357011306,
+      "reflector_wavelength_um": 4.776872431020253,
+      "pairs_A": 13,
+      "pairs_B": 11,
+      "pairs_C": 17,
+      "common_idt_gap_lambda": 0.27142802103888347,
+      "reflector_gap_lambda": 2.2041460904950654,
+      "aperture_um": 174.03493339109798,
+      "reflector_electrodes": 40,
+      "metallization_ratio": 0.5,
+      "thickness_over_lambda": 0.04
+    },
+    "resonator_designs": [],
+    "metrics": {
+      "worst_il_db": 2.827044482169103,
+      "ripple_db": 1.6636445134552589,
+      "input_vswr": 2.98204646868885,
+      "output_vswr": 3.5130545126177277,
+      "source_return_loss_db_min": 6.059849830496234,
+      "load_return_loss_db_min": 5.085373400529911,
+      "stop_attenuation_db": [
+        19.07782266897153,
+        19.463231191506626,
+        17.80245808696145,
+        28.585659534657335
+      ]
+    },
+    "violations": {
+      "il": 0.0,
+      "ripple": 0.0,
+      "input_vswr": 0.19281858747553993,
+      "output_vswr": 0.40522180504709104,
+      "stop_0": 0.046108866551423586,
+      "stop_1": 0.39177402526541794,
+      "stop_2": 0.4065847304346183,
+      "stop_3": 0.047144682178088836
+    },
+    "feasible": false,
+    "max_violation": 0.4065847304346183,
+    "sum_violation": 1.4896526969521797,
+    "objective": 1406586220.090142,
+    "search_scalar_objective": 1406586220.090142,
+    "geometry_max_violation": 0.0,
+    "geometry_violations": {
+      "dms_max_total_acoustic_length": 0.0,
+      "dms_max_aperture_width": 0.0,
+      "dms_minimum_electrode_width": 0.0,
+      "dms_minimum_electrode_gap": 0.0,
+      "dms_max_total_electrode_count": 0.0,
+      "combined_die_length": 0.0,
+      "combined_die_width": 0.0,
+      "combined_max_total_electrodes": 0.0
+    },
+    "failure_stage": null
+  },
+  "common_grid_selected_finalist": {
+    "evaluation_status": "PHYSICS_EVALUATED",
+    "topology": "D",
+    "candidate_vector": [
+      5.122198053097868,
+      4.999772360860597,
+      5.1206719357011306,
+      4.776872431020253,
+      13.0,
+      11.0,
+      17.0,
+      0.27142802103888347,
+      2.2041460904950654,
+      174.03493339109798
+    ],
+    "dms_design": {
+      "wavelength_A_um": 5.122198053097868,
+      "wavelength_B_um": 4.999772360860597,
+      "wavelength_C_um": 5.1206719357011306,
+      "reflector_wavelength_um": 4.776872431020253,
+      "pairs_A": 13,
+      "pairs_B": 11,
+      "pairs_C": 17,
+      "common_idt_gap_lambda": 0.27142802103888347,
+      "reflector_gap_lambda": 2.2041460904950654,
+      "aperture_um": 174.03493339109798,
+      "reflector_electrodes": 40,
+      "metallization_ratio": 0.5,
+      "thickness_over_lambda": 0.04
+    },
+    "resonator_designs": [],
+    "metrics": {
+      "worst_il_db": 2.8351474153148875,
+      "ripple_db": 1.6717474466010431,
+      "input_vswr": 2.982381376878765,
+      "output_vswr": 3.513251446645683,
+      "source_return_loss_db_min": 6.059112783867998,
+      "load_return_loss_db_min": 5.085071776397014,
+      "stop_attenuation_db": [
+        19.00948227749634,
+        19.463231191506626,
+        17.802990081786007,
+        28.589460881368716
+      ]
+    },
+    "violations": {
+      "il": 0.0,
+      "ripple": 0.0,
+      "input_vswr": 0.19295255075150597,
+      "output_vswr": 0.4053005786582733,
+      "stop_0": 0.04952588612518305,
+      "stop_1": 0.39177402526541794,
+      "stop_2": 0.4065669972737998,
+      "stop_3": 0.047017970621042814
+    },
+    "feasible": false,
+    "max_violation": 0.4065669972737998,
+    "sum_violation": 1.4931380086952228,
+    "objective": 1406568490.4146433,
+    "search_scalar_objective": 1406568490.4146433,
+    "geometry_max_violation": 0.0,
+    "geometry_violations": {
+      "dms_max_total_acoustic_length": 0.0,
+      "dms_max_aperture_width": 0.0,
+      "dms_minimum_electrode_width": 0.0,
+      "dms_minimum_electrode_gap": 0.0,
+      "dms_max_total_electrode_count": 0.0,
+      "combined_die_length": 0.0,
+      "combined_die_width": 0.0,
+      "combined_max_total_electrodes": 0.0
+    },
+    "failure_stage": null
+  },
+  "active_bound_diagnostics": [
+    {
+      "variable": "wavelength_A_um",
+      "value": 5.122198053097868,
+      "lower_bound": 4.6,
+      "upper_bound": 5.4,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "wavelength_B_um",
+      "value": 4.999772360860597,
+      "lower_bound": 4.6,
+      "upper_bound": 5.4,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "wavelength_C_um",
+      "value": 5.1206719357011306,
+      "lower_bound": 4.6,
+      "upper_bound": 5.4,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "reflector_wavelength_um",
+      "value": 4.776872431020253,
+      "lower_bound": 4.6,
+      "upper_bound": 5.4,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "pairs_A",
+      "value": 13.0,
+      "lower_bound": 4.0,
+      "upper_bound": 24.0,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "pairs_B",
+      "value": 11.0,
+      "lower_bound": 4.0,
+      "upper_bound": 24.0,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "pairs_C",
+      "value": 17.0,
+      "lower_bound": 5.0,
+      "upper_bound": 24.0,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "common_idt_gap_lambda",
+      "value": 0.27142802103888347,
+      "lower_bound": 0.0,
+      "upper_bound": 3.0,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "reflector_gap_lambda",
+      "value": 2.2041460904950654,
+      "lower_bound": 0.0,
+      "upper_bound": 3.0,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "dms_aperture_um",
+      "value": 174.03493339109798,
+      "lower_bound": 30.0,
+      "upper_bound": 180.0,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    }
+  ],
+  "checkpoint_records": [
+    4000,
+    8000,
+    16000,
+    24000
+  ],
+  "checkpoint_summaries": [
+    {
+      "checkpoint_budget": 4000,
+      "selected_max_violation": 0.662866618906339,
+      "selected_sum_violation": 3.3598936378513518,
+      "selected_worst_il_db": 4.209692913389652,
+      "selected_ripple_db": 3.284061345509274,
+      "unique_evaluations": 4000,
+      "generations": 3820
+    },
+    {
+      "checkpoint_budget": 8000,
+      "selected_max_violation": 0.6262304955445852,
+      "selected_sum_violation": 3.103815638182174,
+      "selected_worst_il_db": 3.758504673566663,
+      "selected_ripple_db": 2.8854922745005065,
+      "unique_evaluations": 8000,
+      "generations": 7820
+    },
+    {
+      "checkpoint_budget": 16000,
+      "selected_max_violation": 0.448266812399424,
+      "selected_sum_violation": 1.7569009143067977,
+      "selected_worst_il_db": 3.277702188204254,
+      "selected_ripple_db": 2.017766739387537,
+      "unique_evaluations": 16000,
+      "generations": 15820
+    },
+    {
+      "checkpoint_budget": 24000,
+      "selected_max_violation": 0.4065669972737998,
+      "selected_sum_violation": 1.4931380086952228,
+      "selected_worst_il_db": 2.8351474153148875,
+      "selected_ripple_db": 1.6717474466010431,
+      "unique_evaluations": 24000,
+      "generations": 23820
+    }
+  ],
+  "counters": {
+    "unique_decoded_evaluations": 24000,
+    "geometry_rejections": 20,
+    "geometry_valid_candidates": 23980,
+    "physics_attempted_evaluations": 23980,
+    "valid_physics_evaluations": 23980,
+    "physics_failures": 0,
+    "search_frequency_points": 24003980,
+    "cache_hits": 462,
+    "objective_proposals": 24462,
+    "duplicate_proposals": 462,
+    "raw_offspring_count": 24282,
+    "generations": 23820,
+    "population_size": 4,
+    "initial_population": 180,
+    "population_schedule_identifier": "lshade_linear_population_v1",
+    "population_schedule_terminal_budget": 24000,
+    "m_f": [
+      0.77759603646344,
+      0.5976395020899322,
+      0.6404819388945248,
+      0.730400178837253,
+      0.4604760742005522,
+      0.4140885147091524
+    ],
+    "m_cr": [
+      0.028518431383418977,
+      0.018316601073602574,
+      0.1262706684884017,
+      0.009900517512374108,
+      0.1332007087845986,
+      0.08025067858173773
+    ],
+    "validation_evaluations": 64,
+    "validation_physics_failures": 0,
+    "validation_frequency_points": 583232
+  },
+  "cache_statistics": {
+    "proposals_total": 24462,
+    "raw_offspring_count": 24282,
+    "duplicate_count": 462,
+    "duplicate_rate": 0.01888643610497915,
+    "cache_hits": 462,
+    "cache_hit_rate": 0.01888643610497915,
+    "search_space_exhausted": false
+  },
+  "physics_failures": 0,
+  "validation_physics_failures": 0,
+  "geometry_rejections": 20,
+  "runtime": {
+    "search_evaluation_wall_time_s": 1262.794720796519,
+    "common_validation_wall_time_s": 28.51616119989194,
+    "cell_wall_time_s": 1542.3987551999744
+  },
+  "created_at": "2026-10-03T03:59:52.933313+00:00"
+}

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "topology": "P_D_P",
+  "seed": 20261005,
+  "dimension": 16,
+  "budget": 24000,
+  "population_schedule_terminal_budget": 24000,
+  "checkpoints": [
+    4000,
+    8000,
+    16000,
+    24000
+  ],
+  "initial_population": 288,
+  "initial_population_rule": "18 * dimension",
+  "cold_start": true,
+  "warm_start": false,
+  "parent_transfer": false,
+  "topology_transfer": false,
+  "historical_population_injection": false,
+  "mode": "production",
+  "computation_fingerprint": "c63910623cb9a5d2a05ecb51f3685becf448f8ac91f169752f1b9703beef8464",
+  "source_commit_sha": "c44798266067fa4b8b7d3b2873a798b7a1600ae8",
+  "common_validation_grid_id": "2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f",
+  "status": "COMPLETED",
+  "elapsed_wall_time_s": 2075.964622700005,
+  "updated_at": "2026-10-03T11:27:27.840226+00:00"
+}

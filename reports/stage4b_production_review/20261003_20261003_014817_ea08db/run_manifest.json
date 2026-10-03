@@ -1,0 +1,438 @@
+{
+  "schema_version": 2,
+  "run_id": "20261003_014817_ea08db",
+  "experiment_name": "hybrid_stage4b_topology_comparison",
+  "created_at": "2026-10-03T01:48:26+00:00",
+  "project_root": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer",
+  "run_dir": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer\\runs\\stage4b-hybrid-topology-production-20261003",
+  "command": [
+    "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer\\.venv\\Scripts\\python.exe",
+    "-m",
+    "sawopt",
+    "run-study",
+    "--config",
+    "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer\\configs\\studies\\hybrid_stage4b_topology_comparison.yaml",
+    "--run",
+    "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer\\runs\\stage4b-hybrid-topology-production-20261003\\optimizer",
+    "--stage4b-authorization-manifest",
+    "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer\\runs\\stage4b-hybrid-topology-production-20261003\\run_manifest.json"
+  ],
+  "config_path": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer\\configs\\studies\\hybrid_stage4b_topology_comparison.yaml",
+  "codex_session_id": "01a0ff60-991d-7dc3-bde4-cc3640853a0d",
+  "codex_model": null,
+  "callback_enabled": true,
+  "review_after_completion": true,
+  "callback_timeout_minutes": 30.0,
+  "codex_session_source": "explicit",
+  "optimizer_run_dir": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer\\runs\\stage4b-hybrid-topology-production-20261003\\optimizer",
+  "callback_preflight": {
+    "status": "PASS",
+    "session_id": "01a0ff60-991d-7dc3-bde4-cc3640853a0d",
+    "validated_target_id": "01a0ff60-991d-7dc3-bde4-cc3640853a0d",
+    "executable": "C:\\Users\\sub\\AppData\\Local\\OpenAI\\Codex\\bin\\be3fd7e5c1969ff6\\codex.EXE",
+    "scratch_root": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer\\runs\\.callback_preflight"
+  },
+  "experiment_metadata": {
+    "study_type": "hybrid_stage4b_topology_comparison",
+    "protocol_revision": "stage4b_hybrid_topology_production_v1",
+    "fingerprint_schema_version": 2,
+    "computation_fingerprint": "c63910623cb9a5d2a05ecb51f3685becf448f8ac91f169752f1b9703beef8464",
+    "source_commit_sha": "c44798266067fa4b8b7d3b2873a798b7a1600ae8",
+    "user_authorized_production": true,
+    "authorization_scope": "stage4b-hybrid-topology-production-exact-protocol-v1",
+    "authorized_at": "2026-10-03T01:48:26+00:00",
+    "run_id": "20261003_014817_ea08db",
+    "topologies": [
+      "D",
+      "P_D",
+      "D_P",
+      "P_D_P"
+    ],
+    "seeds": [
+      20261002,
+      20261003,
+      20261004,
+      20261005,
+      20261006
+    ],
+    "budget_per_cell": 24000,
+    "population_schedule_terminal_budget": 24000,
+    "checkpoints": [
+      4000,
+      8000,
+      16000,
+      24000
+    ],
+    "matrix": [
+      {
+        "topology": "D",
+        "seed": 20261002,
+        "dimension": 10,
+        "initial_population": 180,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "D",
+        "seed": 20261003,
+        "dimension": 10,
+        "initial_population": 180,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "D",
+        "seed": 20261004,
+        "dimension": 10,
+        "initial_population": 180,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "D",
+        "seed": 20261005,
+        "dimension": 10,
+        "initial_population": 180,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "D",
+        "seed": 20261006,
+        "dimension": 10,
+        "initial_population": 180,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "P_D",
+        "seed": 20261002,
+        "dimension": 13,
+        "initial_population": 234,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "P_D",
+        "seed": 20261003,
+        "dimension": 13,
+        "initial_population": 234,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "P_D",
+        "seed": 20261004,
+        "dimension": 13,
+        "initial_population": 234,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "P_D",
+        "seed": 20261005,
+        "dimension": 13,
+        "initial_population": 234,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "P_D",
+        "seed": 20261006,
+        "dimension": 13,
+        "initial_population": 234,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "D_P",
+        "seed": 20261002,
+        "dimension": 13,
+        "initial_population": 234,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "D_P",
+        "seed": 20261003,
+        "dimension": 13,
+        "initial_population": 234,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "D_P",
+        "seed": 20261004,
+        "dimension": 13,
+        "initial_population": 234,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "D_P",
+        "seed": 20261005,
+        "dimension": 13,
+        "initial_population": 234,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "D_P",
+        "seed": 20261006,
+        "dimension": 13,
+        "initial_population": 234,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "P_D_P",
+        "seed": 20261002,
+        "dimension": 16,
+        "initial_population": 288,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "P_D_P",
+        "seed": 20261003,
+        "dimension": 16,
+        "initial_population": 288,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "P_D_P",
+        "seed": 20261004,
+        "dimension": 16,
+        "initial_population": 288,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "P_D_P",
+        "seed": 20261005,
+        "dimension": 16,
+        "initial_population": 288,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      },
+      {
+        "topology": "P_D_P",
+        "seed": 20261006,
+        "dimension": 16,
+        "initial_population": 288,
+        "budget": 24000,
+        "population_schedule_terminal_budget": 24000,
+        "checkpoints": [
+          4000,
+          8000,
+          16000,
+          24000
+        ],
+        "cold_start": true,
+        "warm_start": false,
+        "parent_transfer": false,
+        "topology_transfer": false
+      }
+    ],
+    "total_unique_evaluations": 480000,
+    "cold_start": true,
+    "warm_start": false,
+    "parent_transfer": false,
+    "topology_transfer": false,
+    "orchestration_run_dir": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer\\runs\\stage4b-hybrid-topology-production-20261003",
+    "optimizer_run_dir": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer\\runs\\stage4b-hybrid-topology-production-20261003\\optimizer",
+    "authorization_claim_id": "f87218f7985011142ca78e316208404f262ddec0c81c85bd0cc3887e1e4668df",
+    "authorization_claim_path": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer\\runs\\.stage4b_authorization_claims\\f87218f7985011142ca78e316208404f262ddec0c81c85bd0cc3887e1e4668df.json"
+  }
+}
