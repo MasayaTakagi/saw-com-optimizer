@@ -1,0 +1,37 @@
+{
+  "review_schema_version": 1,
+  "run_id": "20261004_084741_1ef70e",
+  "stage": "qualification",
+  "study_type": "postrun_workflow_qualification",
+  "production_execution_source_sha": "f40e44ed1747fe10ffcd3003fb17bfb9e598c262",
+  "computation_fingerprint": null,
+  "protocol_fingerprint": null,
+  "source_branch": "codex/postrun-review-workflow-cleanup-20261004",
+  "review_branch": "codex/postrun-review-workflow-cleanup-20261004",
+  "canonical_review_directory": "reports/experiment_reviews/qualification/20261004_084741_1ef70e",
+  "optimizer_completion_state": "COMPLETED",
+  "exit_code": 0,
+  "expected_cell_count": 1,
+  "completed_cell_count": 1,
+  "seeds": [
+    "qualification"
+  ],
+  "comparison_arms": [
+    "fixture"
+  ],
+  "evaluation_budget_per_cell": null,
+  "terminal_horizon": null,
+  "grid_identity": [],
+  "review_spec_id": "postrun_workflow_qualification_v1",
+  "review_spec_sha256": "dcb9642dfb137f5f82c9aa67f254cb3fb049c66d7f3dabed136361e46185115b",
+  "exporter_identity": "sawopt.github_review_export/1",
+  "created_at_utc": "2026-10-04T08:47:44+00:00",
+  "package_complete": true,
+  "redaction_scan": "PASS",
+  "target_size_bytes": 2097152,
+  "hard_size_bytes": 10485760,
+  "target_size_exceeded": false,
+  "package_total_bytes": 12774,
+  "artifact_manifest_sha256": "66810ae78792476bd4066e1341f6c49f584baf7666561249c51ba63b227407aa",
+  "readme_sha256": "f1b10715cf227a949cdd93e9eea62450e503e08edf941b887c9f16dd5e9de3bd"
+}

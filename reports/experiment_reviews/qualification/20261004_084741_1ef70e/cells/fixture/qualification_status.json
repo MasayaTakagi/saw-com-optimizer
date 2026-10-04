@@ -1,0 +1,7 @@
+{
+  "arm": "fixture",
+  "seed": "qualification",
+  "status": "COMPLETED",
+  "cold_start": true,
+  "terminal": true
+}
