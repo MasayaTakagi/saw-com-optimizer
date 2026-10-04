@@ -2,7 +2,6 @@ spec_id: hybrid_production_v1
 stage: stage4b
 study_types:
   - hybrid_stage4b_topology_comparison
-  - hybrid_stage4c_shortlist_convergence
 target_size_bytes: 2097152
 hard_size_bytes: 10485760
 required_artifacts:
