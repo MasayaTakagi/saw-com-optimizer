@@ -56,6 +56,30 @@ Legacy `codex exec resume` metadata may remain supported for reading/recovery of
 historical manifests, but new production launch paths must not select it as the
 normal continuation mode.
 
+## Queue sender diagnostic evidence
+
+A failed detached queue sender must remain diagnosable after its process exits.
+Hashes alone are not sufficient because they cannot explain a non-zero queue
+exit. New queue attempts therefore must persist bounded, redacted diagnostic
+evidence for the actual `codex queue` invocation.
+
+At minimum preserve:
+
+- sender exit code and start/finish timestamps;
+- SHA256 of stdout and stderr;
+- bounded UTF-8 stdout/stderr excerpts, or equivalent bounded run-local text
+  files;
+- whether either stream was truncated;
+- pinned Codex executable/version identity used by the sender.
+
+Do not persist credentials, cookies, OAuth codes, reusable tokens, or temporary
+public endpoints. Apply the same credential-class redaction discipline used by
+review evidence before writing queue-output excerpts.
+
+A non-zero queue exit remains fail-closed unless its semantics explicitly prove
+that no delivery occurred. Do not automatically resend an already claimed
+one-shot delivery merely because the queue process returned non-zero.
+
 ## Codex post-run responsibility
 
 The resumed Codex task is a publisher/packager. It may:
