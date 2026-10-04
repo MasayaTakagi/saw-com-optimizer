@@ -107,6 +107,8 @@ class CodexQueueTests(unittest.TestCase):
 
         def runner(command, **_kwargs):
             calls.append(command)
+            self.assertEqual(_kwargs["encoding"], "utf-8")
+            self.assertEqual(_kwargs["errors"], "replace")
             if command[1:] == ["--version"]:
                 return SimpleNamespace(returncode=0, stdout="codex-test 4.2\n", stderr="")
             return SimpleNamespace(returncode=0, stdout="queue --thread ID --message TEXT", stderr="")
@@ -124,7 +126,7 @@ class CodexQueueTests(unittest.TestCase):
     def test_queue_preflight_fails_when_help_lacks_exact_flags(self):
         def runner(command, **_kwargs):
             if command[1:] == ["--version"]:
-                return SimpleNamespace(returncode=0, stdout="codex 1", stderr="")
+                return SimpleNamespace(returncode=0, stdout="codex 1.0", stderr="")
             return SimpleNamespace(returncode=0, stdout="queue", stderr="")
 
         with mock.patch.object(codex_queue, "_identity_snapshot", return_value={}), \
@@ -132,11 +134,29 @@ class CodexQueueTests(unittest.TestCase):
             with self.assertRaisesRegex(codex_queue.CodexQueuePreflightError, "--thread"):
                 codex_queue.run_codex_queue_preflight(THREAD, project_root=ROOT, runner=runner)
 
+    def test_preflight_ignores_transient_cli_stderr_for_pinned_identity(self):
+        warnings = iter(("warning path one", "warning path two", "help warning one", "help warning two"))
+
+        def runner(command, **_kwargs):
+            if command[1:] == ["--version"]:
+                return SimpleNamespace(returncode=0, stdout="codex-cli 1.2.3\n", stderr=next(warnings))
+            return SimpleNamespace(returncode=0, stdout="queue --thread ID --message TEXT", stderr=next(warnings))
+
+        with mock.patch.object(codex_queue, "_identity_snapshot", return_value={
+            "effective_user": "test-user", "user_profile": "C:/Users/test-user",
+            "windows_user_profile": "C:/Users/test-user",
+        }), mock.patch.object(codex_queue, "_resolve_executable", return_value="C:/Codex/codex.exe"):
+            first = codex_queue.run_codex_queue_preflight(THREAD, project_root=ROOT, runner=runner)
+            second = codex_queue.run_codex_queue_preflight(THREAD, project_root=ROOT, runner=runner)
+        self.assertEqual(first["codex_version"], "codex-cli 1.2.3")
+        self.assertEqual(second["codex_version"], first["codex_version"])
+        self.assertEqual(second["queue_help_sha256"], first["queue_help_sha256"])
+
     @unittest.skipUnless(os.name == "nt", "Windows identity contract")
     def test_windows_userprofile_identity_mismatch_fails(self):
         with mock.patch.dict(os.environ, {"USERPROFILE": r"C:\Users\test-user"}), \
                 mock.patch.object(codex_queue, "_windows_profile_folder", return_value=r"C:\Users\test-user"), \
-                mock.patch.object(codex_queue, "_effective_user", return_value="DOMAIN\other"):
+                mock.patch.object(codex_queue, "_effective_user", return_value=r"DOMAIN\other"):
             with self.assertRaisesRegex(codex_queue.CodexQueuePreflightError, "normal profile"):
                 codex_queue._identity_snapshot()
 
@@ -169,6 +189,8 @@ class CodexQueueTests(unittest.TestCase):
             message_seen = []
 
             def queue_runner(command, **_kwargs):
+                self.assertEqual(_kwargs["encoding"], "utf-8")
+                self.assertEqual(_kwargs["errors"], "replace")
                 ledger = load_continuation_delivery(run_dir)
                 self.assertEqual(ledger["state"], "CLAIMED")
                 self.assertIsNotNone(ledger["command_started_at"])

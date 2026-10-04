@@ -114,6 +114,7 @@ def _run_cli(command: list[str], *, cwd: str | Path, timeout_s: float,
         return runner(
             command, cwd=str(cwd), env=dict(os.environ), stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            encoding="utf-8", errors="replace",
             timeout=timeout_s, check=False,
         )
     except subprocess.TimeoutExpired as exc:
@@ -131,19 +132,24 @@ def run_codex_queue_preflight(thread_id: str, *, project_root: str | Path,
     root = Path(project_root).resolve()
     version = _run_cli([executable, "--version"], cwd=root,
                        timeout_s=QUEUE_PREFLIGHT_TIMEOUT_S, runner=runner)
-    version_output = "\n".join((version.stdout or "", version.stderr or "")).strip()
-    if version.returncode != 0 or not version_output:
+    version_output = (version.stdout or "").strip()
+    version_line = next((
+        line.strip() for line in version_output.splitlines()
+        if re.search(r"(?i)\bcodex\b", line) and re.search(r"\d+\.\d+", line)
+    ), None)
+    if version.returncode != 0 or version_line is None:
         raise CodexQueuePreflightError("Codex version preflight failed")
     help_result = _run_cli([executable, "queue", "--help"], cwd=root,
                            timeout_s=QUEUE_PREFLIGHT_TIMEOUT_S, runner=runner)
     help_output = "\n".join((help_result.stdout or "", help_result.stderr or ""))
     if help_result.returncode != 0 or "--thread" not in help_output or "--message" not in help_output:
         raise CodexQueuePreflightError("codex queue help must pass and support --thread and --message")
+    help_identity = help_result.stdout or help_output
     return {
         "status": "PASS", "captured_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "thread_id": exact_thread, **identity, "codex_executable": executable,
-        "codex_version": version_output.splitlines()[-1].strip(),
-        "queue_help_sha256": hashlib.sha256(help_output.encode("utf-8")).hexdigest(),
+        "codex_version": version_line,
+        "queue_help_sha256": hashlib.sha256(help_identity.encode("utf-8")).hexdigest(),
         "explicit_thread": True, "explicit_message": True,
     }
 
@@ -194,7 +200,8 @@ def run_codex_queue(thread_id: str, message: str, *, codex_executable: str,
             build_queue_command(thread_id, message, codex_executable=codex_executable),
             cwd=str(Path(project_root).resolve()), env=dict(os.environ),
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True, timeout=timeout_s, check=False,
+            text=True, encoding="utf-8", errors="replace",
+            timeout=timeout_s, check=False,
         )
     except subprocess.TimeoutExpired as exc:
         raise CodexQueueTimeoutError("codex queue exceeded finite timeout") from exc
