@@ -38,19 +38,26 @@ legacy `codex exec resume` 用のsession metadataはhistorical manifestの読み
 
 ## 起動
 
-queue-native実装のCLI形状はactive implementationでqualificationしたものを
-使用します。概念上必要な情報は以下です。
+新規manifestはschema v4です。continuationの既定値は`queue`で、明示的な
+`--no-callback`は`disabled`として記録します。`legacy_resume`は過去manifestの
+読み取り・復旧に限り、新規launchでは拒否されます。queue modeでは
+`CODEX_THREAD_ID`が必須で、任意の`--thread-id`はその値と一致しなければなりません。
+`--session-id`と`--session-file`はqueue routingに使用できません。
+
+launch例:
 
 ```powershell
 .\.venv\Scripts\python.exe -m sawopt.orchestration.cli launch `
   --config <PRODUCTION_CONFIG> `
-  --continuation-mode queue `
   --thread-id <EXACT_ORIGINAL_THREAD_ID> `
+  --review-stage <STAGE> `
+  --review-spec <FROZEN_SPEC_ID> `
   --run-dir <RUN_DIR>
 ```
 
-実際の引数が追加のdelivery metadataを必要とする場合は、qualification済み
-CLI contractに従います。
+launch時にCodex実行ファイル/version/helpのpreflightを行い、有限queue timeoutと
+frozen review specをmanifestへ保存します。preflightが失敗した場合はrun directoryを
+作成せず停止します。schema-v4 manifestはC2C taskやPLAN iterationを要求しません。
 
 callback/continuationを無効にするrunは、そのrunに対する明示的な判断がある
 場合だけdisabled/no-callback相当を使います。
@@ -90,6 +97,29 @@ identityや設定が指定と異なる場合は、そのlaunchを有効なproduc
 
 one-shot queue deliveryが曖昧になった場合はfail closedとし、証拠なしに同じ
 messageを再送しません。
+
+## 手動publisher操作
+
+exact threadへ届いたqueue turnは、runtime identityから受信を確認してから
+publisherを実行します。receiver thread IDをCLI引数で指定する手段はありません。
+
+```powershell
+\.venv\Scripts\python.exe -m sawopt.orchestration.cli confirm-queue `
+  --run-dir <RUN_DIR> --run-id <RUN_ID> `
+  --delivery-id <DELIVERY_ID> --delivery-sentinel <DELIVERY_SENTINEL>
+
+\.venv\Scripts\python.exe -m sawopt export-review --run <RUN_DIR>
+
+\.venv\Scripts\python.exe -m sawopt.orchestration.cli mark-review-published `
+  --run-dir <RUN_DIR> `
+  --review-path reports/experiment_reviews/<stage>/<run_id> `
+  --branch <EXPERIMENT_BRANCH> --commit <PUSHED_COMMIT_SHA>
+```
+
+export完了は`review_evidence_state: EXPORTED`として記録されますが、run自体は
+`COMPLETED`/`FAILED`のままです。bundleのcommitとmatching upstreamへのpushを検証した
+publication finalizerだけが`REVIEW_WAITING`へ進めます。queue送信または受信の成功は
+`REVIEWED`を設定しません。
 
 ## Post-run continuation
 

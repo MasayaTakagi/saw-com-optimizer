@@ -18,6 +18,7 @@ from .run_manager import (
     load_manifest,
     load_status,
     prepare_callback,
+    record_optimizer_completion,
     transition,
     update_status_fields,
 )
@@ -81,10 +82,17 @@ def execute_run(run_dir: Path, *, callback_runner: Callable[..., int] | None = N
             Path(manifest.effective_optimizer_run_dir),
             disposition=RunDisposition.FAILED,
         )
+        if manifest.schema_version >= 4:
+            record_optimizer_completion(
+                run_dir, disposition="FAILED", exit_code=None, error=str(exc),
+            )
         exit_code = None
     else:
         optimizer_run_dir = Path(manifest.effective_optimizer_run_dir)
-        disposition = legacy_process_disposition(optimizer_run_dir, return_code=exit_code)
+        if manifest.schema_version >= 4:
+            disposition = RunDisposition.COMPLETED if exit_code == 0 else RunDisposition.FAILED
+        else:
+            disposition = legacy_process_disposition(optimizer_run_dir, return_code=exit_code)
         transition(
             run_dir,
             disposition.value,
@@ -104,8 +112,40 @@ def execute_run(run_dir: Path, *, callback_runner: Callable[..., int] | None = N
                 })
             else:
                 update_status_fields(run_dir, checkpoint_finalization=finalization)
+        if manifest.schema_version >= 4:
+            record_optimizer_completion(
+                run_dir,
+                disposition="COMPLETED" if disposition is RunDisposition.COMPLETED else "FAILED",
+                exit_code=exit_code,
+                error=None if exit_code == 0 else f"optimizer exited with code {exit_code}",
+            )
 
-    if manifest.callback_enabled and manifest.review_after_completion:
+    if manifest.schema_version == 4 and manifest.continuation_mode == "queue":
+        # The worker owns one finite sender attempt and exits. Only the resumed
+        # exact-thread Codex task can export/publish evidence and mark review waiting.
+        from .codex_queue import send_queue_continuation
+        from .run_manager import (
+            continuation_delivery_path, mark_stranded_queue_attempt_ambiguous,
+            record_continuation_preflight_failure,
+        )
+        try:
+            send_queue_continuation(run_dir, timeout_s=float(manifest.queue_timeout_seconds))
+        except BaseException as exc:
+            if continuation_delivery_path(run_dir).exists():
+                try:
+                    mark_stranded_queue_attempt_ambiguous(run_dir)
+                except BaseException:
+                    # An unreadable ledger is still an irreversibly claimed slot.
+                    pass
+            else:
+                try:
+                    record_continuation_preflight_failure(
+                        run_dir, f"{type(exc).__name__}: {exc}",
+                    )
+                except BaseException:
+                    pass
+
+    elif manifest.schema_version < 4 and manifest.callback_enabled and manifest.review_after_completion:
         claimed = False
         lock_path = Path(callback_lock_path(run_dir))
         try:

@@ -111,6 +111,7 @@ def test_stage4b_production_authorization_gate(monkeypatch):
 def test_authorized_stage4b_launch_records_preflight_and_one_shot_claim(tmp_path, monkeypatch):
     source_sha = "e57332bdb6a65fceff36364dd5eb086a0b2cc36d"
     run_id = "stage4b-cli-test"
+    thread_id = "01a0e89c-1c65-72a3-beb6-489f0cf01b30"
     context = {
         "fingerprint": {"computation_fingerprint": "stage4b-test-fingerprint"},
         "matrix": _expected_matrix(),
@@ -122,19 +123,22 @@ def test_authorized_stage4b_launch_records_preflight_and_one_shot_claim(tmp_path
         "sawopt.studies.hybrid_stage4b.load_stage4b_context",
         lambda _config: context,
     )
+    import shutil
+    shutil.copytree(Path.cwd() / "configs" / "review_specs", tmp_path / "configs" / "review_specs")
+    monkeypatch.setenv("CODEX_THREAD_ID", thread_id)
     monkeypatch.setattr(
-        orchestration_cli,
-        "resolve_session",
-        lambda **_kwargs: {"session_id": "captured-session", "source": "explicit"},
-    )
-    monkeypatch.setattr(
-        orchestration_cli,
-        "run_codex_callback_preflight",
-        lambda session_id, **_kwargs: {
+        "sawopt.orchestration.codex_queue.run_codex_queue_preflight",
+        lambda exact_thread_id, **_kwargs: {
             "status": "PASS",
-            "session_id": session_id,
-            "validated_target_id": session_id,
-            "executable": "codex-test",
+            "thread_id": exact_thread_id,
+            "effective_user": "test-user",
+            "user_profile": str(tmp_path),
+            "windows_user_profile": str(tmp_path),
+            "codex_executable": "C:/codex/codex.exe",
+            "codex_version": "codex-test",
+            "queue_help_sha256": "a" * 64,
+            "explicit_thread": True,
+            "explicit_message": True,
         },
     )
 
@@ -151,16 +155,20 @@ def test_authorized_stage4b_launch_records_preflight_and_one_shot_claim(tmp_path
     args = orchestration_cli.build_parser().parse_args([
         "launch", "--config", str((Path.cwd() / CONFIG).resolve()),
         "--run-dir", "runs/stage4b-hybrid-topology-production-20261003",
-        "--session-id", "captured-session", "--authorize-stage4b-production",
+        "--continuation-mode", "queue", "--thread-id", thread_id,
+        "--authorize-stage4b-production",
     ])
 
     assert orchestration_cli.launch(args) == 0
     manifest = json.loads((run_dir / "run_manifest.json").read_text(encoding="utf-8"))
     metadata = manifest["experiment_metadata"]
-    assert manifest["codex_session_id"] == "captured-session"
-    assert manifest["callback_enabled"] is True
+    assert manifest["schema_version"] == 4
+    assert manifest["codex_session_id"] is None
+    assert manifest["callback_enabled"] is False
     assert manifest["review_after_completion"] is True
-    assert manifest["callback_preflight"]["status"] == "PASS"
+    assert manifest["continuation_mode"] == "queue"
+    assert manifest["original_thread_id"] == thread_id
+    assert manifest["queue_preflight"]["status"] == "PASS"
     assert metadata["source_commit_sha"] == source_sha
     assert metadata["user_authorized_production"] is True
     claim_path = Path(metadata["authorization_claim_path"])

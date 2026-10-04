@@ -2,8 +2,13 @@
 from __future__ import annotations
 
 import json
+import csv
+import hashlib
 import os
+import re
+import secrets
 import socket
+import subprocess
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -19,7 +24,7 @@ TRANSITIONS = {
     "STARTING": {"RUNNING", "FAILED", "ORPHANED", "ORPHANED_CHILD"},
     "RUNNING": {"COMPLETED", "REVIEW_WAITING", "FAILED", "ORPHANED", "ORPHANED_CHILD"},
     "COMPLETED": {"CALLBACK_PENDING", "REVIEW_WAITING"},
-    "FAILED": {"CALLBACK_PENDING", "STARTING"},
+    "FAILED": {"CALLBACK_PENDING", "STARTING", "REVIEW_WAITING"},
     "CALLBACK_PENDING": {"CALLBACK_RUNNING"},
     "CALLBACK_RUNNING": {"REVIEWED", "CALLBACK_FAILED"},
     "CALLBACK_FAILED": {"CALLBACK_PENDING"},
@@ -173,6 +178,18 @@ def callback_lock_path(run_dir: Path) -> Path:
     return Path(run_dir) / "callback.lock"
 
 
+def continuation_lock_path(run_dir: Path) -> Path:
+    return Path(run_dir) / ".continuation.lock"
+
+
+def continuation_delivery_path(run_dir: Path) -> Path:
+    return Path(run_dir) / "continuation_delivery.json"
+
+
+def optimizer_completion_path(run_dir: Path) -> Path:
+    return Path(run_dir) / "optimizer_completion.json"
+
+
 def load_manifest(run_dir: Path) -> RunManifest:
     path = manifest_path(Path(run_dir))
     return RunManifest.from_dict(json.loads(path.read_text(encoding="utf-8")))
@@ -201,6 +218,9 @@ def create_run(manifest: RunManifest) -> None:
         state="CREATED",
         updated_at=manifest.created_at,
         callback_enabled=manifest.callback_enabled,
+        continuation_mode=manifest.continuation_mode or "disabled",
+        continuation_state="PENDING" if manifest.continuation_mode == "queue" else "DISABLED",
+        review_output_dir=manifest.review_output_dir,
     ).to_dict())
 
 
@@ -239,7 +259,7 @@ def transition(run_dir: Path, new_state: str, **updates: Any) -> dict[str, Any]:
             value["started_at"] = now
         if new_state in {"COMPLETED", "FAILED", "ORPHANED", "ORPHANED_CHILD", "REVIEW_WAITING"}:
             value["finished_at"] = value.get("finished_at") or now
-            if new_state in {"COMPLETED", "FAILED", "REVIEW_WAITING"}:
+            if new_state in {"COMPLETED", "FAILED"}:
                 value["optimizer_state"] = new_state
         if new_state == "CALLBACK_RUNNING" and value.get("callback_started_at") is None:
             value["callback_started_at"] = now
@@ -293,6 +313,342 @@ def finish_callback(run_dir: Path, *, success: bool, exit_code: int | None,
         callback_completed=bool(success),
         callback_exit_code=exit_code,
         error=error,
+    )
+
+
+def record_optimizer_completion(run_dir: Path, *, disposition: str,
+                                exit_code: int | None, error: str | None = None) -> dict[str, Any]:
+    """Persist terminal optimizer evidence before attempting continuation."""
+    run_dir = Path(run_dir).resolve()
+    manifest = load_manifest(run_dir)
+    if disposition not in {"COMPLETED", "FAILED"}:
+        raise ValueError(f"invalid optimizer completion disposition: {disposition}")
+    result = {
+        "schema_version": 1, "run_id": manifest.run_id,
+        "disposition": disposition, "exit_code": exit_code, "error": error,
+        "result_reference": str(run_dir),
+        "optimizer_run_dir": manifest.effective_optimizer_run_dir,
+        "completed_at": utc_now(),
+    }
+    atomic_write_json(optimizer_completion_path(run_dir), result)
+    return result
+
+
+def _read_delivery(run_dir: Path) -> dict[str, Any] | None:
+    path = continuation_delivery_path(run_dir)
+    if not path.exists():
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        # Existing path means the one-shot slot may have been consumed. Never
+        # convert an unreadable ledger into permission to send again.
+        raise ValueError("continuation ledger exists but is unreadable; resend forbidden") from exc
+    if not isinstance(value, dict) or value.get("schema_version") != 1:
+        raise ValueError("invalid continuation delivery ledger; resend forbidden")
+    if value.get("attempt_count") != 1:
+        raise ValueError("continuation delivery ledger violates one-attempt contract")
+    return value
+
+
+def load_continuation_delivery(run_dir: Path) -> dict[str, Any] | None:
+    """Read the authoritative one-shot ledger; status.json is only a mirror."""
+    return _read_delivery(Path(run_dir))
+
+
+def _mirror_delivery_status(run_dir: Path, delivery: dict[str, Any]) -> None:
+    update_status_fields(
+        run_dir, continuation_mode="queue", continuation_state=str(delivery["state"]),
+        continuation_attempt_count=1, continuation_delivery_id=delivery["delivery_id"],
+        continuation_claimed_at=delivery["claimed_at"],
+        continuation_command_started_at=delivery.get("command_started_at"),
+        continuation_exit_code=delivery.get("exit_code"),
+        continuation_acknowledged=delivery.get("sender_accepted"),
+        continuation_error=delivery.get("error"),
+        continuation_receiver_confirmed_at=delivery.get("receiver_confirmed_at"),
+        continuation_receiver_thread_id=delivery.get("receiver_thread_id"),
+    )
+
+
+def _write_delivery_locked(run_dir: Path, delivery: dict[str, Any]) -> None:
+    atomic_write_json(continuation_delivery_path(run_dir), delivery)
+    # Ledger write is authoritative even if this best-effort mirror fails.
+    _mirror_delivery_status(run_dir, delivery)
+
+
+def record_continuation_preflight_failure(run_dir: Path, error: str) -> None:
+    if continuation_delivery_path(Path(run_dir)).exists():
+        raise ValueError("one-shot continuation claim already exists")
+    update_status_fields(
+        run_dir, continuation_mode="queue", continuation_state="PENDING",
+        continuation_error=str(error),
+    )
+
+
+def claim_queue_delivery(run_dir: Path, *, delivery_id: str) -> dict[str, Any]:
+    """Exclusively persist the single attempt before spawning the queue CLI."""
+    run_dir = Path(run_dir).resolve()
+    manifest = load_manifest(run_dir)
+    if manifest.schema_version != 4 or manifest.continuation_mode != "queue":
+        raise ValueError("one-shot publisher queue supports only schema-v4 queue manifests")
+    if not re.fullmatch(r"[0-9a-f]{32}", str(delivery_id)):
+        raise ValueError("invalid delivery ID")
+    status = load_status(run_dir)
+    if status.get("state") not in {"COMPLETED", "FAILED"}:
+        raise ValueError("queue delivery requires a terminal optimizer state")
+    completion_path = optimizer_completion_path(run_dir)
+    if not completion_path.is_file():
+        raise ValueError("durable optimizer completion marker is missing")
+    completion = json.loads(completion_path.read_text(encoding="utf-8"))
+    if (completion.get("run_id") != manifest.run_id
+            or completion.get("disposition") != status.get("optimizer_state")
+            or completion.get("result_reference") != str(run_dir)):
+        raise ValueError("durable optimizer completion evidence does not match the run")
+    ledger_path = continuation_delivery_path(run_dir)
+    now = utc_now()
+    delivery = {
+        "schema_version": 1, "state": "CLAIMED", "attempt_count": 1,
+        "delivery_id": delivery_id, "run_id": manifest.run_id,
+        "original_thread_id": manifest.original_thread_id,
+        "delivery_sentinel": manifest.delivery_sentinel,
+        "next_expected_step": manifest.next_expected_step,
+        "result_reference": completion["result_reference"],
+        "claimed_at": now, "command_started_at": None,
+        "exit_code": None, "sender_accepted": None, "error": None,
+        "sender_finished_at": None, "receiver_confirmed_at": None,
+        "receiver_thread_id": None,
+    }
+    try:
+        fd = os.open(ledger_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as exc:
+        raise ValueError("queue attempt already claimed; automatic resend is forbidden") from exc
+    try:
+        payload = memoryview((json.dumps(delivery, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
+        while payload:
+            written = os.write(fd, payload)
+            if written <= 0:
+                raise OSError("short write while persisting queue claim")
+            payload = payload[written:]
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    _mirror_delivery_status(run_dir, delivery)
+    return delivery
+
+
+def mark_queue_command_started(run_dir: Path) -> dict[str, Any]:
+    root = Path(run_dir).resolve()
+    with exclusive_lock(continuation_lock_path(root)):
+        delivery = _read_delivery(root)
+        if delivery is None or delivery["state"] != "CLAIMED" or delivery.get("command_started_at"):
+            raise ValueError("queue command requires an unstarted CLAIMED attempt")
+        delivery["command_started_at"] = utc_now()
+        _write_delivery_locked(root, delivery)
+        return delivery
+
+
+def record_queue_sender_result(run_dir: Path, *, exit_code: int | None,
+                               error: str | None = None, stdout_sha256: str | None = None,
+                               stderr_sha256: str | None = None) -> dict[str, Any]:
+    root = Path(run_dir).resolve()
+    with exclusive_lock(continuation_lock_path(root)):
+        delivery = _read_delivery(root)
+        if delivery is None:
+            raise ValueError("queue sender has no durable claim")
+        if delivery["state"] == "RECEIVER_CONFIRMED":
+            return delivery
+        if delivery["state"] != "CLAIMED" or not delivery.get("command_started_at"):
+            raise ValueError("sender outcome cannot be recorded for this delivery state")
+        accepted = exit_code == 0 and error is None
+        delivery.update({
+            "state": "SENDER_ACCEPTED" if accepted else "AMBIGUOUS",
+            "exit_code": exit_code,
+            "sender_accepted": accepted,
+            "stdout_sha256": stdout_sha256,
+            "stderr_sha256": stderr_sha256,
+            "error": None if accepted else (error or f"codex queue exited with code {exit_code}"),
+            "sender_finished_at": utc_now(),
+        })
+        _write_delivery_locked(root, delivery)
+        return delivery
+
+
+def mark_stranded_queue_attempt_ambiguous(run_dir: Path) -> dict[str, Any] | None:
+    root = Path(run_dir).resolve()
+    if not continuation_delivery_path(root).exists():
+        return None
+    with exclusive_lock(continuation_lock_path(root)):
+        delivery = _read_delivery(root)
+        if delivery is None or delivery["state"] != "CLAIMED":
+            return delivery
+        delivery.update({
+            "state": "AMBIGUOUS",
+            "error": "sender ended without durable outcome; resend forbidden",
+            "sender_finished_at": utc_now(),
+        })
+        _write_delivery_locked(root, delivery)
+        return delivery
+
+
+def confirm_queue_delivery(run_dir: Path, *, run_id: str, delivery_id: str,
+                           delivery_sentinel: str) -> dict[str, Any]:
+    """Confirm the queued turn using runtime CODEX_THREAD_ID, never a CLI ID."""
+    from .codex_queue import current_codex_thread_id
+
+    root = Path(run_dir).resolve()
+    manifest = load_manifest(root)
+    thread_id = current_codex_thread_id()
+    if manifest.schema_version != 4 or manifest.continuation_mode != "queue":
+        raise ValueError("receiver confirmation requires a new schema-v4 queue run")
+    if thread_id != manifest.original_thread_id:
+        raise ValueError("current runtime thread does not match original_thread_id")
+    if run_id != manifest.run_id or delivery_sentinel != manifest.delivery_sentinel:
+        raise ValueError("queued run/sentinel does not match immutable manifest")
+    if not re.fullmatch(r"[0-9a-f]{32}", delivery_id):
+        raise ValueError("invalid delivery ID")
+    completion = json.loads(optimizer_completion_path(root).read_text(encoding="utf-8"))
+    status = load_status(root)
+    if (completion.get("run_id") != manifest.run_id
+            or completion.get("disposition") != status.get("optimizer_state")):
+        raise ValueError("optimizer terminal evidence does not match run status")
+    with exclusive_lock(continuation_lock_path(root)):
+        delivery = _read_delivery(root)
+        if delivery is None or delivery.get("attempt_count") != 1:
+            raise ValueError("no durable single-attempt delivery claim exists")
+        if (delivery.get("delivery_id") != delivery_id
+                or delivery.get("run_id") != run_id
+                or delivery.get("original_thread_id") != thread_id
+                or delivery.get("delivery_sentinel") != delivery_sentinel
+                or not delivery.get("command_started_at")):
+            raise ValueError("receiver does not match exact claimed delivery identity")
+        if delivery["state"] not in {"CLAIMED", "SENDER_ACCEPTED", "AMBIGUOUS", "RECEIVER_CONFIRMED"}:
+            raise ValueError("delivery state cannot be receiver-confirmed")
+        if delivery["state"] == "RECEIVER_CONFIRMED":
+            return delivery
+        delivery.update({
+            "state": "RECEIVER_CONFIRMED", "receiver_confirmed_at": utc_now(),
+            "receiver_thread_id": thread_id, "error": None,
+        })
+        _write_delivery_locked(root, delivery)
+        return delivery
+
+
+def _git_output(root: Path, *args: str) -> str:
+    return subprocess.check_output(
+        ["git", *args], cwd=root, text=True, encoding="utf-8", errors="replace",
+        stderr=subprocess.STDOUT,
+    ).strip()
+
+
+def mark_review_published(run_dir: Path, *, review_path: str, branch: str,
+                          commit: str) -> dict[str, Any]:
+    """Finalize publication only after canonical committed evidence is upstream."""
+    root = Path(run_dir).resolve()
+    manifest = load_manifest(root)
+    if manifest.schema_version != 4 or not manifest.review_output_dir:
+        raise ValueError("publication finalization requires a schema-v4 run")
+    expected_path = manifest.review_output_dir.replace("\\", "/").strip("/")
+    if review_path.replace("\\", "/").strip("/") != expected_path:
+        raise ValueError("review path differs from the manifest canonical directory")
+    repo = Path(manifest.project_root).resolve()
+    package = (repo / expected_path).resolve()
+    try:
+        package.relative_to(repo)
+    except ValueError as exc:
+        raise ValueError("review path escapes repository root") from exc
+    if not package.is_dir() or not (package / "review_manifest.json").is_file():
+        raise ValueError("canonical review package is missing or incomplete")
+    review_manifest = json.loads((package / "review_manifest.json").read_text(encoding="utf-8"))
+    if (review_manifest.get("run_id") != manifest.run_id
+            or review_manifest.get("canonical_review_directory") != expected_path
+            or review_manifest.get("package_complete") is not True
+            or review_manifest.get("redaction_scan") != "PASS"
+            or review_manifest.get("completed_cell_count") != review_manifest.get("expected_cell_count")):
+        raise ValueError("review manifest fails run identity/completeness/redaction checks")
+    if (review_manifest.get("production_execution_source_sha") != manifest.source_commit_sha
+            or review_manifest.get("computation_fingerprint") != (manifest.experiment_metadata or {}).get("computation_fingerprint")):
+        raise ValueError("review manifest provenance differs from the frozen run manifest")
+    artifact_manifest = package / "artifact_manifest.csv"
+    if not artifact_manifest.is_file():
+        raise ValueError("review artifact manifest is missing")
+    artifact_digest = hashlib.sha256(artifact_manifest.read_bytes()).hexdigest()
+    readme_path = package / "README.md"
+    if (artifact_digest != review_manifest.get("artifact_manifest_sha256")
+            or not readme_path.is_file()
+            or hashlib.sha256(readme_path.read_bytes()).hexdigest() != review_manifest.get("readme_sha256")):
+        raise ValueError("review package generated-file hash mismatch")
+    with artifact_manifest.open("r", encoding="utf-8", newline="") as stream:
+        for row in csv.DictReader(stream):
+            if row.get("included", "").casefold() != "true":
+                continue
+            member = (package / row["destination_path"]).resolve()
+            member.relative_to(package)
+            if not member.is_file():
+                raise ValueError(f"review package member is missing: {row['destination_path']}")
+            digest = hashlib.sha256(member.read_bytes()).hexdigest()
+            if digest != row.get("source_sha256") or digest != row.get("destination_sha256"):
+                raise ValueError(f"review package hash mismatch: {row['destination_path']}")
+    total_bytes = sum(path.stat().st_size for path in package.rglob("*") if path.is_file())
+    if (total_bytes != review_manifest.get("package_total_bytes")
+            or total_bytes >= int(review_manifest.get("hard_size_bytes", 0))):
+        raise ValueError("review package total size fails its frozen size gate")
+    forbidden = {"stdout.log", "stderr.log", "callback.log"}
+    if any(path.name.casefold() in forbidden or re.fullmatch(r"B\d+\.json", path.name, re.IGNORECASE)
+           or any(part.casefold() in {"checkpoint", "checkpoints"} for part in path.parts)
+           for path in package.rglob("*")):
+        raise ValueError("review package contains a default-excluded runtime artifact")
+    if _git_output(repo, "branch", "--show-current") != branch:
+        raise ValueError("current branch does not match publication branch")
+    commit = _git_output(repo, "rev-parse", "--verify", f"{commit}^{{commit}}")
+    _git_output(repo, "merge-base", "--is-ancestor", commit, "HEAD")
+    listed = _git_output(repo, "ls-tree", "-r", "--name-only", commit, "--", expected_path)
+    if not listed:
+        raise ValueError("publication commit does not contain the review directory")
+    dirty = _git_output(repo, "status", "--porcelain", "--", expected_path)
+    if dirty:
+        raise ValueError("review directory has uncommitted changes")
+    upstream = _git_output(repo, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
+    if upstream != f"origin/{branch}":
+        raise ValueError("branch upstream is not the matching origin branch")
+    _git_output(repo, "merge-base", "--is-ancestor", commit, upstream)
+    status = load_status(root)
+    if status.get("optimizer_state") not in {"COMPLETED", "FAILED"}:
+        raise ValueError("optimizer is not in a terminal state")
+    if manifest.continuation_mode == "queue":
+        delivery = load_continuation_delivery(root)
+        if delivery is None or delivery.get("state") != "RECEIVER_CONFIRMED":
+            raise ValueError("exact-thread queue receiver has not been confirmed")
+    if status.get("review_evidence_state") == "PUBLISHED":
+        if status.get("review_publication_commit") == commit and status.get("review_publication_branch") == branch:
+            return status
+        raise ValueError("review publication was already finalized differently")
+    if status.get("review_evidence_state") != "EXPORTED":
+        raise ValueError("review evidence has not passed export completeness/redaction gates")
+    return transition(
+        root, "REVIEW_WAITING", review_evidence_state="PUBLISHED",
+        review_output_dir=expected_path, review_publication_branch=branch,
+        review_publication_commit=commit, review_published_at=utc_now(),
+    )
+
+
+def mark_review_exported(run_dir: Path) -> dict[str, Any]:
+    """Record successful deterministic export without changing run state."""
+    root = Path(run_dir).resolve()
+    manifest = load_manifest(root)
+    if manifest.schema_version != 4 or not manifest.review_output_dir:
+        raise ValueError("review export state requires a schema-v4 run")
+    if load_status(root).get("optimizer_state") not in {"COMPLETED", "FAILED"}:
+        raise ValueError("cannot export review evidence before terminal optimizer state")
+    package = (Path(manifest.project_root).resolve() / manifest.review_output_dir).resolve()
+    package.relative_to(Path(manifest.project_root).resolve())
+    if not (package / "review_manifest.json").is_file():
+        raise ValueError("review package manifest is missing")
+    status = load_status(root)
+    if status.get("review_evidence_state") in {"EXPORTED", "PUBLISHED"}:
+        return status
+    return update_status_fields(
+        root, review_evidence_state="EXPORTED", review_output_dir=manifest.review_output_dir,
+        review_exported_at=utc_now(),
     )
 
 
@@ -385,6 +741,13 @@ def format_status(run_dir: Path) -> str:
     run_dir = Path(run_dir).resolve()
     manifest = load_manifest(run_dir)
     status = load_status(run_dir)
+    try:
+        delivery = load_continuation_delivery(run_dir)
+        delivery_state = delivery.get("state") if delivery else status.get("continuation_state", "DISABLED")
+        delivery_attempts = delivery.get("attempt_count", 0) if delivery else status.get("continuation_attempt_count", 0)
+        delivery_id = delivery.get("delivery_id") if delivery else status.get("continuation_delivery_id")
+    except (OSError, ValueError, json.JSONDecodeError):
+        delivery_state, delivery_attempts, delivery_id = "AMBIGUOUS", 1, "unreadable-ledger"
     started = parse_timestamp(status.get("started_at")) or parse_timestamp(manifest.created_at)
     elapsed = max(0.0, (datetime.now(timezone.utc) - started).total_seconds()) if started else 0.0
     callback = (
@@ -405,6 +768,11 @@ def format_status(run_dir: Path) -> str:
         f"optimizer.exit_code: {status.get('exit_code')}",
         f"callback.state: {callback}",
         f"callback.attempts: {status.get('callback_attempts', 0)}",
+        f"continuation.mode: {manifest.continuation_mode or 'legacy_resume'}",
+        f"continuation.state: {delivery_state}",
+        f"continuation.attempts: {delivery_attempts}",
+        f"continuation.delivery_id: {delivery_id}",
+        f"review.evidence: {status.get('review_evidence_state', 'PENDING')}",
         f"worker_pid: {worker_pid} ({worker_liveness})",
         f"optimizer_pid: {optimizer_pid} ({optimizer_liveness})",
         f"elapsed: {elapsed:.1f}s",
@@ -414,8 +782,13 @@ def format_status(run_dir: Path) -> str:
 
 __all__ = [
     "SessionValidationError", "atomic_write_json", "callback_lock_path",
-    "create_run", "exclusive_lock", "finish_callback", "format_status",
-    "load_manifest", "load_status", "lock_owner_pid", "manifest_path",
+    "claim_queue_delivery", "confirm_queue_delivery", "continuation_delivery_path",
+    "continuation_lock_path", "create_run", "exclusive_lock", "finish_callback",
+    "format_status", "load_continuation_delivery", "load_manifest", "load_status",
+    "lock_owner_pid", "manifest_path", "mark_queue_command_started",
+    "mark_review_exported", "mark_review_published", "mark_stranded_queue_attempt_ambiguous",
+    "optimizer_completion_path", "record_continuation_preflight_failure",
+    "record_optimizer_completion", "record_queue_sender_result",
     "prepare_callback", "read_current_session", "read_lock_metadata",
     "reclaim_stale_lock", "resolve_session", "status_path", "transition",
     "update_status_fields", "utc_now",

@@ -1684,3 +1684,21 @@ confirmation or a separately approved FEM extraction is required.
 - The Stage 4B report must remain `STAGE4B_EXECUTED_REVIEW_PENDING`; none of
   these judgments accept the Stage 4B result or authorize automatic follow-up
   runs.
+
+### Post-run queue and evidence-publication contract
+
+- Before changing orchestration interfaces/state semantics for PR #17, requested
+  bounded Sol judgment on detached-worker ownership, exact-thread delivery,
+  one-shot claims, receiver trust, historical manifest compatibility, and the
+  boundary between evidence publication and scientific review. No scientific
+  or optimizer behavior was in scope.
+- Sol recommended: persist one claim before queue I/O; build/validate the
+  bounded payload first; treat uncertain claimed delivery as consumed and
+  ambiguous; accept only runtime `CODEX_THREAD_ID` for receiver proof; retain
+  old schema readers without silent upgrades; and make `REVIEW_WAITING` depend
+  on committed/pushed evidence, never on queue acceptance or continuation
+  completion. Recovery must not rerun completed optimization.
+- Implemented this separation in schema-v4 queue/publication paths while
+  retaining the legacy callback only for historical manifests. E2E and test
+  qualification remain pending; no queue send or experiment has been launched.
+- Packet: `reports/escalation_packets/postrun_workflow_queue_contract_20261004.md`.
