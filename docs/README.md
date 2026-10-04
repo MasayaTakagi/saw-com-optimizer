@@ -1,20 +1,6 @@
 # Documentation
 
-- `conventions/`: COM and electrical network sign and normalization rules
-- `guides/`: active execution, checkpoint, hybrid, experiment, and review-bundle guidance
-- [`project_roadmap.md`](project_roadmap.md): long-term goals, sequencing, and phase exit gates
-- `history/current_baseline.md`: adopted assumptions and unresolved engineering work
-- `history/experiment_register.md`: historical experiment findings, decisions, and evidence limits
-- [`history/stage4b_closeout_20261004.md`](history/stage4b_closeout_20261004.md): Stage 4B external-review closeout and Stage 4C carry-forward
-- [`guides/github_review_workflow.md`](guides/github_review_workflow.md): active GitHub-mediated external review workflow
-
-Start with `project_roadmap.md` for the long-term direction, then use
-`history/current_baseline.md` for the adopted scientific assumptions and
-unresolved engineering work. Use the experiment register when a past result
-or decision needs its provenance; the Stage 4B closeout file records the
-reviewed production result pending consolidation into the register.
-
-- `history/recovery_audit_20260925.md`: provenance audit separating Git-recoverable, chat/attachment-recovered, unrecovered, and locally unverified historical evidence
-- `history/engineering_decisions.md`: non-scientific infrastructure decisions, including the frozen autonomous Codex session-resume scope and C2C freeze
-- [`c2c/FROZEN.md`](c2c/FROZEN.md): C2C freeze decision, last diagnosis, limitations, and reactivation conditions
-- [`c2c/`](c2c/README.md): frozen historical C2C records; `baseline.json` retains the last reviewed machine-readable baseline
+- [`history/experiment_register.md`](history/experiment_register.md): historical experiments, findings, decisions, and evidence limits
+- [`history/current_baseline.md`](history/current_baseline.md): adopted assumptions and current unresolved engineering work
+- [`project_roadmap.md`](project_roadmap.md): long-term goals, next stages, and project gates
+- [`history/stage4b_closeout_20261004.md`](history/stage4b_closeout_20261004.md): externally reviewed Stage 4B execution closeout and Stage 4C carry-forward

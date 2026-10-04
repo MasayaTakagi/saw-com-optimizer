@@ -516,6 +516,90 @@ protocol qualification only; no scientific topology comparison.
   Computation fingerprint (schema v2):
   `2120b2046bb424ec0445919ce1d4f6ca8c4de08e8b2d0b16a00d1e77d16cc3c2`.
 
+## Stage 4B — hybrid topology production comparison
+
+**Status:** COMPLETED / external review accepted. The execution disposition is
+`STAGE4B_EXECUTION_ACCEPTED:TOPOLOGY_SELECTION_UNRESOLVED`. **Evidence level:**
+matched-budget production comparison under the current provisional model; the
+practical shortlist is `P_D` and `D_P`, with no unique topology selected.
+
+- **Question:** Which fixed-50/50 Ω DMS + ladder hybrid topology should be
+  carried forward under the current provisional MLIT/T1 model?
+- **Production identity:** Run `20261003_014817_ea08db`; production execution
+  source `c44798266067fa4b8b7d3b2873a798b7a1600ae8`; schema-v2 computation
+  fingerprint
+  `c63910623cb9a5d2a05ecb51f3685becf448f8ac91f169752f1b9703beef8464`.
+  Later review and documentation commits do not replace this production source
+  identity.
+- **Conditions:** MLIT, `T1_SYMMETRIC_5IDT`, fixed 50/50 Ω, and exactly `D`,
+  `P_D`, `D_P`, and `P_D_P`. The matched seeds were 20261002–20261006, giving
+  20 independent cold-start cells at 24,000 unique decoded evaluations each
+  (480,000 total). Checkpoints were 4k/8k/16k/24k under a terminal L-SHADE
+  budget fixed at 24k from launch. Initial population followed one
+  dimension-scaled rule, 18 × dimension (180/234/234/288 for `D`/`P_D`/`D_P`/
+  `P_D_P`). Search used 1,001 points and common validation used 9,113 points.
+  There was no warm start, historical population injection, parent transfer,
+  or topology transfer.
+- **Integrity and execution:** All 20/20 cells completed at 24,000 unique
+  evaluations; the optimizer exited 0, the integrity check passed with no
+  issues, and all cells share the same computation fingerprint and common-grid
+  identity. Physics failures and common-validation physics failures were both
+  zero. The production execution is accepted; no rerun is required.
+- **Topology medians:**
+
+  | Topology | Median max violation | Median sum violation | Median worst IL (dB) | Feasible seeds |
+  | --- | ---: | ---: | ---: | ---: |
+  | `D` | 0.406567 | 1.993734 | 3.231093 | 0/5 |
+  | `P_D` | 0.380730 | 1.852516 | 3.486393 | 0/5 |
+  | `D_P` | 0.387728 | 1.762396 | 3.460690 | 0/5 |
+  | `P_D_P` | 0.406617 | 1.839262 | 3.614099 | 0/5 |
+
+- **Matched-seed results:** `P_D` beat `D` 5–0; `D_P` beat `D` 5–0;
+  `D_P` beat `P_D` 3–2; `P_D` beat `P_D_P` 4–1; `D_P` beat `P_D_P` 4–1;
+  and `D` beat `P_D_P` 3–2. Total pairwise seed wins were `D_P` 12,
+  `P_D` 11, `P_D_P` 4, and `D` 3. These paired results support `P_D` and
+  `D_P` as a practical next-step shortlist, not a unique winner.
+- **Formal versus external disposition:** The generated formal report was
+  `STAGE4B_SHORTLIST_IDENTIFIED`, but its conservative IQR fallback retained
+  all four topologies, so the formal shortlist did not reduce the candidate
+  set. External review accepted the execution while leaving selection
+  unresolved: `STAGE4B_EXECUTION_ACCEPTED:TOPOLOGY_SELECTION_UNRESOLVED`.
+  `D` and `P_D_P` are de-prioritized for the next study, not globally rejected.
+- **Convergence:** Stage 4B is matched-budget evidence, not a convergence
+  certificate. Median maximum violation improved by approximately 15% (`D`),
+  23% (`P_D`), 20% (`D_P`), and 20% (`P_D_P`) from 16k to 24k. Any longer
+  study must predeclare a new L-SHADE terminal horizon and start cold; the 24k
+  trajectories must not be reinterpreted under a changed horizon.
+- **Constraint and bounds:** The dominant final constraint was `stop_2` in the
+  832–862 MHz upper stopband, which requires 30 dB attenuation. Broad bound
+  saturation was not observed; the terminal bound-pressure evidence contains
+  one upper-bound hit on `resonator_0_pairs`. This does not establish global
+  bound optimality.
+- **Direction sanity:** The `P_D`/`D_P` direction check passed. The worst-IL
+  difference changed sign across seeds, with median `P_D - D_P` about
+  +0.0257 dB. There is no stable directional preference at 50/50 Ω, so both
+  remain relevant to future `Zs != Zl` work unless Stage 4C resolves them.
+- **`P_D_P` disposition:** It had 4,332 geometry rejections, versus 95 for
+  `D`, 103 for `P_D`, and 113 for `D_P`. It showed no median max-violation
+  advantage over `P_D`/`D_P` and lost 4–1 to each shortlisted topology. It is
+  de-prioritized under this protocol, not globally inferior.
+- **Limits:** Findings are conditional on the provisional MLIT profile,
+  `T1_SYMMETRIC_5IDT`, current resonator/hybrid representation, current
+  geometry model, and fixed 50/50 Ω ports. They do not establish calibrated
+  real-device prediction, physical B28 feasibility, a final topology optimum,
+  or a final impedance optimum.
+- **Carry-forward:** Stage 4C is the next planning gate: shortlist convergence
+  and budget qualification for `P_D` and `D_P` under MLIT/T1 at 50/50 Ω, with
+  matched seeds, cold starts, L-SHADE, 9,113-point common validation, and a
+  longer predeclared terminal horizon. Stage 4C has not been launched. The
+  final `Zs × Zl` sweep remains gated.
+- **Evidence:** The compact Git-tracked review bundle is at
+  `reports/stage4b_production_review/20261003_20261003_014817_ea08db/`; the
+  closeout is `docs/history/stage4b_closeout_20261004.md`, with current
+  decisions in `docs/history/current_baseline.md` and forward gates in
+  `docs/project_roadmap.md`. The large raw run and checkpoints remain local at
+  `runs/stage4b-hybrid-topology-production-20261003`.
+
 ## Cleanup rule
 
 At each future study closeout, add the result and decision here, update
