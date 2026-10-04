@@ -1,0 +1,485 @@
+{
+  "study_type": "hybrid_stage4b_topology_comparison",
+  "protocol_revision": "stage4b_hybrid_topology_production_v1",
+  "material": "MLIT",
+  "dms_topology": "T1_SYMMETRIC_5IDT",
+  "source_impedance_ohm": 50.0,
+  "load_impedance_ohm": 50.0,
+  "topologies": [
+    "D",
+    "P_D",
+    "D_P",
+    "P_D_P"
+  ],
+  "seeds": [
+    20261002,
+    20261003,
+    20261004,
+    20261005,
+    20261006
+  ],
+  "budget_per_cell": 24000,
+  "population_schedule_terminal_budget": 24000,
+  "checkpoints": [
+    4000,
+    8000,
+    16000,
+    24000
+  ],
+  "initial_population_rule": "18 * topology_dimension",
+  "initial_populations": {
+    "D": 180,
+    "P_D": 234,
+    "D_P": 234,
+    "P_D_P": 288
+  },
+  "cold_start": true,
+  "warm_start": false,
+  "parent_transfer": false,
+  "topology_transfer": false,
+  "historical_population_injection": false,
+  "finalist_count_per_checkpoint": 16,
+  "search_frequency_count": 1001,
+  "search_frequency_sha256": "212dd2b0b71ddeffb7a8865937d132ee596870f25c989ac7d90c5dab6fd7faa0",
+  "common_validation_grid_id": "2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f",
+  "common_validation_frequency_count": 9113,
+  "common_validation_grid_sha256": "54c1daf67dd2bb9242f95e638d7bd801db536acc2c7d6f00c1f62a788bead554",
+  "specification": {
+    "passband": [
+      758,
+      803
+    ],
+    "il": 3.0,
+    "ripple": 2.0,
+    "vswr": 2.5,
+    "stopbands": [
+      [
+        10,
+        700,
+        20
+      ],
+      [
+        703,
+        748,
+        32
+      ],
+      [
+        832,
+        862,
+        30
+      ],
+      [
+        880,
+        915,
+        30
+      ]
+    ]
+  },
+  "geometry_constraints": {
+    "max_length_um": 750,
+    "max_width_um": 250,
+    "min_electrode_width_um": 0.8,
+    "min_electrode_gap_um": 0.8,
+    "max_electrodes": 500
+  },
+  "resonator_bounds": [
+    [
+      4.5,
+      5.6
+    ],
+    [
+      10,
+      60
+    ],
+    [
+      30,
+      150
+    ]
+  ],
+  "resonator_aperture_bounds_um": [
+    30,
+    150
+  ],
+  "resonator_model": {
+    "reflector_electrodes": 40,
+    "gap_lambda": 0.0,
+    "metallization_ratio": 0.5,
+    "thickness_over_lambda": 0.04
+  },
+  "com_provider": {
+    "id": "LI2024_42YX_LT_METAL_UNSPECIFIED_T25",
+    "source": "A New Method for Temperature Dependent COM Parameters Extraction and Its Application to Simulation of SAW Devices (doi:10.1088/1742-6596/2822/1/012170)",
+    "substrate": "42YX-LiTaO3",
+    "electrode_material": "unspecified_metal",
+    "temperature_c": 25.0,
+    "effective_h_over_lambda": 0.08,
+    "effective_duty": 0.65,
+    "phase_policy": "SIGNED_REAL_TABLE_ASSUMPTION",
+    "com_parameter_source": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer\\configs\\models\\stage3_7b_r1_normalized_literature_profile.yaml",
+    "normalization_definition_source": "Full extraction of the COM parameters for Rayleigh type surface acoustic wave (doi:10.1063/5.0079529)",
+    "display_note": "effective MLIT profile values above override display semantics; legacy design fields are not used to generate MLIT COM parameters"
+  },
+  "network_convention": "Stage 4A; exp(+jωt), left-to-right, power-normalized acoustic waves",
+  "matrix": [
+    {
+      "topology": "D",
+      "seed": 20261002,
+      "dimension": 10,
+      "initial_population": 180,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "D",
+      "seed": 20261003,
+      "dimension": 10,
+      "initial_population": 180,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "D",
+      "seed": 20261004,
+      "dimension": 10,
+      "initial_population": 180,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "D",
+      "seed": 20261005,
+      "dimension": 10,
+      "initial_population": 180,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "D",
+      "seed": 20261006,
+      "dimension": 10,
+      "initial_population": 180,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "P_D",
+      "seed": 20261002,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "P_D",
+      "seed": 20261003,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "P_D",
+      "seed": 20261004,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "P_D",
+      "seed": 20261005,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "P_D",
+      "seed": 20261006,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "D_P",
+      "seed": 20261002,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "D_P",
+      "seed": 20261003,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "D_P",
+      "seed": 20261004,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "D_P",
+      "seed": 20261005,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "D_P",
+      "seed": 20261006,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "P_D_P",
+      "seed": 20261002,
+      "dimension": 16,
+      "initial_population": 288,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "P_D_P",
+      "seed": 20261003,
+      "dimension": 16,
+      "initial_population": 288,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "P_D_P",
+      "seed": 20261004,
+      "dimension": 16,
+      "initial_population": 288,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "P_D_P",
+      "seed": 20261005,
+      "dimension": 16,
+      "initial_population": 288,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    },
+    {
+      "topology": "P_D_P",
+      "seed": 20261006,
+      "dimension": 16,
+      "initial_population": 288,
+      "budget": 24000,
+      "population_schedule_terminal_budget": 24000,
+      "checkpoints": [
+        4000,
+        8000,
+        16000,
+        24000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false
+    }
+  ]
+}

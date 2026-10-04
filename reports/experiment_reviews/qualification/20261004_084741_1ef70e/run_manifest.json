@@ -1,0 +1,132 @@
+{
+  "schema_version": 4,
+  "run_id": "20261004_084741_1ef70e",
+  "experiment_name": "postrun_workflow_qualification",
+  "created_at": "2026-10-04T08:47:41+00:00",
+  "project_root": "C:\\Users\\sub\\.codex\\visualizations\\2026\\10\\02\\01a0fcca-3d9f-7a23-8622-1afe71e79c02\\w",
+  "run_dir": "C:\\Users\\sub\\.codex\\visualizations\\2026\\10\\02\\01a0fcca-3d9f-7a23-8622-1afe71e79c02\\w\\runs\\postrun_workflow_qualification_20261004_queue_diag_requal_01",
+  "command": [
+    "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer\\.venv\\Scripts\\python.exe",
+    "-m",
+    "sawopt",
+    "run-study",
+    "--config",
+    "C:\\Users\\sub\\.codex\\visualizations\\2026\\10\\02\\01a0fcca-3d9f-7a23-8622-1afe71e79c02\\w\\configs\\studies\\postrun_workflow_qualification.yaml",
+    "--run",
+    "C:\\Users\\sub\\.codex\\visualizations\\2026\\10\\02\\01a0fcca-3d9f-7a23-8622-1afe71e79c02\\w\\runs\\postrun_workflow_qualification_20261004_queue_diag_requal_01\\optimizer"
+  ],
+  "config_path": "C:\\Users\\sub\\.codex\\visualizations\\2026\\10\\02\\01a0fcca-3d9f-7a23-8622-1afe71e79c02\\w\\configs\\studies\\postrun_workflow_qualification.yaml",
+  "codex_session_id": null,
+  "codex_model": null,
+  "callback_enabled": false,
+  "review_after_completion": true,
+  "callback_timeout_minutes": null,
+  "codex_session_source": null,
+  "optimizer_run_dir": "C:\\Users\\sub\\.codex\\visualizations\\2026\\10\\02\\01a0fcca-3d9f-7a23-8622-1afe71e79c02\\w\\runs\\postrun_workflow_qualification_20261004_queue_diag_requal_01\\optimizer",
+  "callback_preflight": null,
+  "experiment_metadata": {
+    "study_type": "postrun_workflow_qualification",
+    "comparison_arms": [
+      "fixture"
+    ],
+    "seeds": [
+      "qualification"
+    ],
+    "expected_cell_count": 1,
+    "computation_fingerprint": null,
+    "protocol_fingerprint": null
+  },
+  "continuation_mode": "queue",
+  "original_thread_id": "01a10603-7ae0-7a13-a04a-238fd373d547",
+  "next_expected_step": "publish_review_evidence",
+  "delivery_sentinel": "19c3b12cff64939d7e96f2f1d575614a",
+  "queue_preflight": {
+    "status": "PASS",
+    "captured_at": "2026-10-04T08:47:41+00:00",
+    "thread_id": "01a10603-7ae0-7a13-a04a-238fd373d547",
+    "effective_user": "desktop-9ipace7\\sub",
+    "user_profile": "C:\\Users\\sub",
+    "windows_user_profile": "C:\\Users\\sub",
+    "codex_executable": "C:\\Users\\sub\\AppData\\Local\\OpenAI\\Codex\\bin\\be3fd7e5c1969ff6\\codex.exe",
+    "codex_version": "codex-cli 0.159.0-alpha.12.1",
+    "queue_help_sha256": "2094bdc72867bd95fa3c1db0306c4813d5a158ef24ec641d080f84212e82c621",
+    "explicit_thread": true,
+    "explicit_message": true
+  },
+  "queue_timeout_seconds": 120.0,
+  "review_stage": "qualification",
+  "review_contract_version": "1",
+  "review_output_dir": "reports/experiment_reviews/qualification/20261004_084741_1ef70e",
+  "review_spec_id": "postrun_workflow_qualification",
+  "review_spec_sha256": "dcb9642dfb137f5f82c9aa67f254cb3fb049c66d7f3dabed136361e46185115b",
+  "review_spec": {
+    "spec_id": "postrun_workflow_qualification_v1",
+    "stage": "qualification",
+    "study_types": [
+      "postrun_workflow_qualification"
+    ],
+    "target_size_bytes": 2097152,
+    "hard_size_bytes": 10485760,
+    "required_artifacts": [
+      {
+        "source": "run_manifest.json",
+        "destination": "run_manifest.json",
+        "category": "orchestration"
+      },
+      {
+        "source": "status.json",
+        "destination": "status.json",
+        "category": "orchestration"
+      },
+      {
+        "source": "optimizer/metadata/run_completion.json",
+        "destination": "metadata/run_completion.json",
+        "category": "completion"
+      },
+      {
+        "source": "optimizer/metadata/config_snapshot.yaml",
+        "destination": "metadata/config_snapshot.yaml",
+        "category": "configuration"
+      },
+      {
+        "source": "optimizer/metadata/protocol_snapshot.json",
+        "destination": "metadata/protocol_snapshot.json",
+        "category": "protocol"
+      },
+      {
+        "source": "optimizer/metadata/integrity_check.json",
+        "destination": "metadata/integrity_check.json",
+        "category": "integrity"
+      },
+      {
+        "source": "optimizer/summary/primary_summary.csv",
+        "destination": "summary/primary_summary.csv",
+        "category": "primary_summary"
+      },
+      {
+        "source": "optimizer/summary/scientific_limitations.md",
+        "destination": "summary/scientific_limitations.md",
+        "category": "scientific_limitations"
+      }
+    ],
+    "required_globs": [
+      {
+        "source_pattern": "optimizer/cells/*/*_result.json",
+        "capture_regex": "^optimizer/cells/(?P<arm>[^/]+)/(?P<seed>[^/]+)_result\\.json$",
+        "destination": "cells/{arm}/{seed}_result.json",
+        "category": "terminal_result"
+      },
+      {
+        "source_pattern": "optimizer/cells/*/*_status.json",
+        "capture_regex": "^optimizer/cells/(?P<arm>[^/]+)/(?P<seed>[^/]+)_status\\.json$",
+        "destination": "cells/{arm}/{seed}_status.json",
+        "category": "terminal_status"
+      }
+    ],
+    "optional_artifacts": [],
+    "optional_globs": []
+  },
+  "source_commit_sha": "f40e44ed1747fe10ffcd3003fb17bfb9e598c262",
+  "source_branch": "codex/postrun-review-workflow-cleanup-20261004",
+  "study_type": "postrun_workflow_qualification"
+}

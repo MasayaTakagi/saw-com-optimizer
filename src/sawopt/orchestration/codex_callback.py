@@ -1,10 +1,10 @@
 """Explicit-ID Codex review callback for completed asynchronous runs."""
 from __future__ import annotations
 
-import shutil
-import subprocess
 import json
 import os
+import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Callable
@@ -76,9 +76,51 @@ Required actions:
 6. Do NOT automatically launch another production optimization run.
 """
 
+STAGE4B_COMPLETED_PROMPT = """Stage 4B hybrid topology production run completed.
+
+run_id: {run_id}
+orchestration_root: {run_dir}
+optimizer_output_dir: {optimizer_run_dir}
+status: COMPLETED
+exit_code: {exit_code}
+
+Complete Stage 4B result review and GitHub closeout in this same task.
+
+Required actions:
+1. Read the immutable run_manifest.json, status.json, and Stage 4B batch manifest.
+2. Verify the exact production source SHA, protocol revision, schema-v2 computation fingerprint, authorization scope, callback identity, grid, and 20-cell matrix.
+3. Confirm 20/20 cells reached 24,000 unique evaluations with all four checkpoints, matching seeds/topologies, cold starts, accounting identities, and no warm transfer. If any gate fails, do not report a complete ranking.
+4. Review per-cell results, convergence, topology summary, all six paired comparisons, active-bound pressure, failure counts, runtime/accounting, and P_D/D_P symmetry status.
+5. Ensure the execution report uses one of the authorized classifications and remains STAGE4B_EXECUTED_REVIEW_PENDING. Keep all stated scientific limitations. Do not claim real-device feasibility or STAGE4B_ACCEPTED.
+6. Build or verify the review bundle under artifacts/review_bundles/. Prepare and commit only lightweight summaries/evidence; never commit optimizer checkpoint bodies or other large run data.
+7. Find and update the existing Stage 4B GitHub PR for the current branch with the prelaunch SHA, postrun SHA, run ID, fingerprint, 20/20 status, tests/CI, runtime, comparison result, limitations, and review-bundle path. Push the closeout commit. Do not create a duplicate PR or merge.
+8. Report C2C FROZEN / invocations 0. Do not start any follow-up experiment, budget extension, extra seed, impedance sweep, or new production run.
+"""
+
+STAGE4B_FAILED_PROMPT = """The Stage 4B production worker stopped before successful completion.
+
+run_id: {run_id}
+orchestration_root: {run_dir}
+optimizer_output_dir: {optimizer_run_dir}
+status: FAILED
+exit_code: {exit_code}
+
+Inspect the immutable authorization/run manifests, batch manifest, cell status files, and durable checkpoints. Confirm the original source SHA, protocol fingerprint, grid, seed, and checkpoint identities before taking action. If incomplete cells can safely resume, use the existing asynchronous orchestration --resume path against this same run directory and captured session; never create a replacement run directory or change protocol/config/source. Do not poll stdout.log after a detached worker starts. If same-run recovery is not valid, preserve evidence, prohibit final ranking, and report BLOCKED. A resume must not be treated as a new production experiment. Never launch an extension, extra seed, topology rerun, or other follow-up study.
+"""
+
 
 def callback_prompt(manifest: RunManifest, *, exit_code: int | None,
                     optimizer_failed: bool) -> str:
+    metadata = manifest.experiment_metadata or {}
+    if (metadata.get("study_type") == "hybrid_stage4b_topology_comparison"
+            and metadata.get("protocol_revision") == "stage4b_hybrid_topology_production_v1"):
+        template = STAGE4B_FAILED_PROMPT if optimizer_failed else STAGE4B_COMPLETED_PROMPT
+        return template.format(
+            run_id=manifest.run_id,
+            run_dir=manifest.run_dir,
+            optimizer_run_dir=manifest.effective_optimizer_run_dir,
+            exit_code="unknown" if exit_code is None else exit_code,
+        )
     template = FAILED_PROMPT if optimizer_failed else COMPLETED_PROMPT
     return template.format(
         run_id=manifest.run_id,
@@ -95,18 +137,25 @@ def build_resume_command(
     codex_executable: str = "codex",
     structured_output: bool = False,
 ) -> list[str]:
-    """Build a callback command that cannot accidentally select ``--last``."""
+    """Build an explicit-ID resume command that cannot select ``--last``.
+
+    ``codex exec resume`` has historically differed from the top-level exec
+    parser in how sandbox flags are accepted. Pass the workspace-write sandbox
+    through the config override, which is valid across both fresh exec and
+    resume paths, rather than relying on ``--sandbox`` placement.
+    """
     if not session_id.strip():
         raise ValueError("session_id must not be empty")
-    command = [
-        codex_executable,
-        "exec",
-        "--sandbox",
-        "workspace-write",
-    ]
+    command = [codex_executable, "exec"]
     if structured_output:
         command.append("--json")
-    command.extend(["resume", session_id, prompt])
+    command.extend([
+        "-c",
+        'sandbox_mode="workspace-write"',
+        "resume",
+        session_id,
+        prompt,
+    ])
     return command
 
 
@@ -163,6 +212,25 @@ def _callback_environment() -> dict[str, str]:
     if not callback_env.get("CODEX_HOME") and callback_env.get("USERPROFILE"):
         callback_env["CODEX_HOME"] = str(Path(callback_env["USERPROFILE"]) / ".codex")
     return callback_env
+
+
+def _preflight_scratch_root(project_root: str | Path) -> Path:
+    """Return a project-local scratch root usable from workspace sandboxes."""
+    root = Path(project_root).resolve()
+    scratch = (root / "runs" / ".callback_preflight").resolve()
+    try:
+        scratch.relative_to(root)
+    except ValueError as exc:
+        raise CodexCallbackPreflightError(
+            "callback preflight scratch path escapes project root"
+        ) from exc
+    try:
+        scratch.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise CodexCallbackPreflightError(
+            f"cannot create project-local callback preflight scratch: {scratch}: {exc}"
+        ) from exc
+    return scratch
 
 
 def _run_codex_prompt(
@@ -224,7 +292,8 @@ def _run_codex_prompt(
                 "Codex emitted no session_id/thread_id JSON event\n"
             )
             raise CodexCallbackTargetUnavailableError(
-                "Codex emitted no session_id/thread_id JSON event"
+                "Codex emitted no session_id/thread_id JSON event; use an idle, "
+                "explicit callback thread rather than recursively resuming the active task"
             )
         if all_observed != {target}:
             stream.write(
@@ -247,7 +316,7 @@ def run_codex_callback_preflight(
     timeout_s: float = CALLBACK_PREFLIGHT_TIMEOUT_S,
     runner: Callable[..., object] = subprocess.run,
 ) -> dict[str, str]:
-    """Prove the exact session and callback state are usable before launch."""
+    """Prove the exact idle callback session and state are usable before launch."""
     executable = codex_executable or shutil.which("codex")
     if not executable:
         raise CodexCallbackPreflightError("Codex callback executable is not resolvable")
@@ -258,7 +327,11 @@ def run_codex_callback_preflight(
                 f"Codex callback executable is not resolvable: {codex_executable}"
             )
         executable = resolved
-    with tempfile.TemporaryDirectory(prefix="sawopt-callback-preflight-") as temporary:
+    scratch_root = _preflight_scratch_root(project_root)
+    with tempfile.TemporaryDirectory(
+        prefix="sawopt-callback-preflight-",
+        dir=str(scratch_root),
+    ) as temporary:
         callback_log = Path(temporary) / "callback.log"
         try:
             exit_code, output, resolved_executable = _run_codex_prompt(
@@ -278,15 +351,17 @@ def run_codex_callback_preflight(
         raise CodexCallbackPreflightError(
             f"Codex callback preflight exited with code {exit_code}"
         )
-    if "CALLBACK_PREFLIGHT_OK" not in _completed_agent_messages(output):
+    if _completed_agent_messages(output) != ["CALLBACK_PREFLIGHT_OK"]:
         raise CodexCallbackPreflightError(
-            "Codex callback preflight did not return an exact completed agent-message acknowledgement"
+            "Codex callback preflight did not return exactly one completed "
+            "agent-message acknowledgement CALLBACK_PREFLIGHT_OK"
         )
     return {
         "status": "PASS",
         "session_id": session_id,
         "validated_target_id": session_id,
         "executable": resolved_executable,
+        "scratch_root": str(scratch_root),
     }
 
 

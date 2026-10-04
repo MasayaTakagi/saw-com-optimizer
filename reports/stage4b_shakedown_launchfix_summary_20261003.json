@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "mode": "shakedown",
+  "ranking_eligible": false,
+  "run_directory": "runs/stage4b-shakedown-launchfix-20261003",
+  "source_commit_sha": "a4c5b7c88530f22a9630e5b0b7af83cdceb4cf94",
+  "protocol_revision": "stage4b_hybrid_topology_production_v1",
+  "fingerprint_schema_version": 2,
+  "computation_fingerprint": "f37b836eebdfdf1a9ad82abff378e9e6874d4dbde6a630a20978b1a60a5e04d2",
+  "common_validation_grid_id": "2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f",
+  "checks": {
+    "four_topologies": true,
+    "512_unique_each": true,
+    "dimension_scaled_population": true,
+    "checkpoints_present": true,
+    "cold_start": true,
+    "common_grid_identical": true,
+    "resume_manifest_present": true,
+    "production_separation": true,
+    "aggregation": true,
+    "output_paths": true
+  },
+  "resume_completed_cells_reused": 4,
+  "cells": [
+    {"topology": "D", "seed": 20261001, "dimension": 10, "initial_population": 180, "unique_evaluations": 512, "checkpoints": [400, 512], "cell_wall_time_s": 48.75, "search_evaluation_wall_time_s": 27.72, "common_validation_wall_time_s": 16.27},
+    {"topology": "P_D", "seed": 20261001, "dimension": 13, "initial_population": 234, "unique_evaluations": 512, "checkpoints": [400, 512], "cell_wall_time_s": 56.02, "search_evaluation_wall_time_s": 32.50, "common_validation_wall_time_s": 18.30},
+    {"topology": "D_P", "seed": 20261001, "dimension": 13, "initial_population": 234, "unique_evaluations": 512, "checkpoints": [400, 512], "cell_wall_time_s": 56.67, "search_evaluation_wall_time_s": 33.30, "common_validation_wall_time_s": 18.28},
+    {"topology": "P_D_P", "seed": 20261001, "dimension": 16, "initial_population": 288, "unique_evaluations": 512, "checkpoints": [400, 512], "cell_wall_time_s": 65.85, "search_evaluation_wall_time_s": 37.45, "common_validation_wall_time_s": 22.58}
+  ],
+  "runtime_estimate": {
+    "production_total_unique_evaluations": 480000,
+    "production_checkpoint_finalists": 1280,
+    "measured_shakedown_cell_wall_time_sum_s": 227.28,
+    "estimated_production_seconds": 31558.3,
+    "estimated_production_hours": 8.77,
+    "method": "Scale measured search evaluation time by 480000/2048, common validation time by 10 (1280/128), and non-evaluation overhead by 5 (20/4 cells)."
+  },
+  "note": "Performance values and ranking summaries are intentionally omitted; shakedown is a dispatch, accounting, checkpoint, validation, aggregation, and resume preflight only."
+}

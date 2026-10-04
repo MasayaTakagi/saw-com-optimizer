@@ -1,0 +1,166 @@
+{
+  "state": "REVIEWED",
+  "updated_at": "2026-10-03T12:34:05+00:00",
+  "worker_pid": 10948,
+  "optimizer_pid": 34456,
+  "exit_code": 0,
+  "callback_attempts": 1,
+  "callback_completed": true,
+  "callback_exit_code": 0,
+  "callback_enabled": true,
+  "optimizer_state": "COMPLETED",
+  "error": null,
+  "started_at": "2026-10-03T01:48:27+00:00",
+  "finished_at": "2026-10-03T12:05:18+00:00",
+  "callback_started_at": "2026-10-03T12:10:03+00:00",
+  "callback_finished_at": "2026-10-03T12:34:05+00:00",
+  "resume_count": 0,
+  "last_attached_at": null,
+  "session_checkpoint_path": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer\\runs\\stage4b-hybrid-topology-production-20261003\\session_checkpoint.json",
+  "checkpoint_finalization": {
+    "status": "FINALIZED",
+    "finalized_streams": 20,
+    "streams": [
+      {
+        "directory": "optimization/D/seed20261002/checkpoints",
+        "final": "optimization/D/seed20261002/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/D/seed20261003/checkpoints",
+        "final": "optimization/D/seed20261003/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/D/seed20261004/checkpoints",
+        "final": "optimization/D/seed20261004/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/D/seed20261005/checkpoints",
+        "final": "optimization/D/seed20261005/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/D/seed20261006/checkpoints",
+        "final": "optimization/D/seed20261006/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/D_P/seed20261002/checkpoints",
+        "final": "optimization/D_P/seed20261002/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/D_P/seed20261003/checkpoints",
+        "final": "optimization/D_P/seed20261003/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/D_P/seed20261004/checkpoints",
+        "final": "optimization/D_P/seed20261004/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/D_P/seed20261005/checkpoints",
+        "final": "optimization/D_P/seed20261005/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/D_P/seed20261006/checkpoints",
+        "final": "optimization/D_P/seed20261006/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/P_D/seed20261002/checkpoints",
+        "final": "optimization/P_D/seed20261002/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/P_D/seed20261003/checkpoints",
+        "final": "optimization/P_D/seed20261003/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/P_D/seed20261004/checkpoints",
+        "final": "optimization/P_D/seed20261004/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/P_D/seed20261005/checkpoints",
+        "final": "optimization/P_D/seed20261005/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/P_D/seed20261006/checkpoints",
+        "final": "optimization/P_D/seed20261006/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/P_D_P/seed20261002/checkpoints",
+        "final": "optimization/P_D_P/seed20261002/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/P_D_P/seed20261003/checkpoints",
+        "final": "optimization/P_D_P/seed20261003/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/P_D_P/seed20261004/checkpoints",
+        "final": "optimization/P_D_P/seed20261004/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/P_D_P/seed20261005/checkpoints",
+        "final": "optimization/P_D_P/seed20261005/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      },
+      {
+        "directory": "optimization/P_D_P/seed20261006/checkpoints",
+        "final": "optimization/P_D_P/seed20261006/checkpoints/final.json",
+        "removed_runtime_files": 0,
+        "checkpoint_write_count": 5,
+        "retained_full_checkpoint_count": 1
+      }
+    ]
+  }
+}

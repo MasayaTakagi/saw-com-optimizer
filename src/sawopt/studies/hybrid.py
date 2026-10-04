@@ -1433,5 +1433,14 @@ def run_stage4a_smoke(config_path, run_path):
     return result
 
 
+# Stable helpers reused by later hybrid studies without coupling them to
+# Stage 4A's private runner implementation details.
+stage4a_active_bound_diagnostics = _stage4a_active_bound_diagnostics
+stage4a_clean = _stage4a_clean
+stage4a_counter_snapshot = _stage4a_counter_snapshot
+stage4a_evaluate = _stage4a_evaluate
+stage4a_load_context = _stage4a_load_context
+
+
 if __name__ == '__main__':
     main()
