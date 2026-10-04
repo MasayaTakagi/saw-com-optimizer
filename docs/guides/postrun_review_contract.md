@@ -6,6 +6,9 @@ production experiments in `saw-com-optimizer`.
 It is intentionally separate from any one Stage. Historical runs retain their
 original evidence paths and schemas.
 
+For the storage/logging split around this contract, see
+[`data_storage_logging_review_policy.md`](data_storage_logging_review_policy.md).
+
 ## Purpose
 
 The post-run workflow must make a completed numerical experiment independently
@@ -31,6 +34,7 @@ COMPLETED / FAILED optimizer state
 → same-thread continuation
 → evidence export
 → commit + push on experiment branch
+→ publication finalizer
 → REVIEW_WAITING
 → external ChatGPT review
 ```
@@ -52,18 +56,18 @@ For queue-native runs:
 - receiver confirmation, when available, must refer to the exact expected
   thread and delivery identity.
 
-Legacy `codex exec resume` metadata may remain supported for reading/recovery of
-historical manifests, but new production launch paths must not select it as the
-normal continuation mode.
+Legacy `codex exec resume` metadata remains readable for historical recovery,
+but new production launch paths must not select it as the normal continuation
+mode.
 
 ## Queue sender diagnostic evidence
 
 A failed detached queue sender must remain diagnosable after its process exits.
 Hashes alone are not sufficient because they cannot explain a non-zero queue
-exit. New queue attempts therefore must persist bounded, redacted diagnostic
-evidence for the actual `codex queue` invocation.
+exit. New queue attempts therefore persist bounded, redacted diagnostic evidence
+for the actual `codex queue` invocation.
 
-At minimum preserve:
+At minimum preserve, where applicable:
 
 - sender exit code and start/finish timestamps;
 - SHA256 of stdout and stderr;
@@ -72,9 +76,9 @@ At minimum preserve:
 - whether either stream was truncated;
 - pinned Codex executable/version identity used by the sender.
 
-Do not persist credentials, cookies, OAuth codes, reusable tokens, or temporary
-public endpoints. Apply the same credential-class redaction discipline used by
-review evidence before writing queue-output excerpts.
+Do not persist credentials, cookies, OAuth codes, reusable tokens, pairing
+codes, client secrets, or temporary public endpoints. Apply credential-class
+redaction before writing or publishing excerpts.
 
 A non-zero queue exit remains fail-closed unless its semantics explicitly prove
 that no delivery occurred. Do not automatically resend an already claimed
@@ -85,7 +89,7 @@ one-shot delivery merely because the queue process returned non-zero.
 The resumed Codex task is a publisher/packager. It may:
 
 - verify run completion/integrity;
-- inspect the completed run read-only;
+- inspect the completed raw run read-only;
 - export the required lightweight review artifacts;
 - calculate hashes and package metadata;
 - commit/push the review package to the existing experiment branch;
@@ -94,10 +98,9 @@ The resumed Codex task is a publisher/packager. It may:
 
 It must not, without a later explicit instruction:
 
-- declare the final scientific acceptance on ChatGPT's behalf;
+- declare final scientific acceptance on ChatGPT's behalf;
 - promote a topology/design as the project baseline;
-- rewrite `current_baseline.md` or the long-term roadmap before external
-  review;
+- rewrite `current_baseline.md` or the long-term roadmap before external review;
 - launch an extension, extra seed, impedance sweep, or next Stage;
 - merge the experiment PR;
 - delete the raw run or checkpoints.
@@ -117,7 +120,8 @@ reports/experiment_reviews/stage4c/202610xx_xxxxxx_xxxxxx/
 ```
 
 The directory is committed to the same experiment branch that contains the
-implementation/configuration used for the run.
+implementation/configuration used for the run unless a forensic/recovery case
+requires a separate evidence branch.
 
 Historical evidence paths are not migrated solely for consistency.
 
@@ -239,9 +243,9 @@ Do not commit by default:
 - duplicate raw intermediate outputs;
 - large binary dumps.
 
-If an excluded artifact is essential to review, add a compact derived summary
-or stop for an explicit exception rather than automatically committing the
-large file.
+If an excluded artifact is essential to review, add a compact derived summary or
+stop for an explicit exception rather than automatically committing the large
+file.
 
 ## Size gate
 
@@ -320,8 +324,7 @@ New schema-v4 manifests freeze the review stage, canonical output path, spec
 identifier and hash, exporter contract version, and queue handoff identity.
 Queue is the default for a new launch; the only other new-launch mode is an
 explicitly disabled continuation. `legacy_resume` remains a historical
-read/recovery mode and cannot be selected by a new launch. Schema-v4 queue
-manifests do not require C2C task or plan-iteration metadata.
+read/recovery mode and cannot be selected by a new launch.
 
 The worker records optimizer completion and makes at most one durable queue
 attempt. Queue exit code zero records sender acceptance only. The resumed exact
@@ -337,19 +340,17 @@ then does the run enter `REVIEW_WAITING` and record publication metadata.
 
 The project closeout/experiment register records the later external decision.
 
-## Generic exporter target
+## Active exporter
 
-The preferred implementation is a reusable command such as:
+The active reusable command is:
 
 ```text
 python -m sawopt export-review --run <run-dir>
 ```
 
-or an equivalent subcommand under the existing CLI.
+The generic exporter owns:
 
-The generic exporter should own:
-
-- allowlist resolution;
+- allowlist/spec resolution;
 - copy/hash verification;
 - size accounting;
 - redaction checks;
@@ -357,8 +358,15 @@ The generic exporter should own:
 - review manifest generation;
 - canonical destination-path generation.
 
-Each study should only need to declare its compact study-specific artifact
-specification rather than hand-coding a new GitHub export workflow.
+Each study should declare its compact study-specific artifact specification
+rather than hand-coding a new GitHub export workflow.
 
-This generic exporter is a required implementation target before the next
-long-running Stage 4C production run.
+The raw input run may live outside the repository. The review output remains in
+the canonical repository path.
+
+## Raw-run retention after publication
+
+Publication does not authorize raw-data deletion. Keep the raw run at least
+through external review and closeout. Longer-term archive/deletion is a separate
+explicit lifecycle decision governed by
+[`data_storage_logging_review_policy.md`](data_storage_logging_review_policy.md).
