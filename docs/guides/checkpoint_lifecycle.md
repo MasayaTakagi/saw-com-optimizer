@@ -1,5 +1,10 @@
 # Checkpoint lifecycle
 
+For the overall storage/retention policy, see
+[`data_storage_logging_review_policy.md`](data_storage_logging_review_policy.md).
+Full checkpoint state is recovery data and belongs with the external persistent
+raw run for new production studies.
+
 ## Storage classes
 
 Full optimizer state is a runtime recovery artifact by default. Each managed
@@ -18,6 +23,9 @@ population dumps to history as a substitute for resumable state. Existing
 convergence traces, counter summaries, and milestone accounting remain the
 canonical analysis records.
 
+For new production runs this checkpoint directory is part of the external
+persistent run, not a disposable Git worktree.
+
 ## Writes and recovery
 
 Use `sawopt.io.checkpoints.CheckpointStore` for filesystem lifecycle. A store
@@ -30,14 +38,16 @@ Resume validates `latest.json` first, then `previous.json`. Optimizer-specific
 validation must use a fresh backend instance so a failed load cannot leave the
 live optimizer partially mutated. The L-SHADE study adapter
 `LShadeCheckpointSession` provides this behavior and preserves the legacy
-single-file `save_checkpoint`/`load_checkpoint` API. When an old run is resumed
-from its legacy file, that run continues using the legacy path; no migration is
-performed. A legacy run whose `manifest.json` uses the historical v1
-`run_store.initialize` fingerprint still requires its matching source checkout:
-that contract hashes every Python file and rejects a changed source tree. The
-checkpoint adapter does not bypass that manifest check or migrate old runs.
-Legacy checkpoint format loading remains supported independently. This does
-not promise that a legacy run can resume under a changed source tree.
+single-file `save_checkpoint`/`load_checkpoint` API.
+
+When an old run is resumed from its legacy file, that run continues using the
+legacy path; no migration is performed. A legacy run whose `manifest.json`
+uses the historical v1 `run_store.initialize` fingerprint still requires its
+matching source checkout: that contract hashes every Python file and rejects a
+changed source tree. The checkpoint adapter does not bypass that manifest check
+or migrate old runs. Legacy checkpoint format loading remains supported
+independently. This does not promise that a legacy run can resume under a
+changed source tree.
 
 Failed or incomplete runs keep their runtime generations. Historical run
 directories are read-only unless a user explicitly asks for a separate,
@@ -70,29 +80,45 @@ Stage review markers to `REVIEW_WAITING` at legacy entrypoint boundaries. The
 generic checkpoint store does not inspect Stage marker names. New studies
 should supply an explicit disposition and must not add Stage-specific markers
 to the generic checkpoint core. A later closeout after human review requires
-a dedicated reviewed-closeout action that records `COMPLETED` and
-updates the durable optimizer disposition. The callback or `REVIEWED` state
-alone is not completion evidence and does not release recovery checkpoints.
+a dedicated reviewed-closeout action that records `COMPLETED` and updates the
+durable optimizer disposition. A callback/continuation success or a historical
+`REVIEWED` marker alone is not completion evidence and does not authorize raw
+run deletion.
 
 Direct Python calls to a study function do not imply successful completion.
 Call the shared completion/finalization API only after the study has written
 its successful closeout artifacts.
 
 `metadata/recovery_policy.json` records the retention policy, final checkpoint
-presence, explicit pin count, and history artifact paths. This neutral filename
-is intentionally outside the review builder's checkpoint-payload filter.
+presence, explicit pin count, and history artifact paths.
 `metadata/run_completion.json` records the explicit disposition and, after a
 successful finalization, the existing final checkpoint path or paths.
 
-## Review bundles
+Publication of lightweight GitHub evidence does not by itself delete the raw
+checkpoint store. Keep the raw run at least through independent review and
+closeout; later archive/deletion is a separate explicit lifecycle operation.
 
-Use the generic `ReviewBundleSpec` and `build_review_bundle` APIs for saved-run
-packaging. Include `metadata/recovery_policy.json` as a required or optional
-artifact when checkpoint provenance is relevant. Full checkpoints remain
-excluded by default; include a final payload only as an explicit optional
-artifact. The generic builder hashes and validates bundle contents and never
-rotates or deletes checkpoints.
+## GitHub review evidence
 
-The filter excludes files in dedicated `checkpoints/` directories and
-checkpoint-named JSON/binary payloads. It retains checkpoint lifecycle
-documentation, source code, and CSV accounting.
+For new production studies, do not package full checkpoints into GitHub review
+evidence. Use the canonical exporter:
+
+```text
+python -m sawopt export-review --run <run-dir>
+```
+
+and publish compact evidence under:
+
+```text
+reports/experiment_reviews/<stage>/<run_id>/
+```
+
+Include derived checkpoint/convergence/accounting summaries where needed, not
+intermediate full-state payloads. The production review contract is defined in
+[`postrun_review_contract.md`](postrun_review_contract.md).
+
+The historical/ad-hoc `ReviewBundleSpec` / `build_review_bundle` utility remains
+available for saved-run packaging. Its checkpoint filter excludes files in
+dedicated `checkpoints/` directories and checkpoint-named JSON/binary payloads,
+while retaining lifecycle documentation, source code, and CSV accounting. See
+[`review_bundles.md`](review_bundles.md).
