@@ -1,7 +1,7 @@
 # Current SAW Design Baseline
 
-This is the current decision state after Stage 4A (baseline date
-2026-10-02). Read `experiment_register.md` for the evidence and limitations
+This is the current decision state after Stage 4B (baseline date
+2026-10-04). Read `experiment_register.md` for the evidence and limitations
 behind each item.
 
 ## Physical model
@@ -81,20 +81,45 @@ behind each item.
   common grid. T2 remains unresolved and unpromoted; this is not a global
   impossibility result. See the Stage 3.9 closeout in the experiment register.
 
-## Stage 4A hybrid software baseline
+## Stage 4 hybrid baseline
 
-- Stage 4A is completed and finalized. The reusable hybrid implementation and
-  its 50/50 Ω qualification workflow are available as a software baseline.
-- D-only parity and the focused/full regression validations passed; the four
-  bounded smoke cells completed. These results qualify implementation and
-  protocol behavior only. They do not establish a feasible B28 filter, rank
-  the hybrid topologies, or identify a production optimum.
-- A Stage 4B production comparison has not been run. The next Stage 4
-  experiment plan is intentionally left open for separate planning.
-- Continue hybrid qualification at fixed 50/50 Ω. Keep the final asymmetric
-  impedance sweep premature until topology is stable and the COM/material
-  model has been physically qualified. Preserve independent source/load
-  control and independently re-optimize the filter for every impedance pair.
+- Stage 4A is completed and finalized. Its D-only parity, focused/full
+  regression validation, and bounded smoke cells qualify the reusable hybrid
+  implementation and protocol behavior; they are not scientific ranking
+  evidence.
+- Stage 4B production run `20261003_014817_ea08db` is complete and its
+  execution/integrity are accepted. The exact production source was
+  `c44798266067fa4b8b7d3b2873a798b7a1600ae8`, and all 20 cells
+  (4 topologies × 5 matched seeds) completed 24,000 unique evaluations on the
+  common 9,113-point validation grid with one computation fingerprint.
+- No Stage 4B topology was filter-feasible: every topology finished at 0/5
+  feasible seeds. The formal production report returned
+  `STAGE4B_SHORTLIST_IDENTIFIED`, but its conservative IQR rule retained all
+  four topologies and therefore did not produce a unique scientific winner.
+- External review adopts the practical shortlist `P_D` and `D_P`.
+  `D` and `P_D_P` are de-prioritized for the next experiment but are not
+  globally rejected. Matched-seed lexicographic wins were 12 for `D_P`, 11 for
+  `P_D`, 4 for `P_D_P`, and 3 for `D`; `P_D` versus `D_P` remained split 2–3.
+- The dominant remaining violation is usually `stop_2`, corresponding to the
+  832–862 MHz upper stopband. Broad active-bound saturation was not observed;
+  the terminal bound-pressure summary contained only one upper-bound hit on
+  `resonator_0_pairs`.
+- Stage 4B is a matched-budget comparison, not a convergence certificate.
+  Median maximum violation still improved materially from 16k to 24k for all
+  four topologies, so 24k must not be treated as a converged terminal budget.
+- The predeclared `P_D`/`D_P` direction sanity check passed. Worst-IL
+  differences changed sign across matched seeds and the median difference was
+  only about +0.0257 dB (`P_D - D_P`), much smaller than the within-topology
+  five-seed spans. Do not infer a stable 50/50 Ω input-side versus output-side
+  resonator preference.
+- The next scientific gate is Stage 4C: fixed-50/50 Ω convergence/budget
+  qualification for `P_D` and `D_P`, with a predeclared longer L-SHADE horizon,
+  matched seeds, cold starts, common dense validation, and late-improvement /
+  boundary diagnostics. Stage 4C has not been launched.
+- Keep the final asymmetric impedance sweep premature until topology/design
+  space is sufficiently stable and the COM/material model has been physically
+  qualified. If Stage 4C does not establish a robust winner, both `P_D` and
+  `D_P` must remain available for later asymmetric `Zs != Zl` work.
 
 ## Current unresolved work
 
@@ -105,8 +130,9 @@ behind each item.
    30–150 µm versus MLIT 30–180 µm ranges.
 3. Keep MLIT/T2 explicitly unresolved; do not promote it on underexplored
    status alone. Any future T2 study is a separate, matched-budget question.
-4. Continue DMS-plus-ladder hybrid qualification at fixed 50/50 Ω under the
-   hypothetical model, while keeping physical model qualification in view.
+4. Plan and run Stage 4C for `P_D` and `D_P` at fixed 50/50 Ω with a longer
+   predeclared L-SHADE terminal horizon and checkpoints sufficient to assess
+   whether the late Stage 4B improvements persist or plateau.
 5. A future impedance sweep must use independent inner optimizations per
    impedance and retain asymmetric source/load interfaces. The historical
    coarse screens are not a substitute, and impedance conclusions require a
