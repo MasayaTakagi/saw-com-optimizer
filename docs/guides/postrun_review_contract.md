@@ -292,6 +292,25 @@ REVIEW_WAITING
 published and are waiting for independent review. It does not mean the
 scientific result has been accepted.
 
+New schema-v4 manifests freeze the review stage, canonical output path, spec
+identifier and hash, exporter contract version, and queue handoff identity.
+Queue is the default for a new launch; the only other new-launch mode is an
+explicitly disabled continuation. `legacy_resume` remains a historical
+read/recovery mode and cannot be selected by a new launch. Schema-v4 queue
+manifests do not require C2C task or plan-iteration metadata.
+
+The worker records optimizer completion and makes at most one durable queue
+attempt. Queue exit code zero records sender acceptance only. The resumed exact
+thread confirms receipt using its runtime `CODEX_THREAD_ID` plus run ID,
+delivery ID, and sentinel. Neither sender acceptance nor receiver confirmation
+changes the orchestration state to `REVIEWED`.
+
+The supported publication finalizer is
+`python -m sawopt.orchestration.cli mark-review-published`. It requires a
+terminal run, a complete/redacted canonical package, a commit containing that
+package, a clean package path, and the matching pushed upstream branch. Only
+then does the run enter `REVIEW_WAITING` and record publication metadata.
+
 The project closeout/experiment register records the later external decision.
 
 ## Generic exporter target

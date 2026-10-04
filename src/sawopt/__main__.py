@@ -45,6 +45,10 @@ def _run_study(config_path, run_path, *, resume=False, stage4b_authorization_man
         return run_stage4b_production(
             config_path, run_path, stage4b_authorization_manifest,
         )
+    if protocol == "postrun_workflow_qualification":
+        from .studies.postrun_workflow_qualification import run_qualification_fixture
+
+        return run_qualification_fixture(config_path, run_path)
     if protocol != "dms_topology_screening":
         raise ValueError(
             f"Unknown study.type {protocol!r}; expected 'dms_topology_screening' or Stage 4B production"
@@ -57,7 +61,7 @@ def _run_study(config_path, run_path, *, resume=False, stage4b_authorization_man
 def main():
     parser = argparse.ArgumentParser(description="SAW COM impedance optimizer")
     parser.add_argument(
-        "command", choices=["simulate", "optimize", "sweep", "report", "run-study", "stage4b-shakedown"],
+        "command", choices=["simulate", "optimize", "sweep", "report", "run-study", "stage4b-shakedown", "export-review"],
     )
     parser.add_argument("--config", default="configs/base/b28_dms_baseline.yaml")
     parser.add_argument("--run", default="runs/prototype")
@@ -67,7 +71,17 @@ def main():
     parser.add_argument("--refine-step", type=float)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--stage4b-authorization-manifest")
+    parser.add_argument("--destination", help=argparse.SUPPRESS)
     args = parser.parse_args()
+
+    if args.command == "export-review":
+        from .reporting.github_review import main as export_main
+
+        export_args = ["--run", args.run]
+        if args.destination:
+            export_args.extend(["--destination", args.destination])
+        export_main(export_args)
+        return
 
     if args.command == "run-study":
         result = _run_study(
