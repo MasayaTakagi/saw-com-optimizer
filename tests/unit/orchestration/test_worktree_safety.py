@@ -52,6 +52,48 @@ class WorktreeSafetyTests(unittest.TestCase):
         self.assertEqual(audit.classification, "WORKTREE_REMOVE_ALLOWED")
         self.assertTrue(audit.deletion_allowed)
 
+    def test_linked_caller_identifies_and_blocks_main_worktree_before_remove(self):
+        main_caller_audit = worktree_safety.audit_worktree(
+            self.repository, repository_root=self.repository,
+        )
+        self.assertTrue(main_caller_audit.primary_checkout)
+        self.assertEqual(main_caller_audit.classification, "FAIL_PRIMARY_WORKTREE")
+        self.assertFalse(main_caller_audit.deletion_allowed)
+
+        audit = worktree_safety.audit_worktree(
+            self.repository, repository_root=self.worktree,
+        )
+        self.assertTrue(audit.primary_checkout)
+        self.assertEqual(audit.classification, "FAIL_PRIMARY_WORKTREE")
+        self.assertFalse(audit.deletion_allowed)
+
+        actual_run = worktree_safety.subprocess.run
+        remove_calls = []
+
+        def spy(command, *args, **kwargs):
+            if command[:3] == ["git", "worktree", "remove"]:
+                remove_calls.append(command)
+            return actual_run(command, *args, **kwargs)
+
+        with mock.patch.object(worktree_safety.subprocess, "run", side_effect=spy):
+            result = worktree_safety.remove_worktree(
+                self.repository, repository_root=self.worktree,
+            )
+        self.assertEqual(result.classification, "FAIL_PRIMARY_WORKTREE")
+        self.assertFalse(result.deletion_allowed)
+        self.assertFalse(result.remove_invoked)
+        self.assertEqual(remove_calls, [])
+        self.assertTrue(self.repository.exists())
+
+    def test_unknown_main_worktree_identity_fails_closed(self):
+        with mock.patch.object(
+            worktree_safety, "_main_worktree_identity",
+            side_effect=ValueError("main identity unavailable"),
+        ):
+            audit = self.audit()
+        self.assertEqual(audit.classification, "FAIL_PRIMARY_WORKTREE_IDENTITY_UNKNOWN")
+        self.assertFalse(audit.deletion_allowed)
+
     def test_uninitialized_registry_fails_closed(self):
         registry = worktree_safety.registry_directory(self.repository)
         for entry in registry.iterdir():

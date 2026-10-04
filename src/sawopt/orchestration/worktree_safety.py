@@ -25,6 +25,7 @@ class WorktreeIdentity:
     path: str
     head: str
     branch: str | None
+    is_bare: bool = False
 
 
 @dataclass(frozen=True)
@@ -101,7 +102,9 @@ def _worktree_identities(repository_root: Path) -> tuple[WorktreeIdentity, ...]:
                 branch = next((x[len("branch "):] for x in fields if x.startswith("branch ")), None)
                 if not root or not head:
                     raise ValueError("git worktree identity is incomplete")
-                records.append(WorktreeIdentity(str(Path(root).resolve(strict=False)), head, branch))
+                records.append(WorktreeIdentity(
+                    str(Path(root).resolve(strict=False)), head, branch, "bare" in fields,
+                ))
                 fields = []
             continue
         fields.append(token)
@@ -114,10 +117,23 @@ def _worktree_identities(repository_root: Path) -> tuple[WorktreeIdentity, ...]:
         branch = next((x[len("branch "):] for x in fields if x.startswith("branch ")), None)
         if not root or not head:
             raise ValueError("git worktree identity is incomplete")
-        records.append(WorktreeIdentity(str(Path(root).resolve(strict=False)), head, branch))
+        records.append(WorktreeIdentity(
+            str(Path(root).resolve(strict=False)), head, branch, "bare" in fields,
+        ))
     if not records:
         raise ValueError("git worktree discovery returned no records")
     return tuple(records)
+
+
+def _main_worktree_identity(identities: tuple[WorktreeIdentity, ...]) -> WorktreeIdentity:
+    """Return Git's first, main-worktree record; reject bare/unknown identity.
+
+    Git emits the main working tree first in `worktree list --porcelain`. This
+    is independent of the checkout from which the command is run.
+    """
+    if not identities or identities[0].is_bare or not identities[0].path:
+        raise ValueError("Git did not provide a non-bare main worktree identity")
+    return identities[0]
 
 
 def _is_reparse(info: os.stat_result) -> bool:
@@ -210,19 +226,16 @@ def audit_worktree(
     except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
         return WorktreeAudit(str(target), "FAIL_WORKTREE_DISCOVERY", False, False, False, None,
                              errors=(str(exc),))
+    try:
+        main_identity = _main_worktree_identity(identities)
+    except (OSError, RuntimeError, ValueError) as exc:
+        return WorktreeAudit(str(target), "FAIL_PRIMARY_WORKTREE_IDENTITY_UNKNOWN", False,
+                             False, False, None, errors=(str(exc),))
     identity = next((item for item in identities if _path_equal(item.path, target)), None)
     if identity is None:
         return WorktreeAudit(str(target), "FAIL_UNREGISTERED_WORKTREE", False, False, False, None,
                              errors=("path is not a registered Git worktree",))
-    primary_result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"], cwd=root,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
-    )
-    if primary_result.returncode:
-        return WorktreeAudit(str(target), "FAIL_WORKTREE_DISCOVERY", False, True, False, identity,
-                             errors=("cannot identify primary checkout",))
-    primary_text = primary_result.stdout.decode("utf-8", errors="strict").strip()
-    primary = _path_equal(primary_text, target)
+    primary = _path_equal(main_identity.path, target)
     if primary:
         return WorktreeAudit(str(target), "FAIL_PRIMARY_WORKTREE", False, True, True, identity,
                              errors=("primary checkout cannot be removed",))
