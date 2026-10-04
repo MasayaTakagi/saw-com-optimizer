@@ -48,9 +48,15 @@ Python runtime. Create the environment with `py -3 -m venv .venv` when it is
 missing, then install the project with `.venv\Scripts\python.exe -m pip
 install -e .`.
 
-Review bundles are external artifacts and must always be written to this
-repository root's `artifacts/review_bundles/` directory. Do not place review
-bundles under `runs/`.
+For new production studies, canonical lightweight GitHub review evidence lives
+under `reports/experiment_reviews/<stage>/<run_id>/`. Large raw runs,
+checkpoints, populations, dense arrays, and full logs belong in an external
+persistent run root outside every Git worktree. The authoritative overview is
+[`docs/guides/data_storage_logging_review_policy.md`](docs/guides/data_storage_logging_review_policy.md).
+
+`artifacts/review_bundles/` and `sawopt.reporting.review_bundle` are retained for
+historical/ad-hoc saved-run packaging only; they are not the canonical new
+production review path.
 
 ## C2C status — frozen historical reference
 
@@ -79,16 +85,18 @@ Use one owner for each review responsibility:
 For meaningful work units, commit and push a review branch, then report its
 branch, commit SHA, and PR or commit URL. Codex self-validation is not an
 independent review. For production experiments, make the implementation,
-configuration, preflight, budget, seed, checkpoint policy, and output path
-available through GitHub before launch. Production execution still requires
-separate user authorization. Keep routine, fully specified documentation,
-tests, formatting, and simple refactoring within Codex without Sol escalation.
+configuration, preflight, budget, seed, checkpoint policy, external output path,
+and review spec available through GitHub before launch. Production execution
+still requires separate user authorization. Keep routine, fully specified
+documentation, tests, formatting, and simple refactoring within Codex without
+Sol escalation.
 
 For long-running production runs, immediately verify the immutable
-`run_manifest.json` against the selected continuation mode after launch. After
-completion, review the recorded result through the GitHub workflow. A
-completion callback must not start another production run; user authorization
-is required. See
+`run_manifest.json` against the authorized continuation/storage/review contract
+after launch. After completion, publish the canonical lightweight evidence and
+stop at `REVIEW_WAITING` for independent GitHub review. A completion
+continuation must not start another production run; user authorization is
+required. See
 [`docs/guides/github_review_workflow.md`](docs/guides/github_review_workflow.md).
 
 ## Long-running production run policy
@@ -96,51 +104,53 @@ is required. See
 - Treat any program expected to run for 30 minutes or longer as a long-running
   production run. If duration is uncertain, use this policy conservatively.
 - Do not run a long production optimization synchronously from the Codex shell.
-- Use `python -m sawopt.orchestration.cli launch` for production runs.
-- The supported production continuation uses the explicitly captured Codex
-  session: pass a valid `--session-id` or `--session-file`. Do not pass
-  `--no-callback` for a production run unless the user explicitly selects that
-  mode for the specific run.
-- After launch, verify the immutable `run_manifest.json` records a non-null
-  `codex_session_id`, `callback_enabled: true`, and
-  `review_after_completion: true`. The callback resumes only that session with
-  `codex exec resume`; never use `--last`.
-- If a valid session identity cannot be captured and preflighted, do not start
-  the long-running program; report the blocker.
-- Once the launcher reports a detached worker, do not poll `stdout.log` or wait for optimizer completion.
-- The worker stores run state and invokes the callback against the explicitly
-  captured legacy session according to the immutable manifest. A callback is a
-  completion notification and review handoff, not optimizer recovery.
-- Use the orchestration `--resume` path for reattachment or recovery. Do not
-  substitute a new production run when an existing detached run can be resumed.
-- Callback review must not automatically start another production run; user approval is required.
+- Use `python -m sawopt.orchestration.cli launch` through the qualified Codex
+  orchestration workflow for production runs; do not make routine user-side
+  PowerShell launch the operating standard.
+- New production continuation uses queue-native exact-thread routing. Capture
+  the exact `CODEX_THREAD_ID` before detach and freeze it as
+  `original_thread_id` in the manifest. Session IDs are not queue targets.
+- New production must not select legacy `codex exec resume` / `legacy_resume`
+  routing. Legacy metadata remains readable only for historical recovery.
+- New user-authorized or ranking-eligible production must use an absolute
+  external persistent `--run-root` or `--run-dir` outside every Git worktree and
+  record `run_storage_policy: external_persistent_v1`.
+- A missing/malformed/unreconciled active-run registry or invalid external run
+  path blocks production before run creation; never fall back to repository
+  `runs/`.
+- After launch, verify the immutable manifest records the exact production
+  source SHA, config/protocol identity, external output path, queue continuation
+  identity, and frozen review destination/spec.
+- Once the launcher reports a detached worker, do not poll `stdout.log` or wait
+  for optimizer completion in the foreground.
+- Optimizer checkpoint recovery and post-run thread continuation are distinct;
+  do not substitute a new production run when an existing run can be recovered.
+- The post-run publisher may export/hash/commit/push evidence but must not
+  declare scientific acceptance, merge the PR, promote the baseline, or launch
+  follow-up production without later explicit authorization.
 - Short unit tests, smoke tests, and small validation runs may remain synchronous.
 
 ## Persistent run storage and worktree safety
 
-- Tracked source worktrees are not durable raw-run storage. New
-  user-authorized or ranking-eligible production runs must use an absolute
-  persistent run root/path outside every registered Git worktree. Pass an
-  existing root with `--run-root` or an absolute path with `--run-dir`; an
-  invalid location fails before run creation and never falls back to
-  repository `runs/`.
-- Production manifests record `run_storage_policy: external_persistent_v1`,
-  `persistent_run_root`, `repository_root_at_launch`, and
-  `source_worktree_at_launch`. Historical manifests without these fields remain
-  readable.
+- The canonical storage/logging/review split is defined in
+  [`docs/guides/data_storage_logging_review_policy.md`](docs/guides/data_storage_logging_review_policy.md).
+- Tracked source worktrees are disposable source checkouts, not durable raw-run
+  storage.
 - Production raw runs, checkpoints, optimizer populations, run-local
-  continuation ledgers, recovery logs, and scientific artifacts must not be
-  durably owned by a disposable worktree. Lightweight GitHub review packages
-  remain in the canonical repository review directory.
+  continuation ledgers, recovery logs, full process logs, and scientific raw
+  artifacts must be durably owned by the external persistent run root.
+- Lightweight GitHub review packages remain under
+  `reports/experiment_reviews/<stage>/<run_id>/` and are governed by
+  [`docs/guides/postrun_review_contract.md`](docs/guides/postrun_review_contract.md).
 - Before removing any worktree, run `python scripts/worktree_safety.py audit
   <absolute-worktree-path>` and use its `remove` mode for the re-audited
   operation. Direct `git worktree remove` is not the standard cleanup path.
   Git status cleanliness does not prove removability; ignored and untracked
   files block deletion by default. Do not use `git clean` as a cleanup
   shortcut. Incomplete or inaccessible inventories fail closed.
-- Do not launch production from a routine user-side PowerShell command.
-  Orchestration remains responsible for production launch, storage validation,
-  and cleanup gates.
+- Do not delete production raw data merely because the optimizer completed or a
+  PR merged. Keep it through publication, external review, and closeout; later
+  archive/deletion requires a separate explicit lifecycle decision.
 
 ## Sol Escalation Policy
 
