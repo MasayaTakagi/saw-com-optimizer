@@ -3,6 +3,7 @@
 - [`guides/data_storage_logging_review_policy.md`](guides/data_storage_logging_review_policy.md): canonical overview for production raw-data storage, logging, retention, and GitHub review evidence
 - [`history/experiment_register.md`](history/experiment_register.md): historical experiments, findings, decisions, and evidence limits
 - [`history/storage_reconciliation_20261005.md`](history/storage_reconciliation_20261005.md): verified historical run and log storage reconciliation
+- [`history/storage_reconciliation_addendum_20261005.md`](history/storage_reconciliation_addendum_20261005.md): re-added historical run copies reverified against the external archive and retired
 - [`history/current_baseline.md`](history/current_baseline.md): adopted assumptions and current unresolved engineering work
 - [`project_roadmap.md`](project_roadmap.md): long-term goals, next stages, and project gates
 - [`history/stage4b_closeout_20261004.md`](history/stage4b_closeout_20261004.md): externally reviewed Stage 4B execution closeout and Stage 4C carry-forward
