@@ -34,6 +34,8 @@ from .run_manager import (
     update_status_fields,
     utc_now,
 )
+from .persistent_storage import validate_persistent_run_location
+from .active_runs import register_active_run
 from .worker import execute_run
 
 
@@ -203,6 +205,40 @@ def launch(args: argparse.Namespace) -> int:
         raise PermissionError("Stage 4B production requires --authorize-stage4b-production")
     if not stage4b_launch and getattr(args, "authorize_stage4b_production", False):
         raise ValueError("--authorize-stage4b-production is valid only for Stage 4B")
+    production_launch = stage4b_launch or any(
+        configured_study.get(key) is True
+        for key in ("user_authorized_production", "production_launch_authorized", "ranking_eligible")
+    ) or bool(configured_study.get("ranking_eligibility") not in (None, "", "never", False))
+    if getattr(args, "run_dir", None) and getattr(args, "run_root", None):
+        raise ValueError("--run-dir and --run-root are mutually exclusive")
+    run_id = _new_run_id()
+    persistent_run_root = None
+    storage_provenance = False
+    if production_launch and not (getattr(args, "run_dir", None) or getattr(args, "run_root", None)):
+        raise ValueError("authorized/ranking-eligible production requires an explicit external --run-root or --run-dir")
+    if getattr(args, "run_root", None):
+        requested_root = Path(args.run_root)
+        if not requested_root.is_absolute():
+            raise ValueError("production run root must be an absolute path")
+        persistent_run_root = requested_root.resolve(strict=False)
+        run_dir = persistent_run_root / run_id
+        storage_provenance = True
+    elif production_launch:
+        requested_run_dir = Path(args.run_dir)
+        if not requested_run_dir.is_absolute():
+            raise ValueError("production run directory must be an absolute path")
+        run_dir = requested_run_dir.resolve(strict=False)
+        persistent_run_root = run_dir.parent
+        storage_provenance = True
+    else:
+        run_dir = resolve_run_dir(args.run_dir, root) if args.run_dir else root / "runs" / run_id
+    if storage_provenance:
+        storage_validation = validate_persistent_run_location(run_dir, root)
+        if not storage_validation.passed:
+            raise ValueError(
+                f"production run storage rejected: {storage_validation.classification}: "
+                f"{storage_validation.reason}"
+            )
     stage4b_context = None
     stage4b_source = None
     if stage4b_launch:
@@ -229,13 +265,7 @@ def launch(args: argparse.Namespace) -> int:
             raise RuntimeError("Stage 4B production must launch from the named Stage 4B branch")
         if stage4b_source["status_short"]:
             raise RuntimeError("Stage 4B production requires a clean committed source tree")
-    run_id = _new_run_id()
-    run_dir = resolve_run_dir(args.run_dir, root) if args.run_dir else root / "runs" / run_id
     optimizer_run_dir = run_dir / "optimizer"
-    if stage4b_launch:
-        expected_run_dir = (root / "runs" / "stage4b-hybrid-topology-production-20261003").resolve()
-        if run_dir.resolve() != expected_run_dir:
-            raise ValueError(f"Stage 4B production output path is fixed at {expected_run_dir}")
     if run_dir.exists() and any(run_dir.iterdir()):
         raise FileExistsError(f"orchestration directory is not empty: {run_dir}")
     if optimizer_run_dir.exists() and any(optimizer_run_dir.iterdir()):
@@ -355,7 +385,26 @@ def launch(args: argparse.Namespace) -> int:
         source_commit_sha=source_commit_sha,
         source_branch=source_branch,
         study_type=study_type,
+        run_storage_policy="external_persistent_v1" if storage_provenance else None,
+        persistent_run_root=str(persistent_run_root) if storage_provenance else None,
+        repository_root_at_launch=str(root) if storage_provenance else None,
+        source_worktree_at_launch=str(root) if storage_provenance else None,
     )
+    if storage_provenance:
+        # Final recheck plus exclusive directory reservation closes the gap
+        # between validation and create_run for an explicitly reused --run-dir.
+        storage_validation = validate_persistent_run_location(run_dir, root)
+        if not storage_validation.passed:
+            raise ValueError(
+                f"production run storage changed before run creation: "
+                f"{storage_validation.classification}: {storage_validation.reason}"
+            )
+        register_active_run(
+            root, run_id=run_id, run_dir=run_dir, source_worktree=root,
+            source_head=source_commit_sha,
+            source_branch=source_branch or None,
+        )
+        run_dir.mkdir(exist_ok=False)
     if stage4b_launch:
         claim_id, claim_path = _claim_stage4b_authorization(root, experiment_metadata)
         experiment_metadata["authorization_claim_id"] = claim_id
@@ -518,6 +567,10 @@ def build_parser() -> argparse.ArgumentParser:
     launch_parser = subparsers.add_parser("launch", help="start a detached optimizer run")
     launch_parser.add_argument("--config", required=True)
     launch_parser.add_argument("--run-dir")
+    launch_parser.add_argument(
+        "--run-root",
+        help="absolute persistent root outside all Git worktrees; run ID becomes a child directory",
+    )
     launch_parser.add_argument("--experiment-name")
     launch_parser.add_argument("--workers", type=int)
     launch_parser.add_argument(

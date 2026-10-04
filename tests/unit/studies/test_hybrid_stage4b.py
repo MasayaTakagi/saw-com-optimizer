@@ -117,14 +117,24 @@ def test_authorized_stage4b_launch_records_preflight_and_one_shot_claim(tmp_path
         "matrix": _expected_matrix(),
         "authorization_scope": "stage4b-hybrid-topology-production-exact-protocol-v1",
     }
-    monkeypatch.setattr(orchestration_cli, "project_root", lambda: tmp_path)
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    monkeypatch.setattr(orchestration_cli, "project_root", lambda: repository)
     monkeypatch.setattr(orchestration_cli, "_new_run_id", lambda: run_id)
     monkeypatch.setattr(
         "sawopt.studies.hybrid_stage4b.load_stage4b_context",
         lambda _config: context,
     )
     import shutil
-    shutil.copytree(Path.cwd() / "configs" / "review_specs", tmp_path / "configs" / "review_specs")
+    shutil.copytree(Path.cwd() / "configs" / "review_specs", repository / "configs" / "review_specs")
+    persistent_root = tmp_path / "persistent-runs"
+    persistent_root.mkdir()
+    validate_location = orchestration_cli.validate_persistent_run_location
+    monkeypatch.setattr(
+        orchestration_cli,
+        "validate_persistent_run_location",
+        lambda candidate, repo: validate_location(candidate, repo, worktree_roots=(repository,)),
+    )
     monkeypatch.setenv("CODEX_THREAD_ID", thread_id)
     monkeypatch.setattr(
         "sawopt.orchestration.codex_queue.run_codex_queue_preflight",
@@ -151,15 +161,28 @@ def test_authorized_stage4b_launch_records_preflight_and_one_shot_claim(tmp_path
 
     monkeypatch.setattr(orchestration_cli.subprocess, "check_output", git_output)
     monkeypatch.setattr(orchestration_cli, "launch_detached", lambda *_args, **_kwargs: 8192)
-    run_dir = tmp_path / "runs" / "stage4b-hybrid-topology-production-20261003"
+    registration_events = []
+    monkeypatch.setattr(
+        orchestration_cli, "register_active_run",
+        lambda *_args, **_kwargs: registration_events.append("registered"),
+    )
+    claim_stage4b = orchestration_cli._claim_stage4b_authorization
+
+    def claim_after_registration(*args, **kwargs):
+        registration_events.append("claim")
+        return claim_stage4b(*args, **kwargs)
+
+    monkeypatch.setattr(orchestration_cli, "_claim_stage4b_authorization", claim_after_registration)
+    run_dir = persistent_root / run_id
     args = orchestration_cli.build_parser().parse_args([
         "launch", "--config", str((Path.cwd() / CONFIG).resolve()),
-        "--run-dir", "runs/stage4b-hybrid-topology-production-20261003",
+        "--run-root", str(persistent_root),
         "--continuation-mode", "queue", "--thread-id", thread_id,
         "--authorize-stage4b-production",
     ])
 
     assert orchestration_cli.launch(args) == 0
+    assert registration_events == ["registered", "claim"]
     manifest = json.loads((run_dir / "run_manifest.json").read_text(encoding="utf-8"))
     metadata = manifest["experiment_metadata"]
     assert manifest["schema_version"] == 4
@@ -167,6 +190,9 @@ def test_authorized_stage4b_launch_records_preflight_and_one_shot_claim(tmp_path
     assert manifest["callback_enabled"] is False
     assert manifest["review_after_completion"] is True
     assert manifest["continuation_mode"] == "queue"
+    assert manifest["run_storage_policy"] == "external_persistent_v1"
+    assert Path(manifest["persistent_run_root"]) == persistent_root.resolve()
+    assert Path(manifest["run_dir"]) == run_dir.resolve()
     assert manifest["original_thread_id"] == thread_id
     assert manifest["queue_preflight"]["status"] == "PASS"
     assert metadata["source_commit_sha"] == source_sha

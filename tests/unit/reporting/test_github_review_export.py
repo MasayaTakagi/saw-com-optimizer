@@ -37,9 +37,9 @@ def _repo_with_spec(root: Path) -> None:
     )
 
 
-def _fixture(root: Path, *, schema=2, oversized=False) -> Path:
+def _fixture(root: Path, *, schema=2, oversized=False, run_directory: Path | None = None) -> Path:
     _repo_with_spec(root)
-    run = root / "runs" / RUN_ID
+    run = Path(run_directory) if run_directory is not None else root / "runs" / RUN_ID
     run.mkdir(parents=True, exist_ok=True)
     study_type = "postrun_workflow_qualification"
     spec = yaml.safe_load((root / "configs/review_specs/postrun_workflow_qualification.yaml").read_text(encoding="utf-8"))
@@ -155,6 +155,35 @@ class GitHubReviewExportTests(unittest.TestCase):
             self.assertFalse(any(path.name == "B4000.json" for path in destination.rglob("*")))
             self.assertFalse((destination / "stdout.log").exists())
 
+    def test_external_raw_run_exports_to_repository_canonical_path_without_changing_source(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            repository = base / "source-repository"
+            external_raw = base / "persistent-runs" / RUN_ID
+            run = _fixture(repository, run_directory=external_raw)
+            before = {
+                path.relative_to(run).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+                for path in run.rglob("*") if path.is_file()
+            }
+            result = export_review(run, repository_root=repository)
+            self.assertEqual(result["status"], "EXPORTED")
+            expected = repository / "reports/experiment_reviews/qualification" / RUN_ID
+            self.assertEqual(Path(result["path"]), expected)
+            self.assertFalse(Path(result["path"]).is_relative_to(run))
+            review = json.loads((expected / "review_manifest.json").read_text(encoding="utf-8"))
+            self.assertTrue(review["package_complete"])
+            self.assertEqual(review["redaction_scan"], "PASS")
+            with (expected / "artifact_manifest.csv").open("r", encoding="utf-8", newline="") as stream:
+                rows = list(csv.DictReader(stream))
+            self.assertTrue(rows)
+            self.assertTrue(all(row["source_sha256"] == row["destination_sha256"]
+                                for row in rows if row["included"] == "true"))
+            after = {
+                path.relative_to(run).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+                for path in run.rglob("*") if path.is_file()
+            }
+            self.assertEqual(before, after)
+
     def test_required_missing_artifact_and_traversal_fail_closed(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -193,8 +222,21 @@ class GitHubReviewExportTests(unittest.TestCase):
 
     def test_export_does_not_wait_review_and_publication_requires_pushed_bundle(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            run = _fixture(root, schema=4)
+            temporary_root = Path(temporary)
+            root = temporary_root / "repo"
+            root.mkdir()
+            persistent_root = temporary_root / "persistent-runs"
+            persistent_root.mkdir()
+            run = _fixture(root, schema=4, run_directory=persistent_root / RUN_ID)
+            manifest_path = run / "run_manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest.update({
+                "run_storage_policy": "external_persistent_v1",
+                "persistent_run_root": str(persistent_root),
+                "repository_root_at_launch": str(root),
+                "source_worktree_at_launch": str(root),
+            })
+            _write_json(manifest_path, manifest)
             def git(*args):
                 result = subprocess.run(
                     ["git", *args], cwd=root, check=False, stdout=subprocess.PIPE,
@@ -206,6 +248,22 @@ class GitHubReviewExportTests(unittest.TestCase):
             git("init", "-b", "codex/test-review-publication")
             git("config", "user.name", "Test User")
             git("config", "user.email", "test@example.invalid")
+            git("commit", "--allow-empty", "-m", "source baseline")
+
+            from sawopt.orchestration.active_runs import (
+                active_runs_for_worktree,
+                initialize_active_run_registry,
+                register_active_run,
+            )
+
+            initialize_active_run_registry(
+                root, confirm_no_unregistered_active_runs=True,
+            )
+            register_active_run(
+                root, run_id=RUN_ID, run_dir=run, source_worktree=root,
+                source_head=git("rev-parse", "HEAD"),
+                source_branch="codex/test-review-publication",
+            )
 
             result = export_review(run, repository_root=root)
             self.assertEqual(result["status"], "EXPORTED")
@@ -242,6 +300,13 @@ class GitHubReviewExportTests(unittest.TestCase):
             self.assertEqual(status["state"], "REVIEW_WAITING")
             self.assertEqual(status["review_evidence_state"], "PUBLISHED")
             self.assertEqual(status["optimizer_state"], "COMPLETED")
+            self.assertEqual(active_runs_for_worktree(root, root), ())
+            repeated = mark_review_published(
+                run, review_path=review_path,
+                branch="codex/test-review-publication", commit=commit,
+            )
+            self.assertEqual(repeated["state"], "REVIEW_WAITING")
+            self.assertEqual(active_runs_for_worktree(root, root), ())
 
     def test_redaction_hit_blocks_export(self):
         with tempfile.TemporaryDirectory() as temporary:

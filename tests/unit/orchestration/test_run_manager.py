@@ -48,6 +48,8 @@ class RunManagerTests(unittest.TestCase):
             self.assertEqual(loaded.schema_version, 1)
             self.assertIsNone(loaded.optimizer_run_dir)
             self.assertEqual(loaded.effective_optimizer_run_dir, str(run_dir))
+            self.assertIsNone(loaded.run_storage_policy)
+            self.assertNotIn("persistent_run_root", loaded.to_dict())
 
     def test_atomic_write_and_validated_state_machine(self):
         with TemporaryDirectory() as temporary:

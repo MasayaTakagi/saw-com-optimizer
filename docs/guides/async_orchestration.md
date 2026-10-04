@@ -44,6 +44,16 @@ legacy `codex exec resume` 用のsession metadataはhistorical manifestの読み
 `CODEX_THREAD_ID`が必須で、任意の`--thread-id`はその値と一致しなければなりません。
 `--session-id`と`--session-file`はqueue routingに使用できません。
 
+新規のuser-authorizedまたはranking-eligible productionでは、raw runの保存先に
+absoluteな外部persistent root/pathを明示します。通常は既存の保存rootを
+`--run-root`で渡し、run IDをその直下に作成します。既存の`--run-dir`を使う場合も
+absolute pathが必要です。どちらも全登録worktree、`.git`、review publication path、
+Windows reparse point、保存先の一意性、parentの書き込み可否を検査します。
+Git worktree検出やpath検査に失敗した場合はlaunchを止め、repository `runs/`へ
+fallbackしません。manifestには`external_persistent_v1`と保存root、repository root、
+launch元worktreeを記録します。historical manifestではこれらのoptional fieldが
+なくても読み取りを継続します。
+
 launch例:
 
 ```powershell
@@ -52,12 +62,15 @@ launch例:
   --thread-id <EXACT_ORIGINAL_THREAD_ID> `
   --review-stage <STAGE> `
   --review-spec <FROZEN_SPEC_ID> `
-  --run-dir <RUN_DIR>
+  --run-root <ABSOLUTE_PERSISTENT_RUN_ROOT>
 ```
 
-launch時にCodex実行ファイル/version/helpのpreflightを行い、有限queue timeoutと
-frozen review specをmanifestへ保存します。preflightが失敗した場合はrun directoryを
-作成せず停止します。schema-v4 manifestはC2C taskやPLAN iterationを要求しません。
+launch時に保存先の外部性と一意性を確認したうえで、Codex実行ファイル/version/helpの
+preflightを行い、有限queue timeoutとfrozen review specをmanifestへ保存します。
+preflightが失敗した場合はrun directoryを作成せず停止します。raw orchestration/
+optimizer outputは外部persistent rootに置きます。軽量review packageは引き続き
+`reports/experiment_reviews/<stage>/<run_id>/`へ出力します。schema-v4 manifestは
+C2C taskやPLAN iterationを要求しません。
 
 callback/continuationを無効にするrunは、そのrunに対する明示的な判断がある
 場合だけdisabled/no-callback相当を使います。
