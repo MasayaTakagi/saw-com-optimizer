@@ -1,8 +1,41 @@
-# Review bundle usage
+# Review bundle usage — historical / ad-hoc packaging
 
-The generic builder packages an existing run directory without starting its
-study or optimizer. Create a JSON specification that identifies the saved
-artifacts and source files:
+`artifacts/review_bundles/` and `sawopt.reporting.review_bundle` are retained for
+manual packaging of historical or ad-hoc saved runs. They are **not** the
+canonical review path for new production studies.
+
+For new production runs use:
+
+```text
+python -m sawopt export-review --run <run-dir>
+```
+
+with canonical GitHub evidence under:
+
+```text
+reports/experiment_reviews/<stage>/<run_id>/
+```
+
+See [`data_storage_logging_review_policy.md`](data_storage_logging_review_policy.md)
+and [`postrun_review_contract.md`](postrun_review_contract.md).
+
+## When this legacy/manual utility is appropriate
+
+Use the generic ZIP builder when you need to package an already-existing saved
+run outside the active production publication flow, for example:
+
+- historical evidence recovery;
+- a one-off handoff of a saved run;
+- forensic preservation;
+- compatibility with an older review workflow.
+
+Do not substitute this ZIP flow for the canonical `export-review` publication
+contract of a new production run.
+
+## Builder usage
+
+Create a JSON specification that identifies the saved artifacts and source
+files:
 
 ```json
 {
@@ -26,7 +59,7 @@ Then run from the project root using the project virtual environment:
 
 ```powershell
 .\.venv\Scripts\python.exe -m sawopt.reporting.review_bundle `
-  --run runs/my_saved_run `
+  --run <saved-run-dir> `
   --output my_saved_run_review.zip `
   --spec configs/review/my_saved_run.json
 ```
@@ -34,18 +67,20 @@ Then run from the project root using the project virtual environment:
 The ZIP is written under `artifacts/review_bundles/`. Required files are
 validated before packaging. Optional files can be omitted with
 `include_optional=False` in Python or by setting
-`max_optional_artifact_bytes` in the JSON specification. Checkpoint payloads
-are excluded from generic bundle archives. When a run uses rolling retention,
-include its neutral `metadata/recovery_policy.json` file to show retention and
-final-checkpoint metadata; do not include intermediate full-state payloads by
-default. See [`checkpoint_lifecycle.md`](checkpoint_lifecycle.md).
+`max_optional_artifact_bytes` in the JSON specification.
+
+Checkpoint payloads are excluded from generic bundle archives. When a run uses
+rolling retention, include its neutral `metadata/recovery_policy.json` file to
+show retention and final-checkpoint metadata; do not include intermediate
+full-state payloads by default. See
+[`checkpoint_lifecycle.md`](checkpoint_lifecycle.md).
 
 The builder includes a recorded `source_snapshot/` from the run when one is
 available. Explicit `source_paths` are captured separately under
 `source_snapshot/current_repository/`; they are not substituted for the
-recorded snapshot. The bundle also records current Git state and environment
-metadata. It hashes every included file and checks the ZIP contents and hashes
-after creation.
+recorded snapshot. The bundle records current Git state and environment
+metadata, hashes every included file, and verifies the ZIP contents after
+creation.
 
 For Python callers:
 
@@ -58,8 +93,14 @@ spec = ReviewBundleSpec(
     optional_artifacts=("responses.npz",),
     source_paths=("src/sawopt/problem/dms_topologies.py",),
 )
-build_review_bundle("runs/my_saved_run", "artifacts/review_bundles/my_saved_run_review.zip", spec)
+build_review_bundle("<saved-run-dir>", "artifacts/review_bundles/my_saved_run_review.zip", spec)
 ```
 
 The CLI requires a `ReviewBundleSpec`; there is no study-specific bundle
 contract in the reporting module.
+
+## Storage warning
+
+Do not copy large raw production runs into `artifacts/review_bundles/` or any
+Git worktree merely to build a bundle. Raw production data belongs in external
+persistent storage. Package directly from the saved run where possible.
