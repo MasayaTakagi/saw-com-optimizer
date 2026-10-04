@@ -7,6 +7,11 @@ and publishes review evidence. C2C is frozen and is not part of this workflow.
 The GitHub branch, commit, and PR are the review surface. A local-only diff or a
 Codex self-review is not independent external review.
 
+For the canonical data-storage/logging split used by this workflow, see
+[`data_storage_logging_review_policy.md`](data_storage_logging_review_policy.md).
+The package-level evidence contract is
+[`postrun_review_contract.md`](postrun_review_contract.md).
+
 ## Roles
 
 Use the following separation of responsibility.
@@ -42,7 +47,7 @@ ChatGPT / user plan
 ```
 
 Keep the PR focused on the reviewed work unit. Do not merge it until review and
-user acceptance.
+user acceptance unless the user explicitly delegated that merge in the current task.
 
 ## Experiment branch model
 
@@ -75,17 +80,16 @@ review when applicable:
 - preflight result and production authorization gate;
 - evaluation budget, seeds, and comparison conditions;
 - checkpoint and continuation policy;
-- output path and expected review-evidence path;
+- external raw output path and expected review-evidence path;
 - relevant validation summary and source provenance;
 - exact production execution source SHA.
 
 ChatGPT can review the GitHub state before launch. This does not replace the
 user's separate authorization to start production.
 
-## Post-run continuation contract
+## Active post-run continuation contract
 
-New production runs must not use a dedicated legacy `codex exec resume`
-callback as the normal completion path. The required target contract is:
+New production runs use the qualified queue-native exact-thread contract:
 
 ```text
 optimizer completion
@@ -94,6 +98,7 @@ optimizer completion
 → codex queue --thread <original-thread-id> --message <bounded handoff>
 → same original thread resumes
 → Codex exports/pushes review evidence
+→ publication finalizer
 → REVIEW_WAITING
 → STOP for external ChatGPT review
 ```
@@ -102,18 +107,18 @@ Session IDs and thread IDs are distinct identities. Queue delivery must use an
 explicit thread ID. New manifests must not reinterpret a session ID as a queue
 thread target.
 
-Until the queue-native implementation is integrated and re-qualified on the
-active orchestration branch, **new long-running production experiments are
-blocked**. Historical legacy-resume support may remain readable for old run
-manifests, but it is not an approved launch mode for a new production study.
+Historical legacy-resume support remains readable for old run manifests but is
+not an approved launch mode for a new production study. If the queue-native
+contract, external storage gate, active-run registry, or review exporter is
+unavailable or fails its preflight, new long-running production is blocked until
+that infrastructure issue is repaired.
 
-See [`postrun_review_contract.md`](postrun_review_contract.md) for the review
-artifact and completion contract.
+See [`async_orchestration.md`](async_orchestration.md) for launch/recovery details.
 
 ## Experiment result review
 
-After a run, Codex must publish a deterministic lightweight review directory in
-this canonical location:
+After a run, Codex publishes a deterministic lightweight review directory in the
+canonical location:
 
 ```text
 reports/experiment_reviews/<stage>/<run_id>/
@@ -134,11 +139,8 @@ ranking, feasible design, production optimum, or convergence result.
 
 ## Review states
 
-Keep orchestration delivery state separate from external review state.
-
-The orchestrator may establish that a run is complete and that a continuation
-message was sent/received. It must not label the scientific result `REVIEWED`
-merely because a Codex callback/continuation process exited successfully.
+Keep numerical completion, orchestration delivery, publication, and external
+scientific review separate.
 
 The intended terminal handoff state for an externally reviewable run is:
 
@@ -146,8 +148,21 @@ The intended terminal handoff state for an externally reviewable run is:
 REVIEW_WAITING
 ```
 
-Scientific acceptance/rejection is then recorded by GitHub review/closeout
-history, not inferred from continuation process success.
+`REVIEW_WAITING` means the canonical package is published and waiting for
+independent review. It does not mean the result is scientifically accepted.
+Scientific acceptance/rejection is recorded later by GitHub review/closeout
+history, the experiment register, and baseline/roadmap changes when applicable.
+
+## Large data and logs
+
+Do not use the PR as a raw-data transport mechanism. Production checkpoints,
+populations, dense arrays, full stdout/stderr, and other recovery-heavy data stay
+in the external persistent run root. GitHub receives compact deterministic
+summaries and hashes sufficient for independent review.
+
+If review requires information absent from the compact package, derive a bounded
+summary from the raw run or request an explicit exception. Do not silently upload
+the raw data lake.
 
 ## Git handling
 
