@@ -5,12 +5,14 @@
 - [`project_roadmap.md`](project_roadmap.md): long-term goals, sequencing, and phase exit gates
 - `history/current_baseline.md`: adopted assumptions and unresolved engineering work
 - `history/experiment_register.md`: historical experiment findings, decisions, and evidence limits
+- [`history/stage4b_closeout_20261004.md`](history/stage4b_closeout_20261004.md): Stage 4B external-review closeout and Stage 4C carry-forward
 - [`guides/github_review_workflow.md`](guides/github_review_workflow.md): active GitHub-mediated external review workflow
 
 Start with `project_roadmap.md` for the long-term direction, then use
 `history/current_baseline.md` for the adopted scientific assumptions and
 unresolved engineering work. Use the experiment register when a past result
-or decision needs its provenance.
+or decision needs its provenance; the Stage 4B closeout file records the
+reviewed production result pending consolidation into the register.
 
 - `history/recovery_audit_20260925.md`: provenance audit separating Git-recoverable, chat/attachment-recovered, unrecovered, and locally unverified historical evidence
 - `history/engineering_decisions.md`: non-scientific infrastructure decisions, including the frozen autonomous Codex session-resume scope and C2C freeze
