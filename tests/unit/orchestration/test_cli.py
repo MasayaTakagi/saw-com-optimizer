@@ -115,6 +115,84 @@ class CliTests(unittest.TestCase):
             self.assertFalse((run_dir / "session_checkpoint.json").exists())
             self.assertIsNone(load_status(run_dir)["session_checkpoint_path"])
 
+    def test_authorized_production_launch_records_external_storage_provenance(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            payload = {"study": {
+                "type": "postrun_workflow_qualification",
+                "user_authorized_production": True,
+                "comparison_arms": ["fixture"], "seeds": [1],
+                "review_spec_id": "postrun_workflow_qualification",
+            }}
+            args = cli.build_parser().parse_args([
+                "launch", "--config", "configs/studies/postrun_workflow_qualification.yaml",
+                "--run-root", str(root), "--no-callback",
+            ])
+            with mock.patch("sawopt.io.config.load_experiment_config", return_value=payload), \
+                    mock.patch.object(cli.subprocess, "check_output", side_effect=_clean_git_snapshot), \
+                    mock.patch.object(cli, "register_active_run") as register_mock, \
+                    mock.patch.object(cli, "launch_detached", return_value=5656) as launch_mock:
+                self.assertEqual(cli.launch(args), 0)
+            launch_mock.assert_called_once()
+            register_mock.assert_called_once()
+            self.assertEqual(register_mock.call_args.kwargs["source_head"], "a" * 40)
+            self.assertEqual(register_mock.call_args.kwargs["source_branch"], "codex/test-branch")
+            manifest_path = Path(launch_mock.call_args.args[0]) / "run_manifest.json"
+            manifest = load_manifest(manifest_path.parent)
+            self.assertEqual(manifest.run_storage_policy, "external_persistent_v1")
+            self.assertEqual(Path(manifest.persistent_run_root), root.resolve())
+            self.assertEqual(Path(manifest.run_dir).parent, root.resolve())
+            self.assertEqual(Path(manifest.repository_root_at_launch), ROOT.resolve())
+            self.assertEqual(Path(manifest.source_worktree_at_launch), ROOT.resolve())
+
+    def test_authorized_production_inside_worktree_fails_before_launch(self):
+        run_dir = ROOT / "runs" / "blocked-production-storage-test"
+        args = cli.build_parser().parse_args([
+            "launch", "--config", "configs/studies/postrun_workflow_qualification.yaml",
+            "--run-dir", str(run_dir), "--no-callback",
+        ])
+        payload = {"study": {
+            "type": "postrun_workflow_qualification",
+            "user_authorized_production": True,
+            "comparison_arms": ["fixture"], "seeds": [1],
+            "review_spec_id": "postrun_workflow_qualification",
+        }}
+        with mock.patch("sawopt.io.config.load_experiment_config", return_value=payload), \
+                mock.patch.object(cli, "launch_detached") as launch_mock, \
+                mock.patch.object(cli, "_claim_stage4b_authorization") as claim_mock, \
+                mock.patch.object(cli, "create_run") as create_mock:
+            with self.assertRaisesRegex(ValueError, "FAIL_INSIDE_WORKTREE"):
+                cli.launch(args)
+        launch_mock.assert_not_called()
+        claim_mock.assert_not_called()
+        create_mock.assert_not_called()
+        self.assertFalse(run_dir.exists())
+
+    def test_authorized_production_registry_failure_prevents_directory_and_worker(self):
+        with TemporaryDirectory() as temporary:
+            persistent_root = Path(temporary) / "persistent"
+            persistent_root.mkdir()
+            payload = {"study": {
+                "type": "postrun_workflow_qualification",
+                "user_authorized_production": True,
+                "comparison_arms": ["fixture"], "seeds": [1],
+                "review_spec_id": "postrun_workflow_qualification",
+            }}
+            args = cli.build_parser().parse_args([
+                "launch", "--config", "configs/studies/postrun_workflow_qualification.yaml",
+                "--run-root", str(persistent_root), "--no-callback",
+            ])
+            with mock.patch("sawopt.io.config.load_experiment_config", return_value=payload), \
+                    mock.patch.object(cli.subprocess, "check_output", side_effect=_clean_git_snapshot), \
+                    mock.patch.object(cli, "register_active_run", side_effect=RuntimeError("registry unavailable")), \
+                    mock.patch.object(cli, "create_run") as create_mock, \
+                    mock.patch.object(cli, "launch_detached") as launch_mock:
+                with self.assertRaisesRegex(RuntimeError, "registry unavailable"):
+                    cli.launch(args)
+            create_mock.assert_not_called()
+            launch_mock.assert_not_called()
+            self.assertEqual(list(persistent_root.iterdir()), [])
+
     def test_resume_active_run_reattaches_without_starting_duplicate_worker(self):
         with TemporaryDirectory() as temporary:
             run_dir = Path(temporary) / "active"

@@ -623,15 +623,27 @@ def mark_review_published(run_dir: Path, *, review_path: str, branch: str,
             raise ValueError("exact-thread queue receiver has not been confirmed")
     if status.get("review_evidence_state") == "PUBLISHED":
         if status.get("review_publication_commit") == commit and status.get("review_publication_branch") == branch:
+            _release_published_active_run(repo, manifest)
             return status
         raise ValueError("review publication was already finalized differently")
     if status.get("review_evidence_state") != "EXPORTED":
         raise ValueError("review evidence has not passed export completeness/redaction gates")
-    return transition(
+    published = transition(
         root, "REVIEW_WAITING", review_evidence_state="PUBLISHED",
         review_output_dir=expected_path, review_publication_branch=branch,
         review_publication_commit=commit, review_published_at=utc_now(),
     )
+    _release_published_active_run(repo, manifest)
+    return published
+
+
+def _release_published_active_run(repository_root: Path, manifest: RunManifest) -> None:
+    """Release a production worktree marker only after publication is durable."""
+    if manifest.run_storage_policy != "external_persistent_v1":
+        return
+    from .active_runs import release_active_run
+
+    release_active_run(repository_root, run_id=manifest.run_id)
 
 
 def mark_review_exported(run_dir: Path) -> dict[str, Any]:

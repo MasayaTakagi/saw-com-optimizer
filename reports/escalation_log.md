@@ -1702,3 +1702,33 @@ confirmation or a separately approved FEM extraction is required.
   retaining the legacy callback only for historical manifests. E2E and test
   qualification remain pending; no queue send or experiment has been launched.
 - Packet: `reports/escalation_packets/postrun_workflow_queue_contract_20261004.md`.
+
+### Persistent run storage and worktree removal safety
+
+- Bounded Sol judgment was requested before changing the orchestration launch
+  interface. Recommendation: require explicit external storage for launches
+  declared user-authorized or ranking-eligible; remove the Stage 4B new-launch
+  fixed output path under repository `runs/`; preserve historical manifests;
+  fail closed when Git worktree discovery or Windows path identity is uncertain;
+  reject reparse points and compare paths by components, case-insensitively on
+  Windows; and test the removal utility only with temporary repositories.
+- Sol also identified that Stage 4B one-shot authorization claims are globally
+  unique. A registry selected per run root could permit reuse. The existing
+  repository-wide claim registry is therefore retained for this task; it is
+  authorization metadata, while raw run outputs use external persistent
+  storage.
+- Exporter review confirmed that external raw input is already supported and
+  the default schema-v4 output remains canonical under the source repository;
+  the implementation adds regression coverage without changing export
+  semantics.
+- A follow-up review found a launch/removal race and a missing source-worktree
+  dependency record. Recommendation: store active production-run markers under
+  Git's shared common directory; register before run reservation, Stage 4B
+  claim, or worker spawn; retain markers through optimizer termination until
+  successful review publication; fail closed on absent/corrupt registry state;
+  and serialize registration with the remover's final audit and Git removal
+  under one shared lock. Publication retries should idempotently clear a marker
+  left after a successful state transition. The implementation adds this
+  registry and requires explicit one-time reconciliation before initialization.
+- No optimizer, COM/RF, study conditions, historical manifests, or production
+  results are changed. Stage 4C and queue requalification remain out of scope.

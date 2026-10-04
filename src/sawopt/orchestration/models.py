@@ -77,6 +77,10 @@ class RunManifest:
     source_commit_sha: str | None = None
     source_branch: str | None = None
     study_type: str | None = None
+    run_storage_policy: str | None = None
+    persistent_run_root: str | None = None
+    repository_root_at_launch: str | None = None
+    source_worktree_at_launch: str | None = None
 
     def __post_init__(self) -> None:
         if self.callback_timeout_minutes is not None and self.callback_timeout_minutes <= 0:
@@ -172,9 +176,25 @@ class RunManifest:
                 optimizer_root.relative_to(control_root)
             except ValueError as exc:
                 raise ValueError("optimizer_run_dir must be nested under run_dir") from exc
+        storage_fields = (
+            self.run_storage_policy, self.persistent_run_root,
+            self.repository_root_at_launch, self.source_worktree_at_launch,
+        )
+        if any(value is not None for value in storage_fields):
+            if not all(value is not None for value in storage_fields):
+                raise ValueError("run storage provenance fields must be supplied together")
+            if self.run_storage_policy != "external_persistent_v1":
+                raise ValueError("unknown run storage policy")
+            if not Path(str(self.persistent_run_root)).is_absolute():
+                raise ValueError("persistent_run_root must be absolute")
 
     def to_dict(self) -> dict[str, Any]:
         value = asdict(self)
+        if self.run_storage_policy is None:
+            value.pop("run_storage_policy", None)
+            value.pop("persistent_run_root", None)
+            value.pop("repository_root_at_launch", None)
+            value.pop("source_worktree_at_launch", None)
         if self.schema_version >= 4:
             value.pop("c2c_task_id", None)
             value.pop("plan_iteration", None)
@@ -247,6 +267,10 @@ class RunManifest:
             source_commit_sha=None if value.get("source_commit_sha") is None else str(value["source_commit_sha"]),
             source_branch=None if value.get("source_branch") is None else str(value["source_branch"]),
             study_type=None if value.get("study_type") is None else str(value["study_type"]),
+            run_storage_policy=(None if value.get("run_storage_policy") is None else str(value["run_storage_policy"])),
+            persistent_run_root=(None if value.get("persistent_run_root") is None else str(value["persistent_run_root"])),
+            repository_root_at_launch=(None if value.get("repository_root_at_launch") is None else str(value["repository_root_at_launch"])),
+            source_worktree_at_launch=(None if value.get("source_worktree_at_launch") is None else str(value["source_worktree_at_launch"])),
         )
 
 

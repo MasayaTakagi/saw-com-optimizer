@@ -116,6 +116,32 @@ is required. See
 - Callback review must not automatically start another production run; user approval is required.
 - Short unit tests, smoke tests, and small validation runs may remain synchronous.
 
+## Persistent run storage and worktree safety
+
+- Tracked source worktrees are not durable raw-run storage. New
+  user-authorized or ranking-eligible production runs must use an absolute
+  persistent run root/path outside every registered Git worktree. Pass an
+  existing root with `--run-root` or an absolute path with `--run-dir`; an
+  invalid location fails before run creation and never falls back to
+  repository `runs/`.
+- Production manifests record `run_storage_policy: external_persistent_v1`,
+  `persistent_run_root`, `repository_root_at_launch`, and
+  `source_worktree_at_launch`. Historical manifests without these fields remain
+  readable.
+- Production raw runs, checkpoints, optimizer populations, run-local
+  continuation ledgers, recovery logs, and scientific artifacts must not be
+  durably owned by a disposable worktree. Lightweight GitHub review packages
+  remain in the canonical repository review directory.
+- Before removing any worktree, run `python scripts/worktree_safety.py audit
+  <absolute-worktree-path>` and use its `remove` mode for the re-audited
+  operation. Direct `git worktree remove` is not the standard cleanup path.
+  Git status cleanliness does not prove removability; ignored and untracked
+  files block deletion by default. Do not use `git clean` as a cleanup
+  shortcut. Incomplete or inaccessible inventories fail closed.
+- Do not launch production from a routine user-side PowerShell command.
+  Orchestration remains responsible for production launch, storage validation,
+  and cleanup gates.
+
 ## Sol Escalation Policy
 
 You are the Luna root implementation agent.
