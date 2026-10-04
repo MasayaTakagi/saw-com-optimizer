@@ -189,8 +189,10 @@ class CodexQueueTests(unittest.TestCase):
             message_seen = []
 
             def queue_runner(command, **_kwargs):
-                self.assertEqual(_kwargs["encoding"], "utf-8")
-                self.assertEqual(_kwargs["errors"], "replace")
+                self.assertEqual(_kwargs["stdout"], subprocess.PIPE)
+                self.assertEqual(_kwargs["stderr"], subprocess.PIPE)
+                self.assertEqual(_kwargs["stdin"], subprocess.DEVNULL)
+                self.assertNotIn("text", _kwargs)
                 ledger = load_continuation_delivery(run_dir)
                 self.assertEqual(ledger["state"], "CLAIMED")
                 self.assertIsNotNone(ledger["command_started_at"])
@@ -203,6 +205,21 @@ class CodexQueueTests(unittest.TestCase):
                 )
             self.assertEqual(result["state"], "SENDER_ACCEPTED")
             self.assertEqual(result["attempt_count"], 1)
+            diagnostics = result["sender_diagnostics"]
+            self.assertEqual(diagnostics["schema_version"], 1)
+            self.assertEqual(diagnostics["codex_executable"], _queue_preflight()["codex_executable"])
+            self.assertEqual(diagnostics["codex_version"], _queue_preflight()["codex_version"])
+            self.assertEqual(diagnostics["stdout_excerpt"], "accepted")
+            self.assertEqual(diagnostics["stdout_original_bytes"], len(b"accepted"))
+            self.assertEqual(diagnostics["stdout_sha256"], hashlib.sha256(b"accepted").hexdigest())
+            self.assertEqual(diagnostics["stderr_sha256"], hashlib.sha256(b"").hexdigest())
+            self.assertFalse(diagnostics["stdout_truncated"])
+            self.assertFalse(diagnostics["stderr_truncated"])
+            self.assertEqual(diagnostics["redaction_status"], "PASS")
+            self.assertLessEqual(len(diagnostics["stdout_excerpt"].encode("utf-8")), 16 * 1024)
+            self.assertLessEqual(len(diagnostics["stderr_excerpt"].encode("utf-8")), 16 * 1024)
+            datetime.fromisoformat(diagnostics["started_at"])
+            datetime.fromisoformat(diagnostics["finished_at"])
             self.assertEqual(message_seen[0][1:4], ["queue", "--thread", THREAD])
             self.assertIn("[SAW ASYNC COMPLETE]", message_seen[0][-1])
             self.assertIn("run_manifest.project_root as Git cwd", message_seen[0][-1])
@@ -217,17 +234,137 @@ class CodexQueueTests(unittest.TestCase):
                     codex_queue.send_queue_continuation(run_dir, queue_runner=queue_runner)
             self.assertEqual(len(message_seen), 1)
 
+    def test_nonzero_sender_persists_stderr_and_remains_ambiguous_without_resend(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = _completed_run(Path(temporary) / "nonzero")
+            calls = []
+
+            def queue_runner(*_args, **_kwargs):
+                calls.append(True)
+                return SimpleNamespace(returncode=1, stdout=b"started", stderr=b"queue failed: policy denied")
+
+            with mock.patch.object(codex_queue, "run_codex_queue_preflight", return_value=_queue_preflight()):
+                result = codex_queue.send_queue_continuation(run_dir, queue_runner=queue_runner, timeout_s=5)
+                self.assertEqual(result["state"], "AMBIGUOUS")
+                self.assertEqual(result["attempt_count"], 1)
+                self.assertEqual(result["sender_diagnostics"]["exit_code"], 1)
+                self.assertEqual(result["sender_diagnostics"]["stderr_excerpt"], "queue failed: policy denied")
+                self.assertEqual(result["sender_diagnostics"]["stderr_sha256"], hashlib.sha256(b"queue failed: policy denied").hexdigest())
+                with self.assertRaisesRegex(ValueError, "already claimed"):
+                    codex_queue.send_queue_continuation(run_dir, queue_runner=queue_runner, timeout_s=5)
+            self.assertEqual(len(calls), 1)
+
+    def test_sender_diagnostic_excerpts_bound_both_streams_and_keep_edges(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = _completed_run(Path(temporary) / "large")
+            stdout = b"stdout-begin\n" + b"o" * (20 * 1024) + b"\nstdout-end"
+            stderr = b"stderr-begin\n" + b"e" * (20 * 1024) + b"\nstderr-end"
+            with mock.patch.object(codex_queue, "run_codex_queue_preflight", return_value=_queue_preflight()):
+                result = codex_queue.send_queue_continuation(
+                    run_dir,
+                    queue_runner=lambda *_args, **_kwargs: SimpleNamespace(returncode=0, stdout=stdout, stderr=stderr),
+                    timeout_s=5,
+                )
+            diagnostics = result["sender_diagnostics"]
+            self.assertLessEqual(len(diagnostics["stdout_excerpt"].encode("utf-8")), 16 * 1024)
+            self.assertLessEqual(len(diagnostics["stderr_excerpt"].encode("utf-8")), 16 * 1024)
+            self.assertTrue(diagnostics["stdout_truncated"])
+            self.assertTrue(diagnostics["stderr_truncated"])
+            self.assertIn("stdout-begin", diagnostics["stdout_excerpt"])
+            self.assertIn("stdout-end", diagnostics["stdout_excerpt"])
+            self.assertIn("stderr-begin", diagnostics["stderr_excerpt"])
+            self.assertIn("stderr-end", diagnostics["stderr_excerpt"])
+            self.assertEqual(diagnostics["stdout_original_bytes"], len(stdout))
+            self.assertEqual(diagnostics["stderr_original_bytes"], len(stderr))
+
+    def test_sender_diagnostic_redacts_credentials_and_hashes_raw_bytes(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = _completed_run(Path(temporary) / "secrets")
+            stdout = (
+                b"Authorization: Bearer bearer-secret-123\n"
+                b"access_token=access-secret refresh_token=refresh-secret "
+                b"client_secret=client-secret oauth_code=oauth-secret "
+                b"password=hunter2\nCookie: session=cookie-secret; other=also-secret\n"
+                b"https://abc123.trycloudflare.com/mcp?token=tunnel-secret\n"
+            )
+            stderr = b"https://temporary.mcp.example.org/mcp/sse\n"
+            with mock.patch.object(codex_queue, "run_codex_queue_preflight", return_value=_queue_preflight()):
+                result = codex_queue.send_queue_continuation(
+                    run_dir,
+                    queue_runner=lambda *_args, **_kwargs: SimpleNamespace(returncode=0, stdout=stdout, stderr=stderr),
+                    timeout_s=5,
+                )
+            diagnostics = result["sender_diagnostics"]
+            self.assertEqual(diagnostics["stdout_sha256"], hashlib.sha256(stdout).hexdigest())
+            self.assertEqual(diagnostics["stderr_sha256"], hashlib.sha256(stderr).hexdigest())
+            self.assertEqual(diagnostics["redaction_status"], "PASS")
+            self.assertTrue(diagnostics["redaction_applied"])
+            persisted = diagnostics["stdout_excerpt"] + diagnostics["stderr_excerpt"]
+            for secret in (
+                "bearer-secret-123", "access-secret", "refresh-secret", "client-secret",
+                "oauth-secret", "hunter2", "cookie-secret", "also-secret",
+                "abc123.trycloudflare.com", "temporary.mcp.example.org", "tunnel-secret",
+            ):
+                self.assertNotIn(secret, persisted)
+            self.assertIn("Authorization: Bearer <REDACTED>", diagnostics["stdout_excerpt"])
+            self.assertIn("<REDACTED_PUBLIC_MCP_URL>", diagnostics["stdout_excerpt"])
+            self.assertIn("<REDACTED_PUBLIC_MCP_URL>", diagnostics["stderr_excerpt"])
+
+    def test_empty_sender_output_has_empty_excerpt_and_raw_empty_hashes(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = _completed_run(Path(temporary) / "empty")
+            with mock.patch.object(codex_queue, "run_codex_queue_preflight", return_value=_queue_preflight()):
+                result = codex_queue.send_queue_continuation(
+                    run_dir,
+                    queue_runner=lambda *_args, **_kwargs: SimpleNamespace(returncode=0, stdout=b"", stderr=b""),
+                    timeout_s=5,
+                )
+            diagnostics = result["sender_diagnostics"]
+            self.assertEqual(diagnostics["stdout_excerpt"], "")
+            self.assertEqual(diagnostics["stderr_excerpt"], "")
+            self.assertEqual(diagnostics["stdout_original_bytes"], 0)
+            self.assertEqual(diagnostics["stderr_original_bytes"], 0)
+            self.assertEqual(diagnostics["stdout_sha256"], hashlib.sha256(b"").hexdigest())
+            self.assertFalse(diagnostics["stdout_truncated"])
+            self.assertFalse(diagnostics["stderr_truncated"])
+
+    def test_old_continuation_ledger_without_sender_diagnostics_remains_readable(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = _completed_run(Path(temporary) / "historical")
+            claim_queue_delivery(run_dir, delivery_id=DELIVERY)
+            delivery_path = run_dir / "continuation_delivery.json"
+            historical = json.loads(delivery_path.read_text(encoding="utf-8"))
+            historical.update({
+                "state": "AMBIGUOUS",
+                "exit_code": 1,
+                "sender_accepted": False,
+                "stdout_sha256": "a" * 64,
+                "stderr_sha256": "b" * 64,
+                "error": "codex queue returned a non-zero exit",
+                "sender_finished_at": "2026-10-04T00:00:00+00:00",
+            })
+            historical.pop("sender_diagnostics", None)
+            delivery_path.write_text(json.dumps(historical), encoding="utf-8")
+            loaded = load_continuation_delivery(run_dir)
+            self.assertEqual(loaded["state"], "AMBIGUOUS")
+            self.assertEqual(loaded["stderr_sha256"], "b" * 64)
+            self.assertNotIn("sender_diagnostics", loaded)
+
     def test_queue_timeout_becomes_ambiguous_and_never_resends(self):
         with TemporaryDirectory() as temporary:
             run_dir = _completed_run(Path(temporary) / "timeout")
             with mock.patch.object(codex_queue, "run_codex_queue_preflight", return_value=_queue_preflight()):
                 result = codex_queue.send_queue_continuation(
                     run_dir,
-                    queue_runner=lambda *_args, **_kwargs: (_ for _ in ()).throw(subprocess.TimeoutExpired("codex", 1)),
+                    queue_runner=lambda *_args, **_kwargs: (_ for _ in ()).throw(subprocess.TimeoutExpired(
+                        "codex", 1, output=b"partial stdout", stderr=b"partial stderr",
+                    )),
                     timeout_s=1,
                 )
             self.assertEqual(result["state"], "AMBIGUOUS")
             self.assertEqual(result["attempt_count"], 1)
+            self.assertEqual(result["sender_diagnostics"]["stdout_excerpt"], "partial stdout")
+            self.assertEqual(result["sender_diagnostics"]["stderr_excerpt"], "partial stderr")
 
     def test_receiver_confirms_exact_runtime_thread_and_delivery_tuple_only(self):
         with TemporaryDirectory() as temporary:

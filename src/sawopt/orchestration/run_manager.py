@@ -449,7 +449,8 @@ def mark_queue_command_started(run_dir: Path) -> dict[str, Any]:
 
 def record_queue_sender_result(run_dir: Path, *, exit_code: int | None,
                                error: str | None = None, stdout_sha256: str | None = None,
-                               stderr_sha256: str | None = None) -> dict[str, Any]:
+                               stderr_sha256: str | None = None,
+                               sender_diagnostics: dict[str, Any] | None = None) -> dict[str, Any]:
     root = Path(run_dir).resolve()
     with exclusive_lock(continuation_lock_path(root)):
         delivery = _read_delivery(root)
@@ -469,6 +470,8 @@ def record_queue_sender_result(run_dir: Path, *, exit_code: int | None,
             "error": None if accepted else (error or f"codex queue exited with code {exit_code}"),
             "sender_finished_at": utc_now(),
         })
+        if sender_diagnostics is not None:
+            delivery["sender_diagnostics"] = sender_diagnostics
         _write_delivery_locked(root, delivery)
         return delivery
 

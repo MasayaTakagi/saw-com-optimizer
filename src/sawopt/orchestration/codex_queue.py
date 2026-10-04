@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urlsplit
 
 
 class CodexQueuePreflightError(RuntimeError):
@@ -24,14 +25,150 @@ class CodexQueueTimeoutError(TimeoutError):
 
 QUEUE_PREFLIGHT_TIMEOUT_S = 30.0
 QUEUE_SEND_TIMEOUT_S = 120.0
+QUEUE_OUTPUT_EXCERPT_MAX_BYTES = 16 * 1024
 THREAD_ID_RE = re.compile(r"^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
+_CREDENTIAL_ASSIGNMENT_RE = re.compile(
+    r"(?i)(?P<label>\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|token|client[_-]?secret|oauth[_-]?(?:code|token)|password|passwd|pwd|passphrase|api[_-]?key|cookie|set-cookie|session[_-]?(?:id|token)|secret)\b\s*[:=]\s*)(?P<value>\"[^\"]*\"|'[^']*'|[^\s,;&]+)"
+)
+_AUTHORIZATION_BEARER_RE = re.compile(
+    r"(?i)(\bauthorization\s*[:=]\s*bearer\s+|\bbearer\s+)[A-Za-z0-9._~+/-]+={0,2}"
+)
+_AUTHORIZATION_VALUE_RE = re.compile(
+    r"(?i)(\bauthorization\s*[:=]\s*)(?!\s*bearer\b)[^\r\n]+"
+)
+_COOKIE_HEADER_RE = re.compile(r"(?im)^(\s*(?:cookie|set-cookie)\s*:\s*)[^\r\n]+")
+_CREDENTIAL_QUERY_RE = re.compile(
+    r"(?i)([?&](?:code|state|access_token|refresh_token|client_secret|password|token|key)=)[^&#\s]+"
+)
+_URL_RE = re.compile(r"(?i)\bhttps?://[^\s<>\"']+")
+_URL_CREDENTIAL_RE = re.compile(r"(?i)(\bhttps?://)[^/\s:@]+:[^@\s/]+@")
+_TEMPORARY_TUNNEL_SUFFIXES = (
+    "trycloudflare.com", "cfargotunnel.com", "ngrok.io", "ngrok.app",
+    "ngrok-free.app", "ngrok-free.dev", "ngrok.dev", "loca.lt",
+    "localtunnel.me", "localhost.run", "serveo.net", "tunnelmole.net",
+    "tunnelmole.com", "bore.pub", "pinggy.link", "devtunnels.ms",
+    "loclx.io", "zrok.io",
+)
 
 
 @dataclass(frozen=True)
 class QueueResult:
-    exit_code: int
+    exit_code: int | None
     stdout: str
     stderr: str
+    stdout_bytes: bytes
+    stderr_bytes: bytes
+    started_at: str
+    finished_at: str
+    error: str | None = None
+
+
+def _utc_timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+
+
+def _captured_bytes(value: Any) -> bytes:
+    if value is None:
+        return b""
+    if isinstance(value, bytes):
+        return value
+    if isinstance(value, bytearray):
+        return bytes(value)
+    if isinstance(value, str):
+        return value.encode("utf-8")
+    return str(value).encode("utf-8")
+
+
+def _redact_sensitive_text(text: str) -> tuple[str, bool]:
+    redacted = text
+    redacted, cookie_count = _COOKIE_HEADER_RE.subn(r"\1<REDACTED>", redacted)
+    redacted, bearer_count = _AUTHORIZATION_BEARER_RE.subn(r"\1<REDACTED>", redacted)
+    redacted, authorization_count = _AUTHORIZATION_VALUE_RE.subn(r"\1<REDACTED>", redacted)
+    redacted, url_credentials_count = _URL_CREDENTIAL_RE.subn(r"\1<REDACTED>@", redacted)
+
+    url_redacted = False
+
+    def redact_sensitive_url(match: re.Match[str]) -> str:
+        nonlocal url_redacted
+        candidate = match.group(0)
+        trailing = ""
+        while candidate and candidate[-1] in ".,;:!?)]}":
+            trailing = candidate[-1] + trailing
+            candidate = candidate[:-1]
+        try:
+            parsed = urlsplit(candidate)
+            host = (parsed.hostname or "").casefold().rstrip(".")
+        except ValueError:
+            return match.group(0)
+        labels = host.split(".")
+        temporary_tunnel = any(
+            host == suffix or host.endswith("." + suffix)
+            for suffix in _TEMPORARY_TUNNEL_SUFFIXES
+        )
+        mcp_host = any(
+            label == "mcp" or label.startswith("mcp-") or label.endswith("-mcp")
+            for label in labels
+        )
+        mcp_path = any(segment.casefold() == "mcp" for segment in parsed.path.split("/"))
+        if temporary_tunnel or mcp_host or mcp_path:
+            url_redacted = True
+            return "<REDACTED_PUBLIC_MCP_URL>" + trailing
+        return match.group(0)
+
+    redacted = _URL_RE.sub(redact_sensitive_url, redacted)
+    redacted, assignment_count = _CREDENTIAL_ASSIGNMENT_RE.subn(
+        lambda match: match.group("label") + "<REDACTED>", redacted,
+    )
+    redacted, query_count = _CREDENTIAL_QUERY_RE.subn(r"\1<REDACTED>", redacted)
+    return redacted, any((
+        cookie_count, bearer_count, authorization_count, assignment_count, query_count,
+        url_credentials_count, url_redacted,
+    ))
+
+
+def _bounded_redacted_excerpt(raw: bytes, *, limit: int = QUEUE_OUTPUT_EXCERPT_MAX_BYTES) -> tuple[str, bool, bool]:
+    text, redacted = _redact_sensitive_text(raw.decode("utf-8", errors="replace"))
+    encoded = text.encode("utf-8")
+    truncated = len(raw) > limit or len(encoded) > limit
+    if not truncated:
+        return text, False, redacted
+
+    marker = b"\n...[excerpt truncated; beginning and end retained]...\n"
+    budget = max(0, limit - len(marker))
+    head_size = (budget + 1) // 2
+    tail_size = budget - head_size
+    head = encoded[:head_size].decode("utf-8", errors="ignore")
+    tail = encoded[-tail_size:].decode("utf-8", errors="ignore") if tail_size else ""
+    excerpt = head + marker.decode("ascii") + tail
+    while len(excerpt.encode("utf-8")) > limit:
+        tail = tail[1:]
+        excerpt = head + marker.decode("ascii") + tail
+    return excerpt, True, redacted
+
+
+def _sender_diagnostics(result: QueueResult, *, codex_executable: str,
+                        codex_version: str) -> dict[str, Any]:
+    stdout_excerpt, stdout_truncated, stdout_redacted = _bounded_redacted_excerpt(result.stdout_bytes)
+    stderr_excerpt, stderr_truncated, stderr_redacted = _bounded_redacted_excerpt(result.stderr_bytes)
+    safe_executable, executable_redacted = _redact_sensitive_text(codex_executable)
+    return {
+        "schema_version": 1,
+        "started_at": result.started_at,
+        "finished_at": result.finished_at,
+        "codex_executable": safe_executable,
+        "codex_version": codex_version,
+        "exit_code": result.exit_code,
+        "stdout_sha256": hashlib.sha256(result.stdout_bytes).hexdigest(),
+        "stderr_sha256": hashlib.sha256(result.stderr_bytes).hexdigest(),
+        "stdout_excerpt": stdout_excerpt,
+        "stderr_excerpt": stderr_excerpt,
+        "stdout_original_bytes": len(result.stdout_bytes),
+        "stderr_original_bytes": len(result.stderr_bytes),
+        "stdout_truncated": stdout_truncated,
+        "stderr_truncated": stderr_truncated,
+        "redaction_status": "PASS",
+        "redaction_applied": any((stdout_redacted, stderr_redacted, executable_redacted)),
+    }
 
 
 def validate_thread_id(thread_id: str) -> str:
@@ -195,17 +332,42 @@ def run_codex_queue(thread_id: str, message: str, *, codex_executable: str,
                     runner: Callable[..., Any] = subprocess.run) -> QueueResult:
     if timeout_s <= 0:
         raise ValueError("queue timeout must be positive")
+    command = build_queue_command(thread_id, message, codex_executable=codex_executable)
+    started_at = _utc_timestamp()
+    stdout_bytes = b""
+    stderr_bytes = b""
+    exit_code: int | None
+    error: str | None
     try:
         result = runner(
-            build_queue_command(thread_id, message, codex_executable=codex_executable),
+            command,
             cwd=str(Path(project_root).resolve()), env=dict(os.environ),
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True, encoding="utf-8", errors="replace",
             timeout=timeout_s, check=False,
         )
+        stdout_bytes = _captured_bytes(result.stdout)
+        stderr_bytes = _captured_bytes(result.stderr)
+        exit_code = int(result.returncode)
+        error = None if exit_code == 0 else "codex queue returned a non-zero exit"
     except subprocess.TimeoutExpired as exc:
-        raise CodexQueueTimeoutError("codex queue exceeded finite timeout") from exc
-    return QueueResult(int(result.returncode), str(result.stdout or ""), str(result.stderr or ""))
+        stdout_bytes = _captured_bytes(exc.stdout if exc.stdout is not None else exc.output)
+        stderr_bytes = _captured_bytes(exc.stderr)
+        exit_code = None
+        error = f"{CodexQueueTimeoutError.__name__}: codex queue exceeded finite process timeout"
+    except OSError as exc:
+        exit_code = None
+        error = f"{type(exc).__name__}: {exc}"
+
+    return QueueResult(
+        exit_code=exit_code,
+        stdout=stdout_bytes.decode("utf-8", errors="replace"),
+        stderr=stderr_bytes.decode("utf-8", errors="replace"),
+        stdout_bytes=stdout_bytes,
+        stderr_bytes=stderr_bytes,
+        started_at=started_at,
+        finished_at=_utc_timestamp(),
+        error=error,
+    )
 
 
 def send_queue_continuation(run_dir: str | Path, *, codex_executable: str | None = None,
@@ -248,11 +410,17 @@ def send_queue_continuation(run_dir: str | Path, *, codex_executable: str | None
         return record_queue_sender_result(
             root, exit_code=None, error=f"{type(exc).__name__}: {exc}",
         )
+    diagnostics = _sender_diagnostics(
+        result,
+        codex_executable=executable,
+        codex_version=str(actual["codex_version"]),
+    )
+    safe_error = None if result.error is None else _redact_sensitive_text(result.error)[0]
     return record_queue_sender_result(
-        root, exit_code=result.exit_code,
-        error=None if result.exit_code == 0 else "codex queue returned a non-zero exit",
-        stdout_sha256=hashlib.sha256(result.stdout.encode("utf-8")).hexdigest(),
-        stderr_sha256=hashlib.sha256(result.stderr.encode("utf-8")).hexdigest(),
+        root, exit_code=result.exit_code, error=safe_error,
+        stdout_sha256=diagnostics["stdout_sha256"],
+        stderr_sha256=diagnostics["stderr_sha256"],
+        sender_diagnostics=diagnostics,
     )
 
 
