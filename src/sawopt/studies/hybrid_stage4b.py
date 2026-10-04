@@ -324,15 +324,23 @@ def verify_production_manifest(
     }
     if any(metadata.get(key) != value for key, value in expected_fields.items()):
         raise RuntimeError("Stage 4B authorization manifest/protocol fingerprint mismatch")
-    if not metadata.get("authorized_at") or not manifest.codex_session_id:
-        raise RuntimeError("Stage 4B authorization requires timestamp and captured Codex session")
-    if not manifest.callback_enabled or not manifest.review_after_completion:
-        raise RuntimeError("Stage 4B authorization manifest requires the captured-session review callback")
-    callback_preflight = manifest.callback_preflight or {}
-    if (callback_preflight.get("status") != "PASS"
-            or callback_preflight.get("session_id") != manifest.codex_session_id
-            or callback_preflight.get("validated_target_id") != manifest.codex_session_id):
-        raise RuntimeError("Stage 4B authorization manifest lacks a passing exact-session callback preflight")
+    if not metadata.get("authorized_at"):
+        raise RuntimeError("Stage 4B authorization requires its authorization timestamp")
+    if manifest.schema_version >= 4:
+        if (manifest.continuation_mode != "queue" or manifest.codex_session_id is not None
+                or manifest.callback_enabled or not manifest.review_after_completion
+                or not manifest.original_thread_id):
+            raise RuntimeError("Stage 4B schema-v4 authorization requires exact-thread queue handoff")
+        if (manifest.queue_preflight or {}).get("status") != "PASS":
+            raise RuntimeError("Stage 4B schema-v4 authorization lacks queue preflight")
+    else:
+        if not manifest.codex_session_id or not manifest.callback_enabled or not manifest.review_after_completion:
+            raise RuntimeError("historical Stage 4B authorization requires its captured-session callback")
+        callback_preflight = manifest.callback_preflight or {}
+        if (callback_preflight.get("status") != "PASS"
+                or callback_preflight.get("session_id") != manifest.codex_session_id
+                or callback_preflight.get("validated_target_id") != manifest.codex_session_id):
+            raise RuntimeError("historical Stage 4B authorization lacks a passing exact-session callback preflight")
     if manifest.run_id != metadata.get("run_id"):
         raise RuntimeError("Stage 4B authorization run id mismatch")
     if Path(manifest.config_path or "").resolve() != Path(context["config_path"]).resolve():

@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "complete": true,
+  "cells_expected": 1,
+  "cells_present": 1,
+  "cells_completed": 1,
+  "arms_present": [
+    "fixture"
+  ],
+  "seeds_present": [
+    "qualification"
+  ],
+  "scientific_result": false
+}

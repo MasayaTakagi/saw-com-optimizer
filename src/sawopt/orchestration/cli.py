@@ -4,12 +4,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import secrets
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .codex_callback import run_codex_callback, run_codex_callback_preflight
+from .codex_callback import run_codex_callback
 from .models import RunManifest
 from .process_runner import build_worker_command, launch_detached, pid_exists
 from .run_manager import (
@@ -23,6 +25,8 @@ from .run_manager import (
     load_manifest,
     load_status,
     prepare_callback,
+    confirm_queue_delivery,
+    mark_review_published,
     lock_owner_pid,
     reclaim_stale_lock,
     resolve_session,
@@ -170,8 +174,21 @@ def launch(args: argparse.Namespace) -> int:
     root = project_root()
     if getattr(args, "resume", False):
         return _resume_launch(args, root)
-    if args.no_callback and getattr(args, "session_id", None):
-        raise ValueError("--session-id cannot be combined with --no-callback")
+    if args.no_callback and (getattr(args, "session_id", None) or getattr(args, "session_file", None)):
+        raise ValueError("--session-id/--session-file cannot be combined with --no-callback")
+    requested_mode = getattr(args, "continuation_mode", None)
+    if args.no_callback:
+        if requested_mode not in (None, "disabled"):
+            raise ValueError("--no-callback conflicts with --continuation-mode")
+        continuation_mode = "disabled"
+    else:
+        continuation_mode = requested_mode or "queue"
+    if continuation_mode == "legacy_resume":
+        raise ValueError("legacy_resume is historical read/recovery only; new launches support queue or disabled")
+    if continuation_mode not in {"queue", "disabled"}:
+        raise ValueError(f"unsupported new launch continuation mode: {continuation_mode}")
+    if continuation_mode == "disabled" and (getattr(args, "session_id", None) or getattr(args, "session_file", None)):
+        raise ValueError("session identity cannot be used when continuation is disabled")
     config = Path(args.config)
     if not config.is_absolute():
         config = (root / config).resolve()
@@ -179,7 +196,8 @@ def launch(args: argparse.Namespace) -> int:
         raise FileNotFoundError(f"config does not exist: {config}")
     from ..io.config import load_experiment_config
 
-    configured_study = load_experiment_config(config).get("study", {})
+    config_payload = load_experiment_config(config)
+    configured_study = config_payload.get("study", {})
     stage4b_launch = configured_study.get("type") == "hybrid_stage4b_topology_comparison"
     if stage4b_launch and not getattr(args, "authorize_stage4b_production", False):
         raise PermissionError("Stage 4B production requires --authorize-stage4b-production")
@@ -188,8 +206,8 @@ def launch(args: argparse.Namespace) -> int:
     stage4b_context = None
     stage4b_source = None
     if stage4b_launch:
-        if args.no_callback:
-            raise ValueError("Stage 4B production requires the captured-session completion callback")
+        if continuation_mode != "queue":
+            raise ValueError("Stage 4B production requires exact-thread queue continuation")
         from ..studies.hybrid_stage4b import load_stage4b_context
 
         stage4b_context = load_stage4b_context(config)
@@ -222,23 +240,55 @@ def launch(args: argparse.Namespace) -> int:
         raise FileExistsError(f"orchestration directory is not empty: {run_dir}")
     if optimizer_run_dir.exists() and any(optimizer_run_dir.iterdir()):
         raise FileExistsError(f"optimizer output directory is not empty: {optimizer_run_dir}")
-    callback_enabled = not args.no_callback
-    session = None
-    callback_preflight = None
-    if callback_enabled:
-        session_path = Path(args.session_file) if args.session_file else root / ".codex" / "runtime" / "current_session.json"
-        if not session_path.is_absolute():
-            session_path = (root / session_path).resolve()
-        session = resolve_session(
-            explicit_session_id=getattr(args, "session_id", None),
-            session_path=session_path,
-            project_root=root,
-            max_age_s=float(args.session_max_age_hours) * 3600,
+    callback_enabled = False
+    queue_preflight = None
+    original_thread_id = None
+    queue_timeout_seconds = float(getattr(args, "queue_timeout_seconds", 120.0))
+    if continuation_mode == "queue":
+        if getattr(args, "session_id", None) or getattr(args, "session_file", None):
+            raise ValueError("queue routing rejects --session-id/--session-file; use --thread-id")
+        from .codex_queue import current_codex_thread_id, run_codex_queue_preflight, validate_thread_id
+        runtime_thread_id = current_codex_thread_id()
+        requested_thread_id = getattr(args, "thread_id", None) or runtime_thread_id
+        if validate_thread_id(requested_thread_id) != runtime_thread_id:
+            raise ValueError("--thread-id must exactly match current runtime CODEX_THREAD_ID")
+        original_thread_id = runtime_thread_id
+        queue_preflight = run_codex_queue_preflight(
+            original_thread_id, project_root=str(root),
+            codex_executable=getattr(args, "codex_executable", None),
         )
-        callback_preflight = run_codex_callback_preflight(
-            str(session["session_id"]),
-            project_root=str(root),
-        )
+        original_thread_id = queue_preflight["thread_id"]
+
+    from ..reporting.github_review import load_review_spec, _canonical_json_sha256
+    study_type = str(configured_study.get("type", ""))
+    spec_id = getattr(args, "review_spec", None) or configured_study.get("review_spec_id")
+    if not spec_id:
+        if study_type.startswith("hybrid_stage4"):
+            spec_id = "hybrid_production"
+        elif study_type == "postrun_workflow_qualification":
+            spec_id = "postrun_workflow_qualification"
+    if not spec_id:
+        raise ValueError("new launches must identify a frozen --review-spec")
+    review_spec = load_review_spec(str(spec_id), root)
+    review_stage = str(getattr(args, "review_stage", None) or configured_study.get("review_stage") or review_spec["stage"])
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", review_stage):
+        raise ValueError("review stage must be a safe lowercase identifier")
+    review_output_dir = f"reports/experiment_reviews/{review_stage}/{run_id}"
+
+    source_branch = subprocess.check_output(
+        ["git", "branch", "--show-current"], cwd=root, text=True,
+        encoding="utf-8", errors="replace",
+    ).strip()
+    source_commit_sha = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=root, text=True,
+        encoding="utf-8", errors="replace",
+    ).strip()
+    source_status = subprocess.check_output(
+        ["git", "status", "--short"], cwd=root, text=True,
+        encoding="utf-8", errors="replace",
+    ).strip()
+    if source_status:
+        raise RuntimeError("new v4 runs require a clean committed source tree")
     command = _build_optimizer_command(
         config,
         optimizer_run_dir,
@@ -259,8 +309,22 @@ def launch(args: argparse.Namespace) -> int:
             "orchestration_run_dir": str(run_dir.resolve()),
             "optimizer_run_dir": str(optimizer_run_dir.resolve()),
         })
+    else:
+        arms = (configured_study.get("comparison_arms") or configured_study.get("topologies")
+                or configured_study.get("arms"))
+        seeds = configured_study.get("seeds")
+        if not arms or not seeds:
+            raise ValueError("new v4 runs must declare comparison_arms/topologies and seeds")
+        experiment_metadata = {
+            "study_type": study_type,
+            "comparison_arms": list(arms),
+            "seeds": list(seeds),
+            "expected_cell_count": int(configured_study.get("expected_cell_count", len(arms) * len(seeds))),
+            "computation_fingerprint": configured_study.get("computation_fingerprint"),
+            "protocol_fingerprint": configured_study.get("protocol_fingerprint"),
+        }
     manifest = RunManifest(
-        schema_version=2,
+        schema_version=4,
         run_id=run_id,
         experiment_name=args.experiment_name or config.stem,
         created_at=utc_now(),
@@ -268,18 +332,29 @@ def launch(args: argparse.Namespace) -> int:
         run_dir=str(run_dir),
         command=command,
         config_path=str(config),
-        codex_session_id=None if session is None else str(session["session_id"]),
-        codex_model=None if session is None else session.get("model"),
-        callback_enabled=callback_enabled,
-        review_after_completion=callback_enabled,
-        callback_timeout_minutes=(
-            None if args.callback_timeout_minutes is None
-            else float(args.callback_timeout_minutes)
-        ),
-        codex_session_source=None if session is None else str(session.get("source", "unknown")),
+        codex_session_id=None,
+        codex_model=None,
+        callback_enabled=False,
+        review_after_completion=continuation_mode == "queue",
+        callback_timeout_minutes=None,
         optimizer_run_dir=str(optimizer_run_dir),
-        callback_preflight=callback_preflight,
+        callback_preflight=None,
         experiment_metadata=experiment_metadata,
+        continuation_mode=continuation_mode,
+        original_thread_id=original_thread_id,
+        next_expected_step="publish_review_evidence" if continuation_mode == "queue" else None,
+        delivery_sentinel=secrets.token_hex(16) if continuation_mode == "queue" else None,
+        queue_preflight=queue_preflight,
+        queue_timeout_seconds=queue_timeout_seconds if continuation_mode == "queue" else None,
+        review_stage=review_stage,
+        review_contract_version="1",
+        review_output_dir=review_output_dir,
+        review_spec_id=str(spec_id),
+        review_spec_sha256=_canonical_json_sha256(review_spec),
+        review_spec=review_spec,
+        source_commit_sha=source_commit_sha,
+        source_branch=source_branch,
+        study_type=study_type,
     )
     if stage4b_launch:
         claim_id, claim_path = _claim_stage4b_authorization(root, experiment_metadata)
@@ -291,11 +366,6 @@ def launch(args: argparse.Namespace) -> int:
             **{**manifest.to_dict(), "experiment_metadata": experiment_metadata}
         )
     create_run(manifest)
-    checkpoint = _write_session_checkpoint(
-        run_dir, mode="launch", resume_count=0,
-        session_id=None if session is None else str(session["session_id"]),
-    )
-    update_status_fields(run_dir, session_checkpoint_path=str(checkpoint))
     transition(run_dir, "STARTING")
     try:
         worker_pid = launch_detached(run_dir, project_root=root)
@@ -307,7 +377,8 @@ def launch(args: argparse.Namespace) -> int:
     print(f"run_id: {run_id}")
     print(f"pid: {worker_pid}")
     print(f"run_dir: {Path(run_dir).resolve()}")
-    print(f"Codex callback: {'enabled' if callback_enabled else 'disabled'}")
+    print(f"Continuation mode: {continuation_mode}")
+    print(f"Original thread: {original_thread_id or 'none'}")
     return 0
 
 
@@ -315,6 +386,8 @@ def review(args: argparse.Namespace) -> int:
     run_dir = resolve_run_dir(args.run_id)
     manifest = load_manifest(run_dir)
     status = load_status(run_dir)
+    if manifest.schema_version >= 4:
+        raise ValueError("schema-v4 runs use queue publication; legacy callback review is disabled")
     if not manifest.codex_session_id:
         raise SessionValidationError("run manifest has no captured Codex session ID")
     if status["state"] in {"RUNNING", "STARTING", "CREATED"}:
@@ -350,9 +423,51 @@ def review(args: argparse.Namespace) -> int:
         return 0 if code == 0 else code
 
 
+def confirm_queue(args: argparse.Namespace) -> int:
+    delivery = confirm_queue_delivery(
+        resolve_run_dir(args.run_dir), run_id=args.run_id,
+        delivery_id=args.delivery_id, delivery_sentinel=args.delivery_sentinel,
+    )
+    print(json.dumps({
+        "state": delivery["state"], "run_id": delivery["run_id"],
+        "delivery_id": delivery["delivery_id"],
+        "receiver_thread_id": delivery["receiver_thread_id"],
+        "receiver_confirmed_at": delivery["receiver_confirmed_at"],
+    }, ensure_ascii=False, indent=2))
+    return 0
+
+
+def mark_published(args: argparse.Namespace) -> int:
+    status = mark_review_published(
+        resolve_run_dir(args.run_dir), review_path=args.review_path,
+        branch=args.branch, commit=args.commit,
+    )
+    print(json.dumps({
+        "state": status["state"],
+        "review_evidence_state": status["review_evidence_state"],
+        "review_output_dir": status["review_output_dir"],
+        "review_publication_branch": status["review_publication_branch"],
+        "review_publication_commit": status["review_publication_commit"],
+        "review_published_at": status["review_published_at"],
+    }, ensure_ascii=False, indent=2))
+    return 0
+
+
 def recover(args: argparse.Namespace) -> int:
     run_dir = resolve_run_dir(args.run_id)
+    manifest = load_manifest(run_dir)
     status = load_status(run_dir)
+    if (manifest.schema_version == 4 and manifest.continuation_mode == "queue"
+            and status.get("optimizer_state") in {"COMPLETED", "FAILED"}
+            and not pid_exists(status.get("worker_pid"))):
+        from .run_manager import continuation_delivery_path, mark_stranded_queue_attempt_ambiguous
+        if continuation_delivery_path(run_dir).exists():
+            try:
+                mark_stranded_queue_attempt_ambiguous(run_dir)
+            except (OSError, ValueError):
+                # Existing but unreadable ledger is an ambiguous consumed slot.
+                pass
+            status = load_status(run_dir)
     if status["state"] in {"STARTING", "RUNNING"}:
         pid = status.get("worker_pid")
         optimizer_pid = status.get("optimizer_pid")
@@ -410,15 +525,19 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="reattach to an active run or restart an orphaned run from checkpoints",
     )
-    launch_parser.add_argument("--session-id", help="explicit Codex callback session ID")
-    launch_parser.add_argument("--no-callback", action="store_true")
+    launch_parser.add_argument("--continuation-mode", choices=("queue", "disabled", "legacy_resume"))
+    launch_parser.add_argument("--thread-id", help="exact original Codex thread ID, never a session ID")
+    launch_parser.add_argument("--queue-timeout-seconds", type=float, default=120.0)
+    launch_parser.add_argument("--review-spec", help="frozen review artifact spec identifier")
+    launch_parser.add_argument("--review-stage", help="canonical review stage identifier")
+    launch_parser.add_argument("--codex-executable", help="optional native Codex executable for queue preflight")
+    launch_parser.add_argument("--session-id", help=argparse.SUPPRESS)
+    launch_parser.add_argument("--no-callback", action="store_true", help="explicitly disable new continuation")
     launch_parser.add_argument(
         "--authorize-stage4b-production", action="store_true",
         help="consume the current task's one-shot authorization for the exact Stage 4B protocol",
     )
-    launch_parser.add_argument("--session-file")
-    launch_parser.add_argument("--session-max-age-hours", type=float, default=24.0)
-    launch_parser.add_argument("--callback-timeout-minutes", type=float, default=30.0)
+    launch_parser.add_argument("--session-file", help=argparse.SUPPRESS)
     launch_parser.set_defaults(handler=launch)
 
     for name in ("status", "review", "recover"):
@@ -429,6 +548,20 @@ def build_parser() -> argparse.ArgumentParser:
         else:
             subparser.set_defaults(handler=review if name == "review" else recover)
     subparsers.choices["review"].add_argument("--codex-executable")
+
+    confirm_parser = subparsers.add_parser("confirm-queue", help="confirm a queued turn in its runtime thread")
+    confirm_parser.add_argument("--run-dir", required=True)
+    confirm_parser.add_argument("--run-id", required=True)
+    confirm_parser.add_argument("--delivery-id", required=True)
+    confirm_parser.add_argument("--delivery-sentinel", required=True)
+    confirm_parser.set_defaults(handler=confirm_queue)
+
+    published_parser = subparsers.add_parser("mark-review-published", help="record pushed review evidence")
+    published_parser.add_argument("--run-dir", required=True)
+    published_parser.add_argument("--review-path", required=True)
+    published_parser.add_argument("--branch", required=True)
+    published_parser.add_argument("--commit", required=True)
+    published_parser.set_defaults(handler=mark_published)
 
     worker_parser = subparsers.add_parser("worker", help="internal detached worker")
     worker_parser.add_argument("--run-dir", required=True)

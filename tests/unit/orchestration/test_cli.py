@@ -21,6 +21,16 @@ from sawopt.orchestration.run_manager import (
 ROOT = Path(__file__).resolve().parents[3]
 
 
+def _clean_git_snapshot(command, **_kwargs):
+    if command[:2] == ["git", "branch"]:
+        return "codex/test-branch\n"
+    if command[:2] == ["git", "rev-parse"]:
+        return "a" * 40 + "\n"
+    if command[:2] == ["git", "status"]:
+        return ""
+    raise AssertionError(f"unexpected git command: {command}")
+
+
 class CliTests(unittest.TestCase):
     def test_launch_creates_manifest_and_returns_without_waiting(self):
         with TemporaryDirectory() as temporary:
@@ -28,12 +38,13 @@ class CliTests(unittest.TestCase):
             args = cli.build_parser().parse_args([
                 "launch",
                 "--config",
-                "configs/base/b28_dms_baseline.yaml",
+                "configs/studies/postrun_workflow_qualification.yaml",
                 "--run-dir",
                 str(run_dir),
                 "--no-callback",
             ])
-            with mock.patch.object(cli, "launch_detached", return_value=4242) as launch_mock:
+            with mock.patch.object(cli.subprocess, "check_output", side_effect=_clean_git_snapshot), \
+                    mock.patch.object(cli, "launch_detached", return_value=4242) as launch_mock:
                 self.assertEqual(cli.launch(args), 0)
             launch_mock.assert_called_once()
             manifest = load_manifest(run_dir)
@@ -42,93 +53,67 @@ class CliTests(unittest.TestCase):
             self.assertEqual(status["worker_pid"], 4242)
             self.assertFalse(manifest.callback_enabled)
             self.assertIn("run-study", manifest.command)
-            self.assertEqual(manifest.schema_version, 2)
+            self.assertEqual(manifest.schema_version, 4)
+            self.assertEqual(manifest.continuation_mode, "disabled")
+            self.assertIsNone(manifest.codex_session_id)
+            self.assertEqual(manifest.review_stage, "qualification")
             self.assertEqual(manifest.effective_optimizer_run_dir, str(run_dir / "optimizer"))
             self.assertEqual(manifest.command[manifest.command.index("--run") + 1], str(run_dir / "optimizer"))
 
-    def test_explicit_session_id_is_used_without_reading_hook_capture(self):
+    def test_new_launch_rejects_session_id_instead_of_reinterpreting_as_thread(self):
         with TemporaryDirectory() as temporary:
             run_dir = Path(temporary) / "explicit-session"
             args = cli.build_parser().parse_args([
                 "launch",
                 "--config",
-                "configs/base/b28_dms_baseline.yaml",
+                "configs/studies/postrun_workflow_qualification.yaml",
                 "--run-dir",
                 str(run_dir),
                 "--session-id",
                 "session-A",
-                "--callback-timeout-minutes",
-                "12",
             ])
-            with mock.patch.object(cli, "run_codex_callback_preflight", return_value={
-                "status": "PASS",
-                "session_id": "session-A",
-                "validated_target_id": "session-A",
-                "executable": "codex-test",
-            }) as preflight_mock, mock.patch.object(cli, "launch_detached", return_value=4343):
-                self.assertEqual(cli.launch(args), 0)
-            preflight_mock.assert_called_once_with("session-A", project_root=str(ROOT))
-            manifest = load_manifest(run_dir)
-            self.assertEqual(manifest.codex_session_id, "session-A")
-            self.assertEqual(manifest.codex_session_source, "explicit")
-            self.assertEqual(manifest.callback_timeout_minutes, 12.0)
-            self.assertEqual(manifest.callback_preflight["status"], "PASS")
+            with self.assertRaisesRegex(ValueError, "session-id"):
+                cli.launch(args)
+            self.assertFalse(run_dir.exists())
 
     def test_preflight_failure_prevents_run_creation_and_worker_launch(self):
         with TemporaryDirectory() as temporary:
             run_dir = Path(temporary) / "blocked-before-launch"
             args = cli.build_parser().parse_args([
-                "launch", "--config", "configs/base/b28_dms_baseline.yaml",
-                "--run-dir", str(run_dir), "--session-id", "session-A",
+                "launch", "--config", "configs/studies/postrun_workflow_qualification.yaml",
+                "--run-dir", str(run_dir), "--thread-id", "01a0e89c-1c65-72a3-beb6-489f0cf01b30",
             ])
-            with mock.patch.object(
-                cli, "run_codex_callback_preflight", side_effect=RuntimeError("preflight denied"),
-            ), mock.patch.object(cli, "launch_detached") as launch_mock:
+            with mock.patch("sawopt.orchestration.codex_queue.current_codex_thread_id", return_value="01a0e89c-1c65-72a3-beb6-489f0cf01b30"), \
+                    mock.patch("sawopt.orchestration.codex_queue.run_codex_queue_preflight", side_effect=RuntimeError("preflight denied")), \
+                    mock.patch.object(cli, "launch_detached") as launch_mock:
                 with self.assertRaisesRegex(RuntimeError, "preflight denied"):
                     cli.launch(args)
             launch_mock.assert_not_called()
             self.assertFalse(run_dir.exists())
 
-    def test_two_explicit_sessions_are_fixed_to_separate_manifests(self):
+    def test_queue_launch_rejects_session_id_before_run_creation(self):
         with TemporaryDirectory() as temporary:
-            run_a = Path(temporary) / "run-a"
-            run_b = Path(temporary) / "run-b"
-            args_a = cli.build_parser().parse_args([
-                "launch", "--config", "configs/base/b28_dms_baseline.yaml",
-                "--run-dir", str(run_a), "--session-id", "session-A",
+            run_dir = Path(temporary) / "run"
+            args = cli.build_parser().parse_args([
+                "launch", "--config", "configs/studies/postrun_workflow_qualification.yaml",
+                "--run-dir", str(run_dir), "--session-id", "session-A",
             ])
-            args_b = cli.build_parser().parse_args([
-                "launch", "--config", "configs/base/b28_dms_baseline.yaml",
-                "--run-dir", str(run_b), "--session-id", "session-B",
-            ])
-            with mock.patch.object(
-                cli,
-                "run_codex_callback_preflight",
-                side_effect=lambda session_id, **kwargs: {
-                    "status": "PASS",
-                    "session_id": session_id,
-                    "validated_target_id": session_id,
-                    "executable": "codex-test",
-                },
-            ), mock.patch.object(cli, "launch_detached", side_effect=[5001, 5002]):
-                self.assertEqual(cli.launch(args_a), 0)
-                self.assertEqual(cli.launch(args_b), 0)
-            self.assertEqual(load_manifest(run_a).codex_session_id, "session-A")
-            self.assertEqual(load_manifest(run_b).codex_session_id, "session-B")
+            with self.assertRaisesRegex(ValueError, "session-id"):
+                cli.launch(args)
+            self.assertFalse(run_dir.exists())
 
-    def test_launch_records_durable_session_checkpoint(self):
+    def test_new_v4_launch_does_not_store_a_session_checkpoint(self):
         with TemporaryDirectory() as temporary:
             run_dir = Path(temporary) / "checkpointed"
             args = cli.build_parser().parse_args([
-                "launch", "--config", "configs/base/b28_dms_baseline.yaml",
+                "launch", "--config", "configs/studies/postrun_workflow_qualification.yaml",
                 "--run-dir", str(run_dir), "--no-callback",
             ])
-            with mock.patch.object(cli, "launch_detached", return_value=4344):
+            with mock.patch.object(cli.subprocess, "check_output", side_effect=_clean_git_snapshot), \
+                    mock.patch.object(cli, "launch_detached", return_value=4344):
                 self.assertEqual(cli.launch(args), 0)
-            checkpoint = json.loads((run_dir / "session_checkpoint.json").read_text(encoding="utf-8"))
-            self.assertEqual(checkpoint["mode"], "launch")
-            self.assertEqual(checkpoint["resume_count"], 0)
-            self.assertEqual(load_status(run_dir)["session_checkpoint_path"], str(run_dir / "session_checkpoint.json"))
+            self.assertFalse((run_dir / "session_checkpoint.json").exists())
+            self.assertIsNone(load_status(run_dir)["session_checkpoint_path"])
 
     def test_resume_active_run_reattaches_without_starting_duplicate_worker(self):
         with TemporaryDirectory() as temporary:

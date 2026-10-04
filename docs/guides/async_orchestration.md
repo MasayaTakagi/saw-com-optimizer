@@ -1,78 +1,221 @@
 # 非同期本番探索
 
-30分以上かかる見込みの探索は、`sawopt.orchestration` を介して起動し
-ます。既存のCOM・Optimizer・同期CLIを直接長時間実行せず、launcherが
-manifestを保存した後にworkerが別プロセスで探索を実行します。
+30分以上かかる見込みの探索は、`sawopt.orchestration` を介して起動します。
+既存のCOM・Optimizer・同期CLIを直接長時間実行せず、launcherがmanifestを
+保存した後にworkerが別プロセスで探索を実行します。
+
+> **重要:** Stage 4Bで使われた dedicated legacy `codex exec resume`
+> callback は新規productionの標準経路ではありません。次の長時間production
+> runを開始する前に、exact original threadを使うqueue-native continuationと
+> GitHub review-evidence exportをactive orchestration branchへ統合し、短い
+> harmless runで再qualificationする必要があります。
 
 ## 起動前
 
 本番runでは、対象config、実装、budget、seed、checkpoint方針、出力先、
-preflightをGitHub上で確認できるbranch/commitに保存します。外部reviewの
-手順は [`github_review_workflow.md`](github_review_workflow.md) を参照して
+review-evidence contract、preflightをGitHub上で確認できるbranch/commitに
+保存します。外部reviewの手順は
+[`github_review_workflow.md`](github_review_workflow.md)、post-run evidenceの
+標準は [`postrun_review_contract.md`](postrun_review_contract.md) を参照して
 ください。run自体はユーザーが明示的に承認した後に開始します。
 
-production callbackの対象を取り違えないため、run開始前に有効なCodex
-session IDを取得します。明示IDはHookの自動取得値より優先され、manifest
-に固定保存されます。`--last` は使用しません。
+production continuationの対象を取り違えないため、新規runではdetach前に
+**exact original Codex thread ID** を取得しmanifestへ固定します。session ID
+とthread IDは別のidentityであり、queue targetへsession IDを代用しません。
+
+新規productionではtarget contractとして:
+
+```text
+continuation_mode = queue
+original_thread_id = <exact thread id>
+```
+
+を使用します。
+
+legacy `codex exec resume` 用のsession metadataはhistorical manifestの読み取り
+互換・既存run recoveryのために残してよいですが、新規production launchで
+選択してはいけません。
 
 ## 起動
 
+新規manifestはschema v4です。continuationの既定値は`queue`で、明示的な
+`--no-callback`は`disabled`として記録します。`legacy_resume`は過去manifestの
+読み取り・復旧に限り、新規launchでは拒否されます。queue modeでは
+`CODEX_THREAD_ID`が必須で、任意の`--thread-id`はその値と一致しなければなりません。
+`--session-id`と`--session-file`はqueue routingに使用できません。
+
+launch例:
+
 ```powershell
 .\.venv\Scripts\python.exe -m sawopt.orchestration.cli launch `
-  --config configs/studies/dms_topology_screening.yaml `
-  --session-id <CURRENT_CODEX_SESSION_ID> `
-  --run-dir runs/async-dms-topology-screening
+  --config <PRODUCTION_CONFIG> `
+  --thread-id <EXACT_ORIGINAL_THREAD_ID> `
+  --review-stage <STAGE> `
+  --review-spec <FROZEN_SPEC_ID> `
+  --run-dir <RUN_DIR>
 ```
 
-session fileを使う場合は `--session-file` を指定します。callbackを使わ
-ないrunは、そのrunに対する明示的な判断がある場合だけ `--no-callback`
-を指定します。launcherは `run_id`、worker PID、run directoryを表示して
-終了します。detached workerの開始後に `stdout.log` をpollしたり、完了を
-待ったりしません。
+launch時にCodex実行ファイル/version/helpのpreflightを行い、有限queue timeoutと
+frozen review specをmanifestへ保存します。preflightが失敗した場合はrun directoryを
+作成せず停止します。schema-v4 manifestはC2C taskやPLAN iterationを要求しません。
 
-起動直後に `run_manifest.json` を確認します。本番callbackを有効にした
-runでは、`codex_session_id` が非null、`callback_enabled: true`、
-`review_after_completion: true` であることを確認します。manifestの
-identityや設定が指定と異なる場合は、そのlaunchを有効なものとして扱わ
-ず、次のproduction runを起動しません。
+callback/continuationを無効にするrunは、そのrunに対する明示的な判断がある
+場合だけdisabled/no-callback相当を使います。
+
+launcherは `run_id`、worker PID、run directory、continuation modeを表示して
+終了します。detached worker開始後に `stdout.log` をpollしたり、完了まで
+foregroundで待機したりしません。
+
+起動直後に `run_manifest.json` を確認し、少なくとも:
+
+- exact production source SHA;
+- config/protocol identity;
+- output path;
+- `continuation_mode: queue`;
+- exact `original_thread_id`;
+- durable one-shot delivery metadata;
+- post-run review destination/contract;
+
+がlaunch authorizationと一致することを確認します。
+
+identityや設定が指定と異なる場合は、そのlaunchを有効なproductionとして
+扱わず、別runを自動で起動しません。
 
 ## 状態確認と復旧
 
+`status` / `recover` / `resume` 等はactive implementationのqualified contractを
+使用します。
+
+既存runの数値checkpoint recoveryと、完了後のCodex continuationは別概念です。
+
+- **optimizer resume:** 同じrun directory/checkpointから数値探索を復旧する。
+- **thread continuation:** 完了状態を元のCodex threadへ通知し、evidence publisher
+  を再開する。
+
+完了済みqueue-native runを「session resume」として再launchし、同じ計算を
+再実行してはいけません。
+
+one-shot queue deliveryが曖昧になった場合はfail closedとし、証拠なしに同じ
+messageを再送しません。
+
+## 手動publisher操作
+
+exact threadへ届いたqueue turnは、runtime identityから受信を確認してから
+publisherを実行します。receiver thread IDをCLI引数で指定する手段はありません。
+
 ```powershell
-.\.venv\Scripts\python.exe -m sawopt.orchestration.cli status <run_id>
-.\.venv\Scripts\python.exe -m sawopt.orchestration.cli review <run_id>
-.\.venv\Scripts\python.exe -m sawopt.orchestration.cli recover <run_id>
+\.venv\Scripts\python.exe -m sawopt.orchestration.cli confirm-queue `
+  --run-dir <RUN_DIR> --run-id <RUN_ID> `
+  --delivery-id <DELIVERY_ID> --delivery-sentinel <DELIVERY_SENTINEL>
+
+\.venv\Scripts\python.exe -m sawopt export-review --run <RUN_DIR>
+
+\.venv\Scripts\python.exe -m sawopt.orchestration.cli mark-review-published `
+  --run-dir <RUN_DIR> `
+  --review-path reports/experiment_reviews/<stage>/<run_id> `
+  --branch <EXPERIMENT_BRANCH> --commit <PUSHED_COMMIT_SHA>
 ```
 
-各runにはimmutableな `run_manifest.json`、`status.json`、
-`stdout.log`、`stderr.log`、`callback.log` が保存されます。callbackは
-manifestに固定されたsession IDを使って `codex exec resume <SESSION_ID>`
-を実行します。timeoutは有限です。
+export完了は`review_evidence_state: EXPORTED`として記録されますが、run自体は
+`COMPLETED`/`FAILED`のままです。bundleのcommitとmatching upstreamへのpushを検証した
+publication finalizerだけが`REVIEW_WAITING`へ進めます。queue送信または受信の成功は
+`REVIEWED`を設定しません。
 
-既存runを再接続または復旧するときは、同じrun directoryを指定した
-`launch --resume` を使います。既存のcheckpoint/resultを使い、同じ計算を
-新規launchとして置き換えません。workerとoptimizerの状態に応じて再接続、
-`ORPHANED` 判定、既存checkpointからのresumeを行います。
+## Post-run continuation
 
-自動callbackは1回だけです。callbackが失敗してもOptimizerの
-`COMPLETED` / `FAILED` 結果は保持し、`review` から結果を確認します。
-完了通知は結果の確認を促すもので、optimizer recoveryや次のproduction
-runの承認ではありません。callbackから次のproduction runを起動しません。
+新規productionでの標準flow:
 
-## 結果レビュー
+```text
+optimizer COMPLETED / FAILED
+→ durable completion evidence
+→ one-shot queue claim
+→ codex queue --thread <original-thread-id> --message <bounded handoff>
+→ same original thread continuation
+→ lightweight review evidence export
+→ commit / push
+→ REVIEW_WAITING
+→ STOP
+```
 
-run完了後、軽量なsummary、manifest metadata、結果表、decision evidence、
-provenanceをGitHub上のcloseout branch/PRに記録します。raw checkpointsや
-巨大run artifactは無理にGitHubへ保存せず、必要な場合は既存のdata-
-management方針に従い、review bundleをユーザー経由で共有します。
+sender側のexit 0だけでsame-thread deliveryを証明したことにはしません。
+receiver evidenceを取得できる場合はexact thread/delivery identityを確認します。
 
-## 検証範囲
+continuationされたCodexの仕事はreview evidenceのpublisherです。外部review前に:
 
-`status` はoverall state、Optimizer state/exit code、callback state/attempts、
-worker/optimizer PID、生存状態、run directoryを表示します。worker停止時
-にOptimizer childだけが生きている場合は `ORPHANED_CHILD` として自動再実行
-を禁止します。
+- topology/designの最終promotion;
+- `current_baseline.md` の科学判断更新;
+- roadmap gateの完了扱い;
+- 次のproduction run開始;
+- PR merge;
 
-`tests/unit/orchestration/` には状態遷移、atomic write/stale lock、detached
-process検出、dummy optimizer成功/失敗、explicit session callback、callback
-timeout、child orphan検出のfocused testsがあります。
+を自動実行しません。
+
+## 結果レビュー用GitHub evidence
+
+新規runの標準destination:
+
+```text
+reports/experiment_reviews/<stage>/<run_id>/
+```
+
+同じexperiment branchへcommit/pushします。
+
+Stage 4Bで使用した
+`reports/stage4b_production_review/...` はhistorical evidenceとしてそのまま
+保持し、新規規約に合わせるためだけの移動は行いません。
+
+review packageにはsummary/manifest/config/protocol/integrity/terminal cell
+results/convergence/boundary/runtime/limitations等の軽量evidenceを含め、巨大な
+checkpoint、population dump、cache、raw dense array、full stdout/stderr、
+callback/Codex rollout logは原則commitしません。
+
+詳細な必須構造、hash、size、redaction、completeness gateは
+[`postrun_review_contract.md`](postrun_review_contract.md) に従います。
+
+## Review state semantics
+
+数値runの完了とscientific reviewを分離します。
+
+Codex continuationが正常終了しただけでrunを `REVIEWED` と呼びません。
+外部review待ちの正常なhandoffは:
+
+```text
+REVIEW_WAITING
+```
+
+とします。
+
+external ChatGPT review後のscientific dispositionはGitHub上のcloseout、
+experiment register、baseline update等で記録します。
+
+## Legacy compatibility
+
+既存のhistorical runには:
+
+- `codex_session_id`;
+- legacy callback state;
+- `callback.log`;
+- `codex exec resume` provenance;
+
+が残る場合があります。これらの履歴を破壊しません。
+
+ただし新規production runではlegacy resumeを選択しないことをpolicy gateと
+します。active implementationがまだlegacy-onlyの場合、新しい長時間runを
+開始するのではなく、先にorchestration migrationを完了させます。
+
+## Stage 4C precondition
+
+Stage 4Cのlong-running productionを開始する前に、最低限:
+
+1. queue-native exact-thread continuationがactive branchへ統合済み;
+2. C2C-only metadataへの必須依存が除去済み;
+3. legacy resumeが新規productionから禁止済み;
+4. generic review exporterがcanonical review directoryを生成可能;
+5. one-shot delivery/completeness/redaction/size gateのtestsがPASS;
+6. harmless short runで
+   `completion → queue → original thread → export → push → REVIEW_WAITING`
+   のE2EがPASS;
+
+であることを確認します。
+
+このqualificationはStage 4Cのscientific productionとは別タスクです。

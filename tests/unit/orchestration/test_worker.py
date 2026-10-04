@@ -154,6 +154,7 @@ class WorkerTests(unittest.TestCase):
             manifest["callback_enabled"] = True
             manifest["review_after_completion"] = True
             manifest["codex_session_id"] = "session-1"
+            manifest.pop("continuation_mode", None)
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
             calls = []
@@ -179,6 +180,7 @@ class WorkerTests(unittest.TestCase):
             manifest["callback_enabled"] = True
             manifest["review_after_completion"] = True
             manifest["codex_session_id"] = "session-1"
+            manifest.pop("continuation_mode", None)
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
             status = execute_run(run_dir, callback_runner=lambda manifest, **kwargs: 0)
