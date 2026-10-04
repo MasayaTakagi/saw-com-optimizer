@@ -10,27 +10,38 @@ Use the shared checkpoint lifecycle in
 rolling retention, and successful-run finalization. Keep analysis history in
 CSV/JSONL outputs and do not add per-study checkpoint rotation code.
 
+For new production studies, follow
+[`data_storage_logging_review_policy.md`](data_storage_logging_review_policy.md):
+raw/recovery-heavy output belongs in an external persistent run root, while
+compact GitHub evidence belongs under
+`reports/experiment_reviews/<stage>/<run_id>/`.
+
 Every new study entry point must pass a `RunDisposition` explicitly to
 `sawopt.io.checkpoints.complete_study_run`. Use `COMPLETED` only when the study
 execution and its required closeout artifacts are complete; use
 `REVIEW_WAITING` while human review remains, and `FAILED` when execution or
 execution infrastructure validation failed. A scientific gate may finish
 normally with either pass or fail; do not use its result as lifecycle state.
-Missing or ambiguous evidence must remain `UNKNOWN`, which
-preserves recovery checkpoints. Historical marker translation belongs in
+Missing or ambiguous evidence must remain `UNKNOWN`, which preserves recovery
+checkpoints. Historical marker translation belongs in
 `sawopt.io.legacy_lifecycle`; new studies should not add marker-name checks to
 the checkpoint core.
 
-Use `ReviewBundleSpec` and `build_review_bundle` for saved-run packaging. Keep
-`REVIEW_ME.md` wording and derived study summaries in the study's reporting
-module. Do not copy ZIP, hashing, Git snapshot, or environment-capture code
-into a study runner.
+For new production review publication, declare the study-specific compact
+artifact requirements used by the generic `export-review` flow and the frozen
+review spec. Keep derived study summaries in the study's reporting module, but
+do not copy hashing, redaction, size-gate, Git publication, or package-layout
+logic into a study runner.
+
+`ReviewBundleSpec` / `build_review_bundle` is a historical/ad-hoc saved-run ZIP
+utility, not the canonical publication path for a new production study. See
+[`review_bundles.md`](review_bundles.md).
 
 Use fingerprint schema v2 for new studies. Enumerate the full numerical source
 dependency set explicitly, including the study's numerical implementation,
 COM/network dependencies, topology, optimizer selection, counters, initializer,
 and the exact input configuration. Enumerate reporting code, plots, templates,
-and bundle schema only in the reporting dependency set.
+and review-spec/export schema only in the reporting dependency set.
 
 > Reporting-only changes do not invalidate computation fingerprints.
 
@@ -41,5 +52,5 @@ execution. A reporting mismatch can require regenerating review artifacts.
 Historical schema-v1 manifests and gates must remain readable and unchanged.
 
 Prefer role-based module names such as `topology_screening`, `hybrid`, or
-`impedance_sweep`; keep experiment chronology in configuration, run
+`impedance_sweep`; keep experiment chronology in configuration, external run
 directories, and result metadata.

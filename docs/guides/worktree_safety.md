@@ -4,6 +4,9 @@ Git worktrees are disposable source checkouts. `git status --short` only reports
 Git-visible changes; it does not prove that ignored raw runs, test state, logs,
 or other local files are absent.
 
+For the canonical storage/logging/review split, see
+[`data_storage_logging_review_policy.md`](data_storage_logging_review_policy.md).
+
 ## Durable run storage
 
 New user-authorized or ranking-eligible production runs must use an absolute
