@@ -247,7 +247,7 @@ Local candidate patch:
 - `src/stateDatabaseLifecycle.ts` now uses the Windows ACL boundary for state database/private JSON/lock access, verifies/creates the private root before writing, skips POSIX mode/uid checks only on Windows, and caches checks only after the protected path boundary is verified. Existing POSIX checks and lock token/live-owner/recovery semantics are retained.
 - Full migration tests exposed a separate Windows backup durability defect: `fsyncSync()` on an `O_RDONLY` descriptor returns `EPERM`. A bounded second review approved switching only the Windows snapshot descriptor to `O_RDWR`; POSIX remains `O_RDONLY`, and no file bytes are changed. Microsoft documents that `FlushFileBuffers` requires `GENERIC_WRITE` access ([FlushFileBuffers](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-flushfilebuffers)).
 - Test fixtures that exercise private state use a profile-backed root on Windows instead of inheriting the broad Temp ACL. The one B-class assertion expecting POSIX `0600` mode bits was deliberately not rewritten in the settings suite; it remains classified as test portability.
-- Patch size in the pinned local clone: 7 files total (6 tracked files plus the 98-line PowerShell helper); `git diff --check` is clean. The local diff has 556 insertions and 45 deletions including the helper. No dependency, MCP contract, policy, sandbox, Tunnel, SAW, or C2C changes were made.
+- Task 1F patch size was not frozen at that point. Task 1G Phase 0 below freezes the complete candidate, including the profile-backed `userSettings` test-root adjustment; no dependency, MCP contract, policy, sandbox, Tunnel, SAW, or C2C changes were made.
 
 Windows evidence and tests:
 
@@ -259,6 +259,27 @@ Windows evidence and tests:
 - POSIX runtime tests were not rerun on a POSIX host. Their implementation branches remain unchanged by the patch; that is still a condition for accepting or releasing a fix.
 
 Feasibility judgment (exact requested label): `MEN AJE_WINDOWS_FIX_FEASIBLE_WITH_CONDITIONS`. Keep menaje as a conditional candidate for a reviewed upstream fix or separately accepted mitigation. Do not treat the local patch as Task 1 qualification: the exact release remains affected, Task 1 live Tunnel/security gates remain unrun, the default state path has not been populated/qualified, and POSIX-host validation plus external review are outstanding. Task 2 remains unauthorized.
+
+### Task 1G Phase 0 — exact patched candidate freeze
+
+- Upstream base: `8bb81b1b27745532b7bc2113bb00e66c43df3bbb` (menaje v0.4.1).
+- Qualification patch artifact: `reports/qualifications/menaje_task1g_v0.4.1_windows_acl_candidate.patch` (41,702 bytes). It applies cleanly to the exact base; a clean local replay checkout was created from that SHA and `git apply --check` passed.
+- Candidate patch ID: `214150f06169d3ba1aa70771fa72383e80e09e53`.
+- Patch artifact Git blob SHA-1: `dc35b30344ab2851cd8a203c6d6e3e2521913a44`.
+- Patch SHA-256: `5a3b9ed31ceb9d53c72d5a58c12f5d33e4ac9b182f6db483e060711e6c07ee35`.
+- Diffstat: 7 files changed, 564 insertions(+), 45 deletions(-). Changed files: `package.json`; `scripts/verify-private-state-acl.ps1`; `src/stateBackup.ts`; `src/stateDatabaseLifecycle.ts`; `test/stateDatabaseLifecycle.test.ts`; `test/stateSchemaMigration.test.ts`; `test/userSettings.test.ts`.
+- Exact candidate replay checkout: `C:/Users/sub/AppData/Local/Temp/menaje-task1g-candidate-5a3b9ed3`, detached at the base above with the frozen patch applied. No source tree is vendored in SAW; the artifact contains only the seven-file diff.
+
+### Task 1G Phase 1 — independent patch review
+
+Independent review disposition: `REJECT`. No files were changed by the reviewer. Required findings:
+
+1. **Critical — inherited allow ACEs:** the helper skips `InheritOnly` ACEs, while newly created sidecars enter the verification cache without checking the resulting child ACL. Reject child-inheritable access at the root and validate a created file's ACL before it is trusted or contains data.
+2. **Major — environment-poisonable Windows tool paths:** `SystemRoot` determines the PowerShell binary/helper module location, and `ProgramFiles` contributes to `PSModulePath`. Resolve/validate trusted OS binaries and modules independently of inherited environment values.
+3. **Major — stale lock reclamation race:** two processes can inspect the same dead owner and one may remove a newer lock created by the other. Reclamation must be conditional on the inspected file identity and simultaneous restart contention must be demonstrated.
+4. **Moderate — incomplete ancestor mutation mask:** the ACL mask omits `CreateDirectories` (`0x4`). Add it and test a negative ACL case.
+
+The reviewer found the POSIX permission branches unchanged and the `O_RDWR` backup change Windows-only, but advised no live qualification until the Windows ACL issues are corrected and independently reviewed. The frozen candidate remains unchanged and rejected. Remediation design is under bounded review in `reports/escalation_packets/menaje_task1g_rejection_remediation_20261006.md`; no live, Tunnel, POSIX, or Task 2 test has been run against it.
 
 ## Pinned source security findings
 
