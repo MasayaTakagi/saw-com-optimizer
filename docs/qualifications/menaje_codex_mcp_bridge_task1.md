@@ -258,7 +258,7 @@ Windows evidence and tests:
 - The original Temp hierarchy remains broader (`CodexSandboxUsers: Modify, Synchronize`) and is rejected as a private-state location. No evidence shows access or disclosure.
 - POSIX runtime tests were not rerun on a POSIX host. Their implementation branches remain unchanged by the patch; that is still a condition for accepting or releasing a fix.
 
-Feasibility judgment: `MENAJE_WINDOWS_FIX_FEASIBLE_WITH_CONDITIONS`. Keep menaje as a conditional candidate for a reviewed upstream fix or separately accepted mitigation. Do not treat the local patch as Task 1 qualification: the exact release remains affected, Task 1 live Tunnel/security gates remain unrun, the default state path has not been populated/qualified, and POSIX-host validation plus external review are outstanding. Task 2 remains unauthorized.
+Feasibility judgment (exact requested label): `MEN AJE_WINDOWS_FIX_FEASIBLE_WITH_CONDITIONS`. Keep menaje as a conditional candidate for a reviewed upstream fix or separately accepted mitigation. Do not treat the local patch as Task 1 qualification: the exact release remains affected, Task 1 live Tunnel/security gates remain unrun, the default state path has not been populated/qualified, and POSIX-host validation plus external review are outstanding. Task 2 remains unauthorized.
 
 ## Pinned source security findings
 

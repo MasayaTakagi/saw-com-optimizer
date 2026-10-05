@@ -1828,7 +1828,7 @@ confirmation or a separately approved FEM extraction is required.
   database, backup, lock, status, and metadata; the Temp `CodexSandboxUsers`
   ACE was absent from these objects and from the current token. The disposable
   directory was removed after inspection.
-- Final feasibility: `MENAJE_WINDOWS_FIX_FEASIBLE_WITH_CONDITIONS`; retain
+- Final feasibility (exact requested label): `MEN AJE_WINDOWS_FIX_FEASIBLE_WITH_CONDITIONS`; retain
   menaje as a conditional candidate for external review and a supported
   upstream fix or separately accepted mitigation. The patch is not upstream,
   the default `.codex-mcp-bridge` runtime state remains absent, POSIX-host
