@@ -66,8 +66,19 @@ A same-grid hit remains a cache hit and duplicate proposal: it does not invoke
 the evaluator or enter the active population. A design last evaluated on an
 older frequency-grid version is reevaluated when proposed, without incrementing
 the unique-design count. Grid exchange, RNG, proposal counters, population,
-archive, incumbent, schedule, bounds, and ranking behavior remain checkpointed
+archive, incumbent, schedule, bounds, and ranking state remain checkpointed
 independently of the compact historical index.
+
+Compact mode deliberately does not re-introduce an unretained historical design
+through `update_bounds()` population injection. Its full evaluator result is no
+longer available, so a same-grid historical collision is skipped and injection
+continues with another proposal instead of reconstructing or reevaluating that
+old result. This can consume an additional injection RNG draw compared with the
+legacy full-result cache when such a collision occurs. It is therefore a
+compact-mode bounds-expansion policy, not a general claim of full-cache
+trajectory parity across `update_bounds()`. The frozen Stage 4C confirmatory
+protocol does not perform bounds expansion, so this policy is outside the
+Stage 4C production trajectory.
 
 Study accounting counters are stored atomically with the optimizer state.
 They must not be reconstructed by scanning historical evaluator results because
