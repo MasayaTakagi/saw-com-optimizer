@@ -1746,3 +1746,15 @@ confirmation or a separately approved FEM extraction is required.
   repository-local `runs/` and making the non-scientific Stage 4C shakedown a
   prerequisite to merge. No production launch or authorization is part of
   this fix round.
+- The fixes preserve `created_at_utc` across resume, separate historical bound
+  hits from terminal unresolved boundary states, apply the reviewed 0.02
+  max-normalized-violation model-level rule, and store Stage 4C claims under
+  Git common-directory state. The unverified Stage 4C Sol-attribution packet
+  was removed.
+- Focused tests: 70 passed. Full suite: 338 passed and 20 subtests passed.
+  The external two-cell 512-evaluation shakedown and a later resume invocation
+  both passed at
+  `C:\Users\sub\Documents\ChatGPT\saw-com-optimizer-runs\qualification\stage4c\pr22_round1_20261005`.
+- Result: `STAGE4C_PROTOCOL_FROZEN_READY_FOR_EXTERNAL_REVIEW_ROUND2`. No
+  Stage 4C production was authorized or launched; no queue continuation was
+  sent.

@@ -213,7 +213,12 @@ qualification destination `...\qualification\stage4c\`, seed `20261012`,
 512 unique evaluations per cell, terminal schedule 512, and checkpoints 400 /
 512. Round 1 external review required this shakedown before merge; it is
 operational validation only and is never topology evidence or production
-authorization.
+authorization. The required run completed under
+`C:\Users\sub\Documents\ChatGPT\saw-com-optimizer-runs\qualification\stage4c\pr22_round1_20261005`
+as `NON_SCIENTIFIC_STAGE4C_SHAKEDOWN_PASS`: both cells reached 512 unique
+evaluations with 400/512 checkpoints, and a separate resume invocation
+preserved the original manifest timestamp. Its output is external raw
+qualification data and is not committed.
 
 The qualified launch flow remains automated Codex launch, external raw
 storage, active-run registry, optimizer terminal state, exact-thread queue

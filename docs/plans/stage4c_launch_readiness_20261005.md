@@ -17,23 +17,30 @@
 | Focused tests | PASS | 70 passed: Stage 4C, Stage 4B, architecture, orchestration CLI, and persistent-storage tests. |
 | Full tests | PASS | 338 passed, 20 subtests passed. |
 | Dedicated Stage 4C review export | PASS | Deterministic synthetic production fixture passes; mismatch cases reject. |
-| Required non-scientific shakedown | PENDING | Round 1 review requires the real two-cell 512-evaluation qualification run before merge. |
-| External qualification storage | PENDING | Shakedown destination is below `.../qualification/stage4c/`, outside all Git worktrees. |
+| Required non-scientific shakedown | PASS | Both topologies completed 512 unique evaluations at 400/512 checkpoints; second resume invocation passed. |
+| External qualification storage | PASS | `C:\Users\sub\Documents\ChatGPT\saw-com-optimizer-runs\qualification\stage4c\pr22_round1_20261005`; outside Git worktrees. |
 | Active-run registry | PASS | Read-only registry is initialized/acknowledged with no active production records. |
 | Queue workflow | Previously qualified; no requalification performed | No queue command or continuation was sent. |
 | Production authorization | NOT GRANTED | No production run or production authorization was created. |
 
 The full suite used the project `.venv` and isolated fixtures under the task
-scratch root. The 0.02 value is an internal computational interpretation
-threshold inherited from the existing significant-improvement convention; it
-is not a calibrated manufacturing or measurement equivalence tolerance.
+scratch root. The shakedown used committed source
+`39fe0c8a251e52183e87c63bff9e7aac393fb501`. Its manifest persisted the
+`external_qualification_v1` policy and original `created_at_utc`; a separate
+resume invocation validated immutable fields and preserved that timestamp.
+No shakedown payload was written to Git. The run is not ranking eligible and
+provides no scientific topology evidence. The 0.02 value is an internal
+computational interpretation threshold inherited from the existing
+significant-improvement convention; it is not a calibrated manufacturing or
+measurement equivalence tolerance.
 
 ## Round 1 record
 
 `STAGE4C_EXTERNAL_REVIEW_ROUND1_CHANGES_REQUESTED` covered the resume-manifest
 timestamp, historical-versus-terminal boundary maturity, and ungrounded
-equivalence/materiality provenance. This branch applies those decisions.
+equivalence/materiality provenance. This branch applies those decisions and
+passes the required shakedown and regressions.
 
 ## Final classification
 
-`STAGE4C_PROTOCOL_NOT_READY:required_shakedown_pending`
+`STAGE4C_PROTOCOL_FROZEN_READY_FOR_EXTERNAL_REVIEW_ROUND2`
