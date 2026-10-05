@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "action": "administrative_failure_closeout",
+  "run_id": "20261005_132015_3b263c",
+  "source_commit_sha": "c52ba5873f4625d6426c79347793d08dfb9afa0a",
+  "expected_run_dir": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer-runs\\production\\20261005_132015_3b263c",
+  "expected_worker_pid": 21068,
+  "expected_optimizer_pid": 36644,
+  "allowed_preclose_states": [
+    "RUNNING",
+    "ORPHANED"
+  ],
+  "failure_class": "MemoryError",
+  "reason": "The Stage 4C production worker and optimizer are no longer running. The attempted P_D/seed20261007 cell is INCOMPLETE at 80000 recorded unique evaluations, B80000 is absent, and the exact failing allocation is unrecoverable because the original run did not persist a traceback. The run is administratively abandoned as failed and must not be resumed.",
+  "known_failure_evidence": {
+    "topology": "P_D",
+    "seed": 20261007,
+    "cell_status": "INCOMPLETE",
+    "recorded_unique_evaluations": 80000,
+    "last_durable_result_budget": 64000,
+    "b80000_summary_present": false,
+    "latest_checkpoint_bytes": 811213260,
+    "previous_checkpoint_bytes": 609053158
+  },
+  "authorization_scope": "Close only this exact orphaned production run after re-verifying both recorded processes are dead. Preserve all raw evidence and checkpoints. This record does not authorize resume, relaunch, protocol changes, or a replacement Stage 4C production run."
+}
