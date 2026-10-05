@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -10,13 +11,18 @@ from sawopt.orchestration import cli as orchestration_cli
 from sawopt.orchestration.persistent_storage import validate_persistent_run_location
 from sawopt.reporting.github_review import ReviewExportError, _canonical_json_sha256, export_review, load_review_spec
 from sawopt.reporting.hybrid_stage4c import (
+    MODEL_LEVEL_MATERIALITY_THRESHOLD,
     STAGE4C_REQUIRED_ARTIFACTS,
+    _boundary_rows,
+    _checkpoint_rows,
+    classify_stage4c,
     export_stage4c_review,
     paired_comparisons,
     primary_summary,
     stopband_rows,
     validate_stage4c_review_contract,
     write_stage4c_reports,
+    write_stage4c_shakedown_reports,
 )
 from sawopt.studies.hybrid import stage4a_load_context
 from sawopt.studies.hybrid_stage4c import (
@@ -27,15 +33,22 @@ from sawopt.studies.hybrid_stage4c import (
     PROTOCOL_REVISION,
     PRODUCTION_RUN_ROOT,
     SEARCH_GRID_SHA256,
+    SHAKEDOWN_BUDGET,
+    SHAKEDOWN_CHECKPOINTS,
+    SHAKEDOWN_SEED,
     SEEDS,
     STAGE4B_SEEDS,
     STUDY_TYPE,
     TOPOLOGIES,
     build_authorization_metadata,
     build_stage4c_run_manifest,
+    ensure_stage4c_run_manifest,
     expected_matrix,
+    expected_shakedown_matrix,
     load_stage4c_context,
+    run_stage4c_shakedown,
     validate_frozen_config,
+    validate_stage4c_run_manifest,
     verify_stage4c_authorization,
 )
 
@@ -77,6 +90,12 @@ def test_stage4c_exact_frozen_protocol_and_matrix():
     assert context["contract"]["common_validation_grid_id"] == COMMON_GRID_ID
     assert context["contract"]["common_validation_grid_sha256"] == COMMON_GRID_SHA256
     assert context["initial_populations"] == {"P_D": 234, "D_P": 234}
+    shakedown = expected_shakedown_matrix()
+    assert {(row["topology"], row["seed"]) for row in shakedown} == {
+        (topology, SHAKEDOWN_SEED) for topology in TOPOLOGIES
+    }
+    assert all(row["budget"] == row["population_schedule_terminal_budget"] == SHAKEDOWN_BUDGET
+               and row["checkpoints"] == list(SHAKEDOWN_CHECKPOINTS) for row in shakedown)
 
 
 @pytest.mark.parametrize(
@@ -185,6 +204,37 @@ def test_stage4c_manifest_and_authorization_contract_have_no_legacy_fields(tmp_p
         verify_stage4c_authorization(context, path)
 
 
+def test_stage4c_resume_manifest_preserves_creation_time_and_rejects_protocol_drift(tmp_path):
+    context = load_stage4c_context(CONFIG)
+    path = tmp_path / "metadata" / "stage4c_run_manifest.json"
+    expected = build_stage4c_run_manifest(
+        context, run_id="stage4c-resume-fixture", source_commit_sha="a" * 40,
+    )
+    first, created = ensure_stage4c_run_manifest(path, expected)
+    assert created
+    timestamp = first["created_at_utc"]
+    later_expected = build_stage4c_run_manifest(
+        context, run_id="stage4c-resume-fixture", source_commit_sha="a" * 40,
+    )
+    resumed, created = ensure_stage4c_run_manifest(path, later_expected)
+    assert not created
+    assert resumed["created_at_utc"] == timestamp
+    assert json.loads(path.read_text(encoding="utf-8"))["created_at_utc"] == timestamp
+
+    original = json.loads(path.read_text(encoding="utf-8"))
+    for key, value in (
+        ("budget_per_cell", 512),
+        ("search_grid_sha256", "0" * 64),
+        ("seeds", [20261012]),
+        ("source_commit_sha", "b" * 40),
+    ):
+        changed = {**original, key: value}
+        path.write_text(json.dumps(changed), encoding="utf-8")
+        with pytest.raises(RuntimeError, match=f"immutable run manifest mismatch: {key}"):
+            ensure_stage4c_run_manifest(path, expected)
+    path.write_text(json.dumps(original), encoding="utf-8")
+
+
 def test_stage4c_external_storage_gate_rejects_repository_local_output(tmp_path):
     repository = tmp_path / "repo"
     repository.mkdir()
@@ -198,6 +248,21 @@ def test_stage4c_external_storage_gate_rejects_repository_local_output(tmp_path)
     )
     assert accepted.passed
     assert not rejected.passed
+
+
+def test_stage4c_authorization_claim_uses_git_common_state_not_repo_runs(tmp_path):
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    subprocess.run(["git", "init", "-q", str(repository)], check=True)
+    metadata = {
+        "computation_fingerprint": "c" * 64,
+        "source_commit_sha": "a" * 40,
+        "run_id": "stage4c-claim-fixture",
+    }
+    _claim_id, claim_path = orchestration_cli._claim_stage4c_authorization(repository, metadata)
+    assert claim_path == repository / ".git" / "sawopt-stage4c-authorization-claims" / f"{claim_path.stem}.json"
+    assert claim_path.is_file()
+    assert not (repository / "runs").exists()
 
 
 def _synthetic_review_run(tmp_path, *, repository_root, context):
@@ -403,7 +468,7 @@ def test_stage4c_report_summaries_cover_convergence_boundary_runtime_and_stopban
     assert "fraction_of_budget_at_last_significant_improvement" in convergence
     assert "convergence_evidence_complete" in convergence
     assert report["integrity"]["status"] == "PASS"
-    assert report["classification"] == "STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED"
+    assert report["classification"] == "STAGE4C_PRACTICALLY_EQUIVALENT"
     primary = primary_summary(cells)
     assert all(row["feasible_count"] == 0 for row in primary)
     pairs = paired_comparisons(cells)
@@ -417,6 +482,192 @@ def test_stage4c_report_summaries_cover_convergence_boundary_runtime_and_stopban
     runtime_report = (run / "summary" / "runtime_accounting_summary.csv").read_text(encoding="utf-8-sig")
     assert "runtime_geometry_rejection_rate" in runtime_report
     assert "duplicate_proposals" in runtime_report
+
+
+def _write_boundary_checkpoint_fixture(tmp_path, context, *, early_hit, terminal_hit):
+    run = tmp_path / "raw-checkpoint-run"
+    topology, seed = "P_D", SEEDS[0]
+    cell_dir = run / "optimization" / topology / f"seed{seed}"
+    cell_dir.mkdir(parents=True)
+    bounds = context["spaces"][topology].bounds
+    center = ((bounds[:, 0] + bounds[:, 1]) / 2).tolist()
+    on_bound = list(center)
+    on_bound[0] = float(bounds[0, 0])
+    for checkpoint in CHECKPOINTS:
+        vector = list(center)
+        if early_hit and checkpoint == 32000:
+            vector = list(on_bound)
+        if terminal_hit and checkpoint == BUDGET:
+            vector = list(on_bound)
+        (cell_dir / f"B{checkpoint}.json").write_text(json.dumps({
+            "common_grid_selected_finalist": {
+                "candidate_vector": vector,
+                "feasible": False,
+                "max_violation": 0.40,
+                "sum_violation": 1.2,
+                "metrics": {"worst_il_db": 4.0, "ripple_db": 1.0},
+            },
+            "lshade_summary": {
+                "best_so_far_trace": [
+                    {"unique_evaluation": 1000, "rank_key": [0, 0.60]},
+                    {"unique_evaluation": int(checkpoint * 0.70), "rank_key": [0, 0.40]},
+                ],
+            },
+        }), encoding="utf-8")
+    cell = {"topology": topology, "seed": seed}
+    return run, cell
+
+
+def test_stage4c_early_boundary_hit_is_historical_but_does_not_block_maturity(tmp_path):
+    context = load_stage4c_context(CONFIG)
+    run, cell = _write_boundary_checkpoint_fixture(
+        tmp_path, context, early_hit=True, terminal_hit=False,
+    )
+    rows = _checkpoint_rows(run, [cell], context)
+    by_budget = {row["checkpoint_budget"]: row for row in rows}
+    assert by_budget[32000]["historical_bound_hit"] is True
+    assert by_budget[BUDGET]["historical_bound_hit"] is False
+    assert by_budget[BUDGET]["hard_bound_unresolved"] is False
+    assert by_budget[BUDGET]["boundary_pending_confirmation"] is False
+    assert by_budget[BUDGET]["maturity_classification"] == "MATURE"
+
+    boundary = _boundary_rows([cell], rows)
+    cell_row = next(row for row in boundary if row.get("scope") == "cell")
+    variable_row = next(row for row in boundary if row.get("scope") == "variable"
+                        and row.get("variable") == "wavelength_A_um" and row.get("side") == "lower")
+    assert cell_row["historical_bound_hit"] is True
+    assert cell_row["hard_bound_unresolved"] is False
+    assert variable_row["historical_bound_hits"] == 1
+    assert variable_row["terminal_bound_hits"] == 0
+
+
+def test_stage4c_terminal_boundary_hit_blocks_maturity(tmp_path):
+    context = load_stage4c_context(CONFIG)
+    run, cell = _write_boundary_checkpoint_fixture(
+        tmp_path, context, early_hit=False, terminal_hit=True,
+    )
+    rows = _checkpoint_rows(run, [cell], context)
+    terminal = next(row for row in rows if row["checkpoint_budget"] == BUDGET)
+    assert terminal["historical_bound_hit"] is True
+    assert terminal["hard_bound_unresolved"] is True
+    assert terminal["boundary_pending_confirmation"] is True
+    assert terminal["maturity_classification"] == "IMMATURE_OR_INCOMPLETE"
+
+
+def test_stage4c_shakedown_report_is_explicitly_non_scientific(tmp_path):
+    context = load_stage4c_context(CONFIG)
+    run = tmp_path / "qualification-run"
+    cells = []
+    for topology in TOPOLOGIES:
+        cell_dir = run / "optimization" / topology / f"seed{SHAKEDOWN_SEED}"
+        cell_dir.mkdir(parents=True)
+        cell = {
+            "topology": topology, "seed": SHAKEDOWN_SEED,
+            "status": "COMPLETED", "mode": "shakedown",
+            "unique_evaluations": SHAKEDOWN_BUDGET,
+            "budget": SHAKEDOWN_BUDGET,
+            "population_schedule_terminal_budget": SHAKEDOWN_BUDGET,
+            "initial_population": 234,
+            "checkpoint_records": list(SHAKEDOWN_CHECKPOINTS),
+            "common_validation_grid_id": COMMON_GRID_ID,
+            "cold_start": True, "warm_start": False,
+            "parent_transfer": False, "topology_transfer": False,
+            "historical_population_injection": False,
+            "checkpoint_summaries": [], "physics_failures": 0,
+            "runtime": {},
+        }
+        cells.append(cell)
+        (cell_dir / "cell_result.json").write_text("{}", encoding="utf-8")
+        for checkpoint in SHAKEDOWN_CHECKPOINTS:
+            (cell_dir / f"B{checkpoint}.json").write_text("{}", encoding="utf-8")
+    manifest = build_stage4c_run_manifest(
+        context, run_id=run.name, source_commit_sha="a" * 40,
+        mode="shakedown", run_storage_policy="external_qualification_v1",
+    )
+    report = write_stage4c_shakedown_reports(run, context, cells, manifest)
+    assert report["status"] == "PASS"
+    assert report["classification"] == "NON_SCIENTIFIC_STAGE4C_SHAKEDOWN_PASS"
+    assert report["ranking_eligible"] is False
+    assert report["scientific_evidence"] == "NO"
+    assert (run / "summary" / "shakedown_cells.csv").is_file()
+    assert (run / "metadata" / "shakedown_status.json").is_file()
+
+
+def _mature_classification_fixture(*, winner_component="max_violation", max_delta=0.05, ripple_delta=0.0):
+    cells = []
+    checkpoints = []
+    for seed_index, seed in enumerate(SEEDS):
+        for topology in TOPOLOGIES:
+            base = {
+                "feasible": False,
+                "max_violation": 0.10,
+                "sum_violation": 1.0,
+                "metrics": {"worst_il_db": 4.0, "ripple_db": 1.0},
+                "violations": {"stop_1": 0.1, "stop_2": 0.2},
+            }
+            p_d_wins = seed_index < 4
+            if winner_component == "max_violation":
+                if topology == "P_D":
+                    base["max_violation"] += 0.0 if p_d_wins else max_delta
+                else:
+                    base["max_violation"] += max_delta if p_d_wins else 0.0
+            elif winner_component == "worst_il_db":
+                base["metrics"]["worst_il_db"] += (0.0 if p_d_wins else 1.0) if topology == "P_D" else (1.0 if p_d_wins else 0.0)
+            else:
+                base["metrics"]["ripple_db"] += ripple_delta if topology == "P_D" else 0.0
+            cells.append({
+                "topology": topology, "seed": seed, "status": "COMPLETED",
+                "common_grid_selected_finalist": base,
+            })
+            for budget in (64000, 80000, 96000):
+                checkpoints.append({
+                    "topology": topology, "seed": seed, "checkpoint_budget": budget,
+                    "selected_feasible": base["feasible"],
+                    "selected_max_violation": base["max_violation"],
+                    "selected_sum_violation": base["sum_violation"],
+                    "selected_worst_il_db": base["metrics"]["worst_il_db"],
+                    "significant_improvement_80k_to_96k": False,
+                    "maturity_classification": "MATURE" if budget == 96000 else "NOT_TERMINAL",
+                })
+    return cells, checkpoints, paired_comparisons(cells)
+
+
+def test_stage4c_model_materiality_threshold_and_feasibility_equivalence_rules():
+    assert MODEL_LEVEL_MATERIALITY_THRESHOLD == 0.02
+    clear_cells, clear_checkpoints, clear_pairs = _mature_classification_fixture(
+        winner_component="max_violation", max_delta=0.02,
+    )
+    clear = classify_stage4c(clear_cells, clear_checkpoints, clear_pairs)
+    assert clear["classification"] == "STAGE4C_CLEAR_CONFIRMATORY_WINNER"
+    assert clear["material_terminal_winning_pairs"] == 4
+
+    il_cells, il_checkpoints, il_pairs = _mature_classification_fixture(
+        winner_component="worst_il_db",
+    )
+    il_only = classify_stage4c(il_cells, il_checkpoints, il_pairs)
+    assert il_only["classification"] == "STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED"
+    assert il_only["material_terminal_winning_pairs"] == 0
+
+    ripple_cells, ripple_checkpoints, ripple_pairs = _mature_classification_fixture(
+        winner_component="ripple", ripple_delta=5.0,
+    )
+    ripple_only = classify_stage4c(ripple_cells, ripple_checkpoints, ripple_pairs)
+    assert ripple_only["classification"] == "STAGE4C_PRACTICALLY_EQUIVALENT"
+
+    feasibility_cells, feasibility_checkpoints, _ = _mature_classification_fixture(
+        winner_component="max_violation", max_delta=0.0,
+    )
+    for cell in feasibility_cells:
+        if cell["seed"] in SEEDS[:4]:
+            cell["common_grid_selected_finalist"]["feasible"] = cell["topology"] == "P_D"
+    for row in feasibility_checkpoints:
+        if row["seed"] in SEEDS[:4]:
+            row["selected_feasible"] = row["topology"] == "P_D"
+    feasibility_pairs = paired_comparisons(feasibility_cells)
+    feasibility_wins = classify_stage4c(
+        feasibility_cells, feasibility_checkpoints, feasibility_pairs,
+    )
+    assert feasibility_wins["classification"] == "STAGE4C_CLEAR_CONFIRMATORY_WINNER"
 
 
 def test_stage4c_orchestration_requires_separate_production_authorization(monkeypatch):

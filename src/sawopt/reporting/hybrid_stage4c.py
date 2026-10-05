@@ -15,7 +15,8 @@ from ..optimization.convergence_evidence import apply_checkpoint_evidence
 from ..studies.hybrid_stage4c import (
     BUDGET, CHECKPOINTS, COMMON_GRID_ID, COMMON_GRID_SHA256, PROTOCOL_REVISION,
     SEARCH_GRID_SHA256, SEEDS, SHAKEDOWN_BUDGET, SHAKEDOWN_CHECKPOINTS,
-    SHAKEDOWN_SEED, STUDY_TYPE, TOPOLOGIES, PRODUCTION_RUN_ROOT, expected_matrix,
+    SHAKEDOWN_SEED, STUDY_TYPE, TOPOLOGIES, PRODUCTION_RUN_ROOT,
+    expected_matrix, expected_shakedown_matrix,
 )
 
 
@@ -28,16 +29,9 @@ STAGE4C_REQUIRED_ARTIFACTS = (
     "summary/runtime_accounting_summary.csv", "summary/stopband_diagnostics.csv",
     "summary/scientific_limitations.md", "summary/final_execution_report.md",
 )
-EQUIVALENCE_MARGINS = {
-    "max_violation_absolute": 0.02,
-    "max_violation_relative": 0.01,
-    "sum_violation_absolute": 0.02,
-    "sum_violation_relative": 0.01,
-    "worst_il_db_absolute": 0.05,
-    "ripple_db_absolute": 0.05,
-}
 SIGNIFICANT_ABSOLUTE_IMPROVEMENT = 0.02
 SIGNIFICANT_RELATIVE_IMPROVEMENT = 0.01
+MODEL_LEVEL_MATERIALITY_THRESHOLD = 0.02
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -149,7 +143,9 @@ def paired_comparisons(cells: Sequence[Mapping[str, Any]]) -> list[dict[str, Any
         left = _selected(by_key.get(("P_D", seed), {}))
         right = _selected(by_key.get(("D_P", seed), {}))
         row: dict[str, Any] = {"topology_left": "P_D", "topology_right": "D_P", "seed": seed,
-                               "lexicographic_winner": _winner(left, right)}
+                               "lexicographic_winner": _winner(left, right),
+                               "P_D_feasible": None if left is None else left.get("feasible"),
+                               "D_P_feasible": None if right is None else right.get("feasible")}
         for name in ("max_violation", "sum_violation", "worst_il_db", "ripple_db"):
             a, b = _metric(left, name), _metric(right, name)
             row[f"delta_{name}_P_D_minus_D_P"] = None if a is None or b is None else a - b
@@ -171,6 +167,7 @@ def _significant_improvement(previous: Any, current: Any) -> bool | None:
 
 def _checkpoint_rows(
     run: Path, cells: Sequence[Mapping[str, Any]], context: Mapping[str, Any],
+    *, checkpoints: Sequence[int] = CHECKPOINTS, terminal_budget: int = BUDGET,
 ) -> list[dict[str, Any]]:
     from ..studies.hybrid_stage4b import matched_cell_paths
     from ..studies.hybrid import stage4a_active_bound_diagnostics
@@ -180,7 +177,7 @@ def _checkpoint_rows(
         topology, seed = str(cell["topology"]), int(cell["seed"])
         cell_dir, _manifest, _result = matched_cell_paths(run, topology, seed)
         by_budget = {}
-        for checkpoint in CHECKPOINTS:
+        for checkpoint in checkpoints:
             record_path = cell_dir / f"B{checkpoint}.json"
             if not record_path.is_file():
                 continue
@@ -196,11 +193,12 @@ def _checkpoint_rows(
             # backend has no recovery or micro-polish phase. Mark those facts
             # explicitly so the shared evidence routine can distinguish
             # unavailable telemetry from a protocol with no such event.
+            terminal_hit = bool(hard_hit and int(checkpoint) == int(terminal_budget))
             raw_evidence.update({
                 "grid_converged": True,
                 "recovery_pending_confirmation": False,
-                "boundary_pending_confirmation": bool(hard_hit),
-                "hard_bound_unresolved": bool(hard_hit),
+                "boundary_pending_confirmation": terminal_hit,
+                "hard_bound_unresolved": terminal_hit,
                 "micro_polish_improvement": 0.0,
             })
             evidence = apply_checkpoint_evidence(
@@ -213,6 +211,13 @@ def _checkpoint_rows(
                 "selected_worst_il_db": _metric(selected, "worst_il_db"),
                 "selected_ripple_db": _metric(selected, "ripple_db"),
                 "selected_feasible": selected.get("feasible"),
+                "historical_bound_hit": bool(hard_hit),
+                "active_bound_diagnostics": json.dumps([
+                    {"variable": item.get("variable"),
+                     "side": "lower" if item.get("at_lower_bound") else "upper"}
+                    for item in bound_diagnostics
+                    if item.get("at_lower_bound") or item.get("at_upper_bound")
+                ], sort_keys=True),
                 "active_bound_hits_by_variable": json.dumps([
                     item.get("variable") for item in bound_diagnostics
                     if item.get("at_lower_bound") or item.get("at_upper_bound")
@@ -228,17 +233,13 @@ def _checkpoint_rows(
             }
             by_budget[checkpoint] = row
             rows.append(row)
-        final = by_budget.get(BUDGET)
+        final = by_budget.get(terminal_budget)
         if final is None:
             continue
-        previous = by_budget.get(80000)
+        previous = by_budget.get(80000) if terminal_budget == BUDGET else None
         significant = _significant_improvement(
             None if previous is None else previous["selected_max_violation"],
             final["selected_max_violation"],
-        )
-        any_boundary = any(
-            row.get("boundary_pending_confirmation") is True
-            for row in by_budget.values()
         )
         last_fraction = _finite(final.get("fraction_of_budget_at_last_significant_improvement"))
         mature = bool(
@@ -247,7 +248,6 @@ def _checkpoint_rows(
             and final.get("recovery_pending_confirmation") is False
             and final.get("hard_bound_unresolved") is False
             and final.get("boundary_pending_confirmation") is False
-            and not any_boundary
             and significant is False
             and last_fraction is not None and last_fraction <= 0.80
         )
@@ -268,48 +268,64 @@ def convergence_rows(
 
 def _boundary_rows(cells: Sequence[Mapping[str, Any]], checkpoints: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     counts: Counter[tuple[str, str]] = Counter()
-    for cell in cells:
-        for item in cell.get("active_bound_diagnostics", ()):
-            if item.get("at_lower_bound"):
-                counts[(str(item.get("variable")), "lower")] += 1
-            if item.get("at_upper_bound"):
-                counts[(str(item.get("variable")), "upper")] += 1
+    terminal_counts: Counter[tuple[str, str]] = Counter()
     events: dict[tuple[str, int], list[dict[str, Any]]] = {}
     # Checkpoint evidence stores the decisions; detailed optimizer events stay in raw B records.
     for row in checkpoints:
         key = (str(row["topology"]), int(row["seed"]))
+        diagnostics = json.loads(row.get("active_bound_diagnostics", "[]"))
+        is_terminal = int(row.get("checkpoint_budget", -1)) == BUDGET
+        for item in diagnostics:
+            side_key = (str(item.get("variable")), str(item.get("side")))
+            counts[side_key] += 1
+            if is_terminal:
+                terminal_counts[side_key] += 1
         events.setdefault(key, []).append({
             "checkpoint": int(row["checkpoint_budget"]),
-            "boundary_pending_confirmation": row.get("boundary_pending_confirmation"),
-            "hard_bound_unresolved": row.get("hard_bound_unresolved"),
+            "historical_bound_hit": row.get("historical_bound_hit") is True,
+            "boundary_pending_confirmation": row.get("boundary_pending_confirmation") is True,
+            "hard_bound_unresolved": row.get("hard_bound_unresolved") is True,
+            "active_bound_diagnostics": diagnostics,
         })
     rows = []
     variables = sorted({name for name, _side in counts} | {"resonator_0_pairs"})
     for variable in variables:
         rows.extend((
-            {"scope": "variable", "variable": variable, "side": "lower", "active_bound_hits": counts[(variable, "lower")]},
-            {"scope": "variable", "variable": variable, "side": "upper", "active_bound_hits": counts[(variable, "upper")]},
+            {"scope": "variable", "variable": variable, "side": "lower",
+             "historical_bound_hits": counts[(variable, "lower")],
+             "terminal_bound_hits": terminal_counts[(variable, "lower")]},
+            {"scope": "variable", "variable": variable, "side": "upper",
+             "historical_bound_hits": counts[(variable, "upper")],
+             "terminal_bound_hits": terminal_counts[(variable, "upper")]},
         ))
     for cell in cells:
         topology, seed = str(cell["topology"]), int(cell["seed"])
-        diag = cell.get("active_bound_diagnostics", ())
-        cell_keys = {(str(d.get("variable")), side) for d in diag
-                     for side, flag in (("lower", "at_lower_bound"), ("upper", "at_upper_bound")) if d.get(flag)}
+        cell_events = events.get((topology, seed), [])
+        historical_keys = {
+            (str(d.get("variable")), str(d.get("side")))
+            for event in cell_events for d in event["active_bound_diagnostics"]
+        }
+        terminal_event = next((event for event in cell_events if event["checkpoint"] == BUDGET), {})
+        terminal_keys = {
+            (str(d.get("variable")), str(d.get("side")))
+            for d in terminal_event.get("active_bound_diagnostics", [])
+        }
         rows.append({
             "scope": "cell", "topology": topology, "seed": seed,
-            "active_bound_hits_by_variable": json.dumps(sorted(f"{var}:{side}" for var, side in cell_keys)),
-            "hard_bound_events": json.dumps(events.get((topology, seed), [])),
-            "boundary_pending_confirmation": any(item.get("boundary_pending_confirmation") is True
-                                                  for item in events.get((topology, seed), [])),
-            "hard_bound_unresolved": any(item.get("hard_bound_unresolved") is True
-                                          for item in events.get((topology, seed), [])),
-            "resonator_0_pairs_upper_hit": any(var == "resonator_0_pairs" and side == "upper" for var, side in cell_keys),
+            "historical_bound_hit": any(event["historical_bound_hit"] for event in cell_events),
+            "historical_active_bound_hits_by_variable": json.dumps(sorted(f"{var}:{side}" for var, side in historical_keys)),
+            "terminal_active_bound_hits_by_variable": json.dumps(sorted(f"{var}:{side}" for var, side in terminal_keys)),
+            "hard_bound_events": json.dumps(cell_events),
+            "boundary_pending_confirmation": terminal_event.get("boundary_pending_confirmation", False),
+            "hard_bound_unresolved": terminal_event.get("hard_bound_unresolved", False),
+            "resonator_0_pairs_upper_hit": ("resonator_0_pairs", "upper") in historical_keys,
+            "resonator_0_pairs_upper_terminal_hit": ("resonator_0_pairs", "upper") in terminal_keys,
         })
     return rows
 
 
-def runtime_rows(cells: Sequence[Mapping[str, Any]], checkpoints: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    final_evidence = {(r["topology"], int(r["seed"])): r for r in checkpoints if int(r["checkpoint_budget"]) == BUDGET}
+def runtime_rows(cells: Sequence[Mapping[str, Any]], checkpoints: Sequence[Mapping[str, Any]], *, terminal_budget: int = BUDGET) -> list[dict[str, Any]]:
+    final_evidence = {(r["topology"], int(r["seed"])): r for r in checkpoints if int(r["checkpoint_budget"]) == terminal_budget}
     rows = []
     for cell in cells:
         counters = cell.get("counters", {})
@@ -403,33 +419,37 @@ def _paired_at_checkpoint(checkpoints: Sequence[Mapping[str, Any]], budget: int)
     ) for seed in SEEDS}
 
 
-def _inside_margin(delta: Any, left: Any, right: Any, *, absolute: float, relative: float | None = None) -> bool:
-    d, a, b = _finite(delta), _finite(left), _finite(right)
-    if d is None or a is None or b is None:
+def _material_terminal_win(
+    topology: str, pair: Mapping[str, Any],
+    final_by: Mapping[tuple[Any, int], Mapping[str, Any] | None],
+) -> bool:
+    if pair.get("lexicographic_winner") != topology:
         return False
-    if abs(d) > absolute:
+    seed = int(pair["seed"])
+    left, right = final_by.get(("P_D", seed)), final_by.get(("D_P", seed))
+    if not isinstance(left, Mapping) or not isinstance(right, Mapping):
         return False
-    return relative is None or abs(d) / max(abs(a), abs(b), np.finfo(float).tiny) <= relative
+    left_feasible, right_feasible = left.get("feasible"), right.get("feasible")
+    winner = left if topology == "P_D" else right
+    loser = right if topology == "P_D" else left
+    if winner.get("feasible") is True and loser.get("feasible") is False:
+        return True
+    if left_feasible is False and right_feasible is False:
+        left_max, right_max = _metric(left, "max_violation"), _metric(right, "max_violation")
+        return left_max is not None and right_max is not None and abs(left_max - right_max) >= MODEL_LEVEL_MATERIALITY_THRESHOLD
+    return False
 
 
-def _equivalence_pairs(pairs: Sequence[Mapping[str, Any]]) -> bool:
+def _terminal_equivalence_conditions(pairs: Sequence[Mapping[str, Any]]) -> bool:
     if len(pairs) != len(SEEDS):
         return False
-    for row in pairs:
-        for metric, abs_margin, rel_margin in (
-            ("max_violation", EQUIVALENCE_MARGINS["max_violation_absolute"], EQUIVALENCE_MARGINS["max_violation_relative"]),
-            ("sum_violation", EQUIVALENCE_MARGINS["sum_violation_absolute"], EQUIVALENCE_MARGINS["sum_violation_relative"]),
-        ):
-            delta = row.get(f"delta_{metric}_P_D_minus_D_P")
-            left = row.get(f"P_D_{metric}")
-            right = row.get(f"D_P_{metric}")
-            if not _inside_margin(delta, left, right, absolute=abs_margin, relative=rel_margin):
-                return False
-        for metric, margin in (("worst_il_db", EQUIVALENCE_MARGINS["worst_il_db_absolute"]),
-                               ("ripple_db", EQUIVALENCE_MARGINS["ripple_db_absolute"])):
-            delta = row.get(f"delta_{metric}_P_D_minus_D_P")
-            if _finite(delta) is None or abs(float(delta)) > margin:
-                return False
+    for pair in pairs:
+        left, right = pair.get("P_D_feasible"), pair.get("D_P_feasible")
+        delta = _finite(pair.get("delta_max_violation_P_D_minus_D_P"))
+        if not isinstance(left, bool) or not isinstance(right, bool) or left != right:
+            return False
+        if delta is None or abs(delta) >= MODEL_LEVEL_MATERIALITY_THRESHOLD:
+            return False
     return True
 
 
@@ -454,7 +474,7 @@ def classify_stage4c(
         if (all(len(seeds) >= 4 for seeds in win_seed_sets)
                 and len(set.intersection(*win_seed_sets)) >= 4):
             stable_winner = topology
-    # Rehydrate terminal component values for the equivalence-envelope check.
+    # Rehydrate terminal values to apply the frozen model-level materiality rule.
     final_by = {(cell.get("topology"), int(cell.get("seed", -1))): _selected(cell) for cell in cells}
     component_pairs = []
     for row in pairs:
@@ -462,6 +482,8 @@ def classify_stage4c(
         left, right = final_by.get(("P_D", seed)), final_by.get(("D_P", seed))
         component_pairs.append({
             **row,
+            "P_D_feasible": None if left is None else left.get("feasible"),
+            "D_P_feasible": None if right is None else right.get("feasible"),
             **{f"P_D_{metric}": _metric(left, metric) for metric in ("max_violation", "sum_violation", "worst_il_db", "ripple_db")},
             **{f"D_P_{metric}": _metric(right, metric) for metric in ("max_violation", "sum_violation", "worst_il_db", "ripple_db")},
         })
@@ -469,31 +491,15 @@ def classify_stage4c(
         row.get("significant_improvement_80k_to_96k") is True for row in checkpoints
         if int(row.get("checkpoint_budget", -1)) == BUDGET
     )
-    outside_margin_wins = 0
-    if stable_winner:
-        for row in component_pairs:
-            if row.get("lexicographic_winner") != stable_winner:
-                continue
-            if (not _inside_margin(row.get("delta_max_violation_P_D_minus_D_P"),
-                                   row.get("P_D_max_violation"), row.get("D_P_max_violation"),
-                                   absolute=EQUIVALENCE_MARGINS["max_violation_absolute"],
-                                   relative=EQUIVALENCE_MARGINS["max_violation_relative"])
-                    or not _inside_margin(row.get("delta_sum_violation_P_D_minus_D_P"),
-                                          row.get("P_D_sum_violation"), row.get("D_P_sum_violation"),
-                                          absolute=EQUIVALENCE_MARGINS["sum_violation_absolute"],
-                                          relative=EQUIVALENCE_MARGINS["sum_violation_relative"])):
-                outside_margin_wins += 1
-            elif abs(float(row.get("delta_worst_il_db_P_D_minus_D_P") or 0.0)) > EQUIVALENCE_MARGINS["worst_il_db_absolute"]:
-                outside_margin_wins += 1
-            elif not _inside_margin(
-                    row.get("delta_ripple_db_P_D_minus_D_P"),
-                    row.get("P_D_ripple_db"), row.get("D_P_ripple_db"),
-                    absolute=EQUIVALENCE_MARGINS["ripple_db_absolute"]):
-                outside_margin_wins += 1
+    material_terminal_wins = 0 if stable_winner is None else sum(
+        _material_terminal_win(stable_winner, row, final_by) for row in component_pairs
+    )
+    terminal_wins = 0 if stable_winner is None else final_wins[stable_winner]
+    equivalent = _terminal_equivalence_conditions(component_pairs)
     if (all_mature and stable_winner and final_wins[stable_winner] >= 4
-            and not late_improvement and outside_margin_wins >= 4):
+            and terminal_wins >= 4 and not late_improvement and material_terminal_wins >= 4):
         classification = "STAGE4C_CLEAR_CONFIRMATORY_WINNER"
-    elif all_mature and not late_improvement and _equivalence_pairs(component_pairs):
+    elif all_mature and stable_winner is None and not late_improvement and equivalent:
         classification = "STAGE4C_PRACTICALLY_EQUIVALENT"
     else:
         classification = "STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED"
@@ -505,7 +511,13 @@ def classify_stage4c(
         "late_checkpoint_direction_by_seed": {str(k): {str(seed): winner for seed, winner in v.items()} for k, v in late_directions.items()},
         "stable_winner": stable_winner,
         "significant_80k_to_96k_improvement_present": late_improvement,
-        "equivalence_margins": EQUIVALENCE_MARGINS,
+        "model_level_materiality_threshold_max_normalized_violation": MODEL_LEVEL_MATERIALITY_THRESHOLD,
+        "material_terminal_winning_pairs": material_terminal_wins,
+        "terminal_equivalence_conditions_met": equivalent,
+        "materiality_interpretation": (
+            "0.02 is an internal computational interpretation threshold inherited from the existing "
+            "significant-improvement convention. It is not a calibrated manufacturing or measurement equivalence tolerance."
+        ),
         "primary_comparator": "feasibility_first_lexicographic; no weighted scalar score",
         "ranking_eligible": True,
     }
@@ -570,6 +582,7 @@ def write_stage4c_reports(
         f"- Classification: `{classification['classification']}`.",
         "- All final topology metrics use the same 9,113-point common validation grid.",
         "- Comparator: feasibility-first lexicographic; no weighted scalar score.",
+        f"- Model-level materiality threshold: 0.02 maximum normalized violation; {classification['materiality_interpretation']}",
         "- Stopband labels: stop_1 = 703–748 MHz; stop_2 = 832–862 MHz.",
         "- This report is a post-run interpretation and does not authorize follow-up production.",
     ]
@@ -578,6 +591,114 @@ def write_stage4c_reports(
     report["paired_comparisons"] = pairs
     report["stopband_diagnostics"] = stopbands
     return report
+
+
+def write_stage4c_shakedown_reports(
+    run_directory: str | Path, context: Mapping[str, Any],
+    cells: Sequence[Mapping[str, Any]], manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Write qualification diagnostics without topology ranking or scientific closeout."""
+    from ..studies.hybrid_stage4b import matched_cell_paths
+
+    run = Path(run_directory)
+    expected_root = str(context["contract"]["storage_contract"]["qualification_root"])
+    checks = {
+        "shakedown_mode": manifest.get("mode") == "shakedown",
+        "external_qualification_policy": manifest.get("run_storage_policy") == "external_qualification_v1",
+        "external_qualification_root": manifest.get("required_storage_root") == expected_root,
+        "frozen_shakedown_matrix": manifest.get("matrix") == expected_shakedown_matrix(),
+        "seed_budget_checkpoints": (
+            manifest.get("seeds") == [SHAKEDOWN_SEED]
+            and manifest.get("budget_per_cell") == SHAKEDOWN_BUDGET
+            and manifest.get("population_schedule_terminal_budget") == SHAKEDOWN_BUDGET
+            and manifest.get("checkpoints") == list(SHAKEDOWN_CHECKPOINTS)
+        ),
+        "production_not_ranking_eligible": manifest.get("ranking_eligible") is False,
+        "production_not_scientific_evidence": manifest.get("scientific_evidence") is False,
+        "two_expected_cells": len(cells) == len(TOPOLOGIES),
+        "topologies_exact": {row.get("topology") for row in cells} == set(TOPOLOGIES),
+        "fresh_shakedown_seed": all(int(row.get("seed", -1)) == SHAKEDOWN_SEED for row in cells),
+        "budget_and_terminal_schedule": all(
+            int(row.get("budget", -1)) == SHAKEDOWN_BUDGET
+            and int(row.get("population_schedule_terminal_budget", -1)) == SHAKEDOWN_BUDGET
+            and int(row.get("unique_evaluations", -1)) == SHAKEDOWN_BUDGET
+            for row in cells
+        ),
+        "checkpoints_exact": all(row.get("checkpoint_records") == list(SHAKEDOWN_CHECKPOINTS) for row in cells),
+        "independent_cold_starts": all(
+            row.get("cold_start") is True and row.get("warm_start") is False
+            and row.get("parent_transfer") is False and row.get("topology_transfer") is False
+            and row.get("historical_population_injection") is False
+            for row in cells
+        ),
+        "cell_mode_is_shakedown": all(row.get("mode") == "shakedown" for row in cells),
+        "common_grid_identity": all(row.get("common_validation_grid_id") == COMMON_GRID_ID for row in cells),
+    }
+    checkpoint_paths = []
+    for row in cells:
+        cell_dir, _cell_manifest, result_path = matched_cell_paths(
+            run, str(row["topology"]), int(row["seed"]),
+        )
+        checkpoint_paths.append(
+            result_path.is_file()
+            and all((cell_dir / f"B{point}.json").is_file() for point in SHAKEDOWN_CHECKPOINTS)
+        )
+    checks["cell_results_and_checkpoints_persisted"] = all(checkpoint_paths)
+    passed = all(checks.values())
+    integrity = {
+        "status": "PASS" if passed else "FAIL",
+        "complete": passed,
+        "cells_expected": len(TOPOLOGIES),
+        "cells_present": len(cells),
+        "cells_completed": sum(row.get("status") == "COMPLETED" for row in cells),
+        "topologies_present": [row.get("topology") for row in cells],
+        "seed": SHAKEDOWN_SEED,
+        "budget_per_cell": SHAKEDOWN_BUDGET,
+        "population_schedule_terminal_budget": SHAKEDOWN_BUDGET,
+        "checkpoints": list(SHAKEDOWN_CHECKPOINTS),
+        "common_validation_grid_id": COMMON_GRID_ID,
+    }
+    status = {
+        "status": "PASS" if passed else "FAIL",
+        "classification": "NON_SCIENTIFIC_STAGE4C_SHAKEDOWN_PASS" if passed else "NON_SCIENTIFIC_STAGE4C_SHAKEDOWN_FAIL",
+        "checks": checks,
+        "integrity": integrity,
+        "ranking_eligible": False,
+        "scientific_evidence": "NO",
+        "production_authorized": False,
+    }
+    summary_rows = []
+    for cell in cells:
+        summary_rows.append({
+            "topology": cell.get("topology"), "seed": cell.get("seed"),
+            "status": cell.get("status"), "unique_evaluations": cell.get("unique_evaluations"),
+            "budget_per_cell": cell.get("budget"),
+            "population_schedule_terminal_budget": cell.get("population_schedule_terminal_budget"),
+            "initial_population": cell.get("initial_population"),
+            "checkpoint_records": json.dumps(cell.get("checkpoint_records", [])),
+            "checkpoint_summaries": json.dumps(cell.get("checkpoint_summaries", []), allow_nan=False),
+            "common_validation_grid_id": cell.get("common_validation_grid_id"),
+            "physics_failures": cell.get("physics_failures"),
+            "runtime": json.dumps(cell.get("runtime", {}), allow_nan=False),
+        })
+    _write_json(run / "metadata" / "integrity_check.json", integrity)
+    _write_json(run / "metadata" / "shakedown_status.json", status)
+    _write_json(run / "metadata" / "run_completion.json", {
+        "status": "COMPLETED" if passed else "INCOMPLETE",
+        "study_type": STUDY_TYPE, "protocol_revision": PROTOCOL_REVISION,
+        "mode": "shakedown", "scientific_evidence": False,
+        "cells_completed": integrity["cells_completed"], "cells_expected": integrity["cells_expected"],
+    })
+    _write_csv(run / "summary" / "shakedown_cells.csv", summary_rows)
+    (run / "summary" / "shakedown_report.md").write_text(
+        "# Stage 4C non-scientific shakedown\n\n"
+        f"- Classification: `{status['classification']}`.\n"
+        "- This 512-evaluation qualification run is not topology evidence and is not ranking eligible.\n"
+        "- Production was not authorized or launched by this shakedown.\n"
+        f"- Persisted outside the worktree under `{expected_root}`.\n",
+        encoding="utf-8", newline="\n",
+    )
+    return status
 
 
 def validate_stage4c_review_contract(run_directory: str | Path, repository_root: str | Path) -> dict[str, Any]:
@@ -677,8 +798,9 @@ def export_stage4c_review(
 
 
 __all__ = [
-    "EQUIVALENCE_MARGINS", "STAGE4C_REQUIRED_ARTIFACTS", "classify_stage4c",
+    "MODEL_LEVEL_MATERIALITY_THRESHOLD", "STAGE4C_REQUIRED_ARTIFACTS", "classify_stage4c",
     "convergence_rows", "export_stage4c_review", "paired_comparisons",
     "primary_summary", "runtime_rows", "stopband_rows",
     "validate_stage4c_review_contract", "write_stage4c_reports",
+    "write_stage4c_shakedown_reports",
 ]
