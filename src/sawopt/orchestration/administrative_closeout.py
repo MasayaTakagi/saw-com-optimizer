@@ -267,45 +267,45 @@ def finalize_orphaned_failure(
         raise AdministrativeCloseoutError(
             "matching active-run registry entry is missing before administrative closeout"
         )
-    if audit_path.exists():
-        raise AdministrativeCloseoutError(
-            "administrative closeout audit already exists without terminal FAILED state"
-        )
 
-    prior_status_keys = (
-        "state", "worker_pid", "optimizer_pid", "optimizer_state", "exit_code", "error",
-        "error_type", "error_message", "error_repr", "error_traceback_path",
-        "failing_cell", "last_durable_checkpoint_budget",
-    )
-    audit = {
-        "schema_version": 1,
-        "action": "administrative_failure_closeout",
-        "run_id": manifest.run_id,
-        "source_commit_sha": manifest.source_commit_sha,
-        "run_dir": str(run),
-        "evidence_path": relative_evidence,
-        "evidence_sha256": evidence_sha256,
-        "evidence_commit_sha": evidence_head,
-        "failure_class": failure_class,
-        "reason": reason,
-        "closed_at_utc": utc_now(),
-        "prior_status": {key: status.get(key) for key in prior_status_keys},
-        "process_liveness": {
-            "worker_pid": worker_pid,
-            "worker_alive": False,
-            "optimizer_pid": optimizer_pid,
-            "optimizer_alive": False,
-        },
-        "preservation": {
-            "raw_run_preserved": True,
-            "checkpoints_preserved": True,
-            "queue_continuation_sent": False,
-            "scientific_review_completed": False,
-            "replacement_production_authorized": False,
-        },
-    }
-    atomic_write_json(audit_path, audit)
-    error = status.get("error") or f"administratively closed: {failure_class}: {reason}"
+    if existing_audit is None:
+        prior_status_keys = (
+            "state", "worker_pid", "optimizer_pid", "optimizer_state", "exit_code", "error",
+            "error_type", "error_message", "error_repr", "error_traceback_path",
+            "failing_cell", "last_durable_checkpoint_budget",
+        )
+        audit = {
+            "schema_version": 1,
+            "action": "administrative_failure_closeout",
+            "run_id": manifest.run_id,
+            "source_commit_sha": manifest.source_commit_sha,
+            "run_dir": str(run),
+            "evidence_path": relative_evidence,
+            "evidence_sha256": evidence_sha256,
+            "evidence_commit_sha": evidence_head,
+            "failure_class": failure_class,
+            "reason": reason,
+            "closed_at_utc": utc_now(),
+            "prior_status": {key: status.get(key) for key in prior_status_keys},
+            "process_liveness": {
+                "worker_pid": worker_pid,
+                "worker_alive": False,
+                "optimizer_pid": optimizer_pid,
+                "optimizer_alive": False,
+            },
+            "preservation": {
+                "raw_run_preserved": True,
+                "checkpoints_preserved": True,
+                "queue_continuation_sent": False,
+                "scientific_review_completed": False,
+                "replacement_production_authorized": False,
+            },
+        }
+        atomic_write_json(audit_path, audit)
+    else:
+        audit = existing_audit
+
+    error = status.get("error") or str(audit.get("reason")) or f"administratively closed: {failure_class}: {reason}"
     _ensure_failed_completion(
         run, manifest=manifest, exit_code=status.get("exit_code"), error=str(error),
     )
