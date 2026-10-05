@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
@@ -108,16 +107,10 @@ def _claim_stage4b_authorization(root: Path, metadata: dict) -> tuple[str, Path]
 
 
 def _claim_stage4c_authorization(root: Path, metadata: dict) -> tuple[str, Path]:
-    """Persist an exclusive one-shot claim for the frozen Stage 4C protocol."""
-    identity = {
-        "authorization_scope": "stage4c-confirmatory-production-v1",
-        "computation_fingerprint": metadata["computation_fingerprint"],
-        "source_commit_sha": metadata["source_commit_sha"],
-        "run_id": metadata["run_id"],
-    }
-    claim_id = hashlib.sha256(json.dumps(
-        identity, sort_keys=True, separators=(",", ":"),
-    ).encode("utf-8")).hexdigest()
+    """Persist one source/protocol-scoped claim bound to the consuming run."""
+    from ..studies.hybrid_stage4c import authorization_claim_id
+
+    claim_id = authorization_claim_id(metadata)
     claim_directory = git_common_dir(root) / "sawopt-stage4c-authorization-claims"
     claim_path = claim_directory / f"{claim_id}.json"
     claim_directory.mkdir(parents=True, exist_ok=True)
@@ -127,7 +120,10 @@ def _claim_stage4c_authorization(root: Path, metadata: dict) -> tuple[str, Path]
         claim = {
             "schema_version": 1,
             "claim_id": claim_id,
-            **identity,
+            "authorization_scope": metadata["authorization_scope"],
+            "computation_fingerprint": metadata["computation_fingerprint"],
+            "source_commit_sha": metadata["source_commit_sha"],
+            "run_id": metadata["run_id"],
             "claimed_at_utc": utc_now(),
         }
         with claim_path.open("x", encoding="utf-8") as stream:
@@ -478,6 +474,13 @@ def launch(args: argparse.Namespace) -> int:
         repository_root_at_launch=str(root) if storage_provenance else None,
         source_worktree_at_launch=str(root) if storage_provenance else None,
     )
+    if stage4c_launch:
+        claim_id, claim_path = _claim_stage4c_authorization(root, experiment_metadata)
+        experiment_metadata["authorization_claim_id"] = claim_id
+        experiment_metadata["authorization_claim_path"] = str(claim_path.resolve())
+        manifest = RunManifest(
+            **{**manifest.to_dict(), "experiment_metadata": experiment_metadata}
+        )
     if storage_provenance:
         # Final recheck plus exclusive directory reservation closes the gap
         # between validation and create_run for an explicitly reused --run-dir.
@@ -499,13 +502,6 @@ def launch(args: argparse.Namespace) -> int:
         experiment_metadata["authorization_claim_path"] = str(claim_path.resolve())
         # The manifest is frozen, so build the final object after the exclusive
         # claim is persisted and include its durable identity.
-        manifest = RunManifest(
-            **{**manifest.to_dict(), "experiment_metadata": experiment_metadata}
-        )
-    elif stage4c_launch:
-        claim_id, claim_path = _claim_stage4c_authorization(root, experiment_metadata)
-        experiment_metadata["authorization_claim_id"] = claim_id
-        experiment_metadata["authorization_claim_path"] = str(claim_path.resolve())
         manifest = RunManifest(
             **{**manifest.to_dict(), "experiment_metadata": experiment_metadata}
         )

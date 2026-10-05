@@ -26,6 +26,7 @@ from sawopt.reporting.hybrid_stage4c import (
 )
 from sawopt.studies.hybrid import stage4a_load_context
 from sawopt.studies.hybrid_stage4c import (
+    AUTHORIZATION_SCOPE,
     BUDGET,
     CHECKPOINTS,
     COMMON_GRID_ID,
@@ -40,6 +41,7 @@ from sawopt.studies.hybrid_stage4c import (
     STAGE4B_SEEDS,
     STUDY_TYPE,
     TOPOLOGIES,
+    authorization_claim_id,
     build_authorization_metadata,
     build_stage4c_run_manifest,
     ensure_stage4c_run_manifest,
@@ -151,7 +153,7 @@ def test_stage4c_fingerprint_separates_computation_from_reporting():
     assert "src/sawopt/reporting/hybrid_stage4c.py" not in computation
 
 
-def test_stage4c_manifest_and_authorization_contract_have_no_legacy_fields(tmp_path):
+def test_stage4c_manifest_and_authorization_contract_have_no_legacy_fields(tmp_path, monkeypatch):
     context = load_stage4c_context(CONFIG)
     manifest = build_stage4c_run_manifest(
         context, run_id="stage4c-fixture", source_commit_sha="a" * 40,
@@ -168,8 +170,26 @@ def test_stage4c_manifest_and_authorization_contract_have_no_legacy_fields(tmp_p
         context, source_commit_sha="a" * 40, run_id="stage4c-fixture",
         authorized_at="2026-10-05T00:00:00+00:00",
     )
-    assert metadata["authorization_scope"] == "stage4c-confirmatory-production-v1"
+    assert metadata["authorization_scope"] == AUTHORIZATION_SCOPE
     assert not ({"codex_session_id", "callback_enabled"} & set(metadata))
+    git_common = tmp_path / "git-common"
+    claim_dir = git_common / "sawopt-stage4c-authorization-claims"
+    claim_dir.mkdir(parents=True)
+    monkeypatch.setattr("sawopt.orchestration.active_runs.git_common_dir", lambda _root: git_common)
+    claim_id = authorization_claim_id(metadata)
+    claim_path = claim_dir / f"{claim_id}.json"
+    claim_payload = {
+        "schema_version": 1,
+        "claim_id": claim_id,
+        "authorization_scope": metadata["authorization_scope"],
+        "computation_fingerprint": metadata["computation_fingerprint"],
+        "source_commit_sha": metadata["source_commit_sha"],
+        "run_id": metadata["run_id"],
+        "claimed_at_utc": "2026-10-05T00:00:01+00:00",
+    }
+    claim_path.write_text(json.dumps(claim_payload), encoding="utf-8")
+    metadata["authorization_claim_id"] = claim_id
+    metadata["authorization_claim_path"] = str(claim_path.resolve())
     orchestration_manifest = {
         "run_id": "stage4c-fixture", "source_commit_sha": "a" * 40,
         "study_type": STUDY_TYPE, "run_storage_policy": "external_persistent_v1",
@@ -201,6 +221,22 @@ def test_stage4c_manifest_and_authorization_contract_have_no_legacy_fields(tmp_p
     orchestration_manifest["persistent_run_root"] = "relative/run-root"
     path.write_text(json.dumps(orchestration_manifest), encoding="utf-8")
     with pytest.raises(PermissionError, match="absolute external persistent run root"):
+        verify_stage4c_authorization(context, path)
+
+    orchestration_manifest["persistent_run_root"] = PRODUCTION_RUN_ROOT
+    path.write_text(json.dumps(orchestration_manifest), encoding="utf-8")
+    claim_path.unlink()
+    with pytest.raises(PermissionError, match="one-shot authorization claim is missing"):
+        verify_stage4c_authorization(context, path)
+
+    claim_path.write_text(json.dumps({**claim_payload, "run_id": "different-run"}), encoding="utf-8")
+    with pytest.raises(PermissionError, match="one-shot authorization claim does not match this run"):
+        verify_stage4c_authorization(context, path)
+
+    claim_path.write_text(json.dumps(claim_payload), encoding="utf-8")
+    orchestration_manifest["experiment_metadata"]["authorization_claim_path"] = str(tmp_path / "wrong-claim.json")
+    path.write_text(json.dumps(orchestration_manifest), encoding="utf-8")
+    with pytest.raises(PermissionError, match="authorization claim path mismatch"):
         verify_stage4c_authorization(context, path)
 
 
@@ -255,6 +291,7 @@ def test_stage4c_authorization_claim_uses_git_common_state_not_repo_runs(tmp_pat
     repository.mkdir()
     subprocess.run(["git", "init", "-q", str(repository)], check=True)
     metadata = {
+        "authorization_scope": AUTHORIZATION_SCOPE,
         "computation_fingerprint": "c" * 64,
         "source_commit_sha": "a" * 40,
         "run_id": "stage4c-claim-fixture",
@@ -263,6 +300,36 @@ def test_stage4c_authorization_claim_uses_git_common_state_not_repo_runs(tmp_pat
     assert claim_path == repository / ".git" / "sawopt-stage4c-authorization-claims" / f"{claim_path.stem}.json"
     assert claim_path.is_file()
     assert not (repository / "runs").exists()
+
+
+def test_stage4c_claim_is_source_protocol_scoped_and_duplicate_run_id_is_rejected(tmp_path):
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    subprocess.run(["git", "init", "-q", str(repository)], check=True)
+    metadata_a = {
+        "authorization_scope": AUTHORIZATION_SCOPE,
+        "computation_fingerprint": "c" * 64,
+        "source_commit_sha": "a" * 40,
+        "run_id": "stage4c-run-a",
+    }
+    metadata_b = {**metadata_a, "run_id": "stage4c-run-b"}
+    assert authorization_claim_id(metadata_a) == authorization_claim_id(metadata_b)
+    claim_id, claim_path = orchestration_cli._claim_stage4c_authorization(repository, metadata_a)
+    assert claim_id == authorization_claim_id(metadata_a)
+    claim = json.loads(claim_path.read_text(encoding="utf-8"))
+    assert claim["run_id"] == "stage4c-run-a"
+    with pytest.raises(RuntimeError, match="already been claimed"):
+        orchestration_cli._claim_stage4c_authorization(repository, metadata_b)
+    assert not (repository / "runs").exists()
+
+
+def test_stage4c_claim_is_consumed_before_active_run_registration():
+    import inspect
+
+    source = inspect.getsource(orchestration_cli.launch)
+    claim_marker = "claim_id, claim_path = _claim_stage4c_authorization"
+    registry_marker = "register_active_run("
+    assert source.index(claim_marker) < source.index(registry_marker)
 
 
 def _synthetic_review_run(tmp_path, *, repository_root, context):
