@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   fix-and-verify:
-    if: "${{ github.event.head_commit.message == 'chore: rerun PR22 Round 2 fix' }}"
+    if: "${{ github.event.head_commit.message == 'chore: rerun PR22 Round 2 fix runner' }}"
     runs-on: ubuntu-latest
     steps:
       - name: Check out PR branch
@@ -27,7 +27,7 @@ jobs:
           cache-dependency-path: pyproject.toml
 
       - name: Apply narrow Round 2 fix
-        run: python .github/pr22_round2_fix.py
+        run: python .github/pr22_round2_fix_runner.py
 
       - name: Install package and test dependencies
         run: |
@@ -48,6 +48,7 @@ jobs:
         run: |
           rm .github/workflows/pr22-round2-one-shot-fix.yml
           rm .github/pr22_round2_fix.py
+          rm .github/pr22_round2_fix_runner.py
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
