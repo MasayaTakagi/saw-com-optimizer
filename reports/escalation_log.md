@@ -1765,3 +1765,23 @@ confirmation or a separately approved FEM extraction is required.
 - Finding: the Stage 4C authorization claim ID was run-ID-scoped and the optimizer child did not independently verify the durable claim. Claim creation also followed active-run registration, which could leave stale state when duplicate claims become fail-closed.
 - Fix: claim identity is now authorization-scope + computation-fingerprint + source-SHA scoped; run ID remains in the claim payload. Child verification requires the exact Git-common claim path and matching payload. Stage 4C consumes the claim before active-run registration/run-directory reservation.
 - Scientific protocol, optimizer, 96k budget, seeds, grids, maturity/materiality rules, and Stage 4B behavior are unchanged. Production remains unauthorized and was not launched by this fix.
+
+### Task 1R menaje Windows state-lock qualification — 2026-10-06
+
+- Requested bounded high-risk judgment from `gpt-6-sol` after the selected
+  Windows unit-test rerun reproduced seven state migration lock failures and
+  source inspection found POSIX mode-bit checks on Windows. The clean
+  isolated reproduction confirmed that first open/complete leaves the lock
+  and second open fails.
+- Follow-up evidence showed an inherited `CodexSandboxUsers: Modify,
+  Synchronize` ACE on the disposable Temp lock and database. The judgment
+  distinguishes a plausible confidentiality/integrity and availability risk
+  from an unproven access, disclosure, group membership, or breach. Temp ACLs
+  do not establish access on the intended per-user state path.
+- Decision: classify the seven lock failures as A runtime/product defect and
+  keep Task 1 blocked independently of Tunnel success. Keep the POSIX
+  permission-mode assertion B as a test-portability failure, with effective
+  ACL qualification still required. A supported fix/mitigation must pass
+  first-open, release, separate-process reopen, and recovery checks before
+  positive qualification. No implementation or dependency change was made.
+- Packet: `reports/escalation_packets/menaje_task1r_windows_state_lock_20261006.md`.
