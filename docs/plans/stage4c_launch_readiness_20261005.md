@@ -43,4 +43,11 @@ passes the required shakedown and regressions.
 
 ## Final classification
 
-`STAGE4C_PROTOCOL_FROZEN_READY_FOR_EXTERNAL_REVIEW_ROUND2`
+`STAGE4C_PROTOCOL_FROZEN_READY_FOR_EXTERNAL_REVIEW_ROUND3`
+
+## External review Round 2 authorization hardening
+
+- Stage 4C one-shot authorization identity is scoped to authorization scope + computation fingerprint + source commit SHA; run ID is excluded from the claim hash and retained in the durable claim payload.
+- The optimizer child verifies the exact Git-common claim path and payload before production execution.
+- The claim is consumed before active-run registration or external run-directory reservation, so a duplicate claim fails before those mutations.
+- The prior 512-evaluation non-scientific shakedown remains valid; this change does not alter the numerical protocol or cell engine.

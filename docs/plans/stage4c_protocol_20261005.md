@@ -240,3 +240,7 @@ specification.
 
 **Stage 4C production is NOT authorized by this document.** No production
 optimization or queue continuation was launched for this protocol preparation.
+
+## Round 2 one-shot authorization hardening
+
+The production authorization claim is source/protocol scoped: authorization scope, computation fingerprint, and source commit SHA determine the one-shot claim ID. The consuming run ID is stored in the claim payload but is not part of the hash, so changing only the run ID cannot mint a second authorization. The optimizer child verifies the exact Git-common claim path and payload. The claim is consumed before active-run registration and run-directory reservation; after consumption, a later launch failure does not recycle the authorization.

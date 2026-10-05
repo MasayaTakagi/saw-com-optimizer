@@ -11,7 +11,7 @@ import json
 import os
 import subprocess
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Mapping, Sequence
 
 import numpy as np
@@ -21,6 +21,7 @@ from .hybrid import stage4a_load_context
 
 STUDY_TYPE = "hybrid_stage4c_confirmatory"
 PROTOCOL_REVISION = "stage4c_confirmatory_v1"
+AUTHORIZATION_SCOPE = "stage4c-confirmatory-production-v1"
 TOPOLOGIES = ("P_D", "D_P")
 SEEDS = (20261007, 20261008, 20261009, 20261010, 20261011)
 STAGE4B_SEEDS = (20261002, 20261003, 20261004, 20261005, 20261006)
@@ -432,6 +433,18 @@ def ensure_stage4c_run_manifest(
     return value, True
 
 
+def authorization_claim_id(metadata: Mapping[str, Any]) -> str:
+    """Return the source/protocol-scoped one-shot authorization identity."""
+    payload = "|".join((
+        str(metadata.get("authorization_scope", "")),
+        str(metadata.get("computation_fingerprint", "")),
+        str(metadata.get("source_commit_sha", "")),
+    ))
+    if not all(payload.split("|")):
+        raise ValueError("Stage 4C authorization claim key is incomplete")
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def build_authorization_metadata(
     context: Mapping[str, Any], *, source_commit_sha: str, run_id: str,
     authorized_at: str,
@@ -441,7 +454,7 @@ def build_authorization_metadata(
         raise ValueError("Stage 4C authorization requires source, run ID, and timestamp")
     return {
         "user_authorized_production": True,
-        "authorization_scope": "stage4c-confirmatory-production-v1",
+        "authorization_scope": AUTHORIZATION_SCOPE,
         "required_production_root": PRODUCTION_RUN_ROOT,
         "study_type": STUDY_TYPE,
         "protocol_revision": PROTOCOL_REVISION,
@@ -500,7 +513,7 @@ def verify_stage4c_authorization(
         raise PermissionError("Stage 4C optimizer run path differs from its authorization metadata")
     if raw.get("run_storage_policy") != "external_persistent_v1":
         raise PermissionError("Stage 4C production requires external_persistent_v1 storage")
-    if not raw.get("persistent_run_root") or not Path(raw["persistent_run_root"]).is_absolute():
+    if not raw.get("persistent_run_root") or not _is_absolute_path(raw["persistent_run_root"]):
         raise PermissionError("Stage 4C production requires an absolute external persistent run root")
     if not _is_within(raw["persistent_run_root"], PRODUCTION_RUN_ROOT):
         raise PermissionError("Stage 4C production root must be below the frozen external production destination")
@@ -526,11 +539,56 @@ def verify_stage4c_authorization(
         raise PermissionError("Stage 4C authorization frozen review spec mismatch")
     if "codex_session_id" in metadata or "callback_enabled" in metadata:
         raise PermissionError("Stage 4C protocol metadata contains deprecated session/callback fields")
-    return {"manifest": raw, "authorization": dict(metadata)}
+
+    from ..orchestration.active_runs import git_common_dir
+
+    claim_id = authorization_claim_id(metadata)
+    claim_path = (
+        git_common_dir(Path(context["root"]))
+        / "sawopt-stage4c-authorization-claims"
+        / f"{claim_id}.json"
+    )
+    if metadata.get("authorization_claim_id") != claim_id:
+        raise PermissionError("Stage 4C authorization claim identifier mismatch")
+    recorded_claim_path = Path(str(metadata.get("authorization_claim_path", ""))).resolve(strict=False)
+    if recorded_claim_path != claim_path.resolve(strict=False):
+        raise PermissionError("Stage 4C authorization claim path mismatch")
+    if not claim_path.is_file():
+        raise PermissionError("Stage 4C one-shot authorization claim is missing")
+    claim = json.loads(claim_path.read_text(encoding="utf-8"))
+    if (
+        not isinstance(claim, Mapping)
+        or claim.get("schema_version") != 1
+        or claim.get("claim_id") != claim_id
+        or claim.get("authorization_scope") != AUTHORIZATION_SCOPE
+        or claim.get("computation_fingerprint") != metadata.get("computation_fingerprint")
+        or claim.get("source_commit_sha") != metadata.get("source_commit_sha")
+        or claim.get("run_id") != raw.get("run_id")
+    ):
+        raise PermissionError("Stage 4C one-shot authorization claim does not match this run")
+    return {
+        "manifest": raw,
+        "authorization": dict(metadata),
+        "claim_id": claim_id,
+        "claim_path": claim_path,
+    }
+
+
+def _is_absolute_path(candidate: str | Path) -> bool:
+    """Recognize native absolute paths and frozen Windows paths during portable review/tests."""
+    value = str(candidate)
+    return Path(value).is_absolute() or PureWindowsPath(value).is_absolute()
 
 
 def _is_within(candidate: str | Path, parent: str | Path) -> bool:
-    """Compare resolved path components without accepting textual prefixes."""
+    """Compare path components without accepting textual prefixes, including Windows paths on POSIX CI."""
+    candidate_text, parent_text = str(candidate), str(parent)
+    if PureWindowsPath(parent_text).is_absolute():
+        try:
+            PureWindowsPath(candidate_text).relative_to(PureWindowsPath(parent_text))
+        except ValueError:
+            return False
+        return True
     try:
         Path(candidate).resolve(strict=False).relative_to(Path(parent).resolve(strict=False))
     except (OSError, RuntimeError, ValueError):
@@ -670,7 +728,7 @@ __all__ = [
     "PRODUCTION_TOTAL_EVALUATIONS", "SEARCH_GRID_SHA256", "SEEDS",
     "SHAKEDOWN_BUDGET", "SHAKEDOWN_CHECKPOINTS", "SHAKEDOWN_SEED",
     "STAGE4B_SEEDS", "STUDY_TYPE", "TOPOLOGIES", "PRODUCTION_RUN_ROOT",
-    "QUALIFICATION_RUN_ROOT", "build_authorization_metadata",
+    "QUALIFICATION_RUN_ROOT", "AUTHORIZATION_SCOPE", "authorization_claim_id", "build_authorization_metadata",
     "build_stage4c_run_manifest", "expected_matrix", "expected_shakedown_matrix", "load_stage4c_context",
     "run_stage4c_production", "run_stage4c_shakedown", "validate_frozen_config",
     "ensure_stage4c_run_manifest", "validate_stage4c_run_manifest",

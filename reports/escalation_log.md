@@ -1758,3 +1758,10 @@ confirmation or a separately approved FEM extraction is required.
 - Result: `STAGE4C_PROTOCOL_FROZEN_READY_FOR_EXTERNAL_REVIEW_ROUND2`. No
   Stage 4C production was authorized or launched; no queue continuation was
   sent.
+
+### Stage 4C external review Round 2 — one-shot authorization lifecycle — 2026-10-05
+
+- Classification entering the fix: `STAGE4C_EXTERNAL_REVIEW_ROUND2_CHANGES_REQUESTED`.
+- Finding: the Stage 4C authorization claim ID was run-ID-scoped and the optimizer child did not independently verify the durable claim. Claim creation also followed active-run registration, which could leave stale state when duplicate claims become fail-closed.
+- Fix: claim identity is now authorization-scope + computation-fingerprint + source-SHA scoped; run ID remains in the claim payload. Child verification requires the exact Git-common claim path and matching payload. Stage 4C consumes the claim before active-run registration/run-directory reservation.
+- Scientific protocol, optimizer, 96k budget, seeds, grids, maturity/materiality rules, and Stage 4B behavior are unchanged. Production remains unauthorized and was not launched by this fix.
