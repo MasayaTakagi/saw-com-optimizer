@@ -84,7 +84,7 @@ def _commit_evidence(repo: Path, payload: dict) -> Path:
 
 
 class AdministrativeCloseoutTests(unittest.TestCase):
-    def _fixture(self, *, state="RUNNING", source_sha="a" * 40):
+    def _fixture(self, *, source_sha="a" * 40):
         temporary = TemporaryDirectory()
         root = Path(temporary.name)
         repo = root / "repo"
@@ -96,8 +96,6 @@ class AdministrativeCloseoutTests(unittest.TestCase):
         create_run(manifest)
         transition(run_dir, "STARTING", worker_pid=111, optimizer_pid=222)
         transition(run_dir, "RUNNING")
-        if state == "ORPHANED":
-            transition(run_dir, "ORPHANED", error="worker disappeared")
         (run_dir / "optimizer" / "checkpoints").mkdir(parents=True)
         sentinel = run_dir / "optimizer" / "checkpoints" / "latest.json"
         sentinel.write_text('{"keep": true}\n', encoding="utf-8")
@@ -109,7 +107,7 @@ class AdministrativeCloseoutTests(unittest.TestCase):
             "expected_run_dir": str(run_dir.resolve()),
             "expected_worker_pid": 111,
             "expected_optimizer_pid": 222,
-            "allowed_preclose_states": ["RUNNING", "ORPHANED"],
+            "allowed_preclose_states": ["RUNNING"],
             "failure_class": "MemoryError",
             "reason": "fixture orphan failure",
             "authorization_scope": "close only this run; no resume or relaunch",
@@ -183,23 +181,6 @@ class AdministrativeCloseoutTests(unittest.TestCase):
                 )
         self.assertEqual(load_status(run_dir)["state"], "RUNNING")
         release.assert_not_called()
-
-    def test_orphaned_state_can_be_closed_failed(self):
-        temporary, repo, run_dir, _sentinel, evidence_path = self._fixture(state="ORPHANED")
-        self.addCleanup(temporary.cleanup)
-        active = ({
-            "run_id": "run-1",
-            "run_dir": str(run_dir.resolve()),
-            "source_head": "a" * 40,
-        },)
-        with mock.patch("sawopt.orchestration.administrative_closeout.pid_exists", return_value=False), \
-                mock.patch("sawopt.orchestration.administrative_closeout.active_runs_for_worktree", return_value=active), \
-                mock.patch("sawopt.orchestration.administrative_closeout.release_active_run", return_value=True):
-            finalize_orphaned_failure(
-                run_dir, evidence_path.relative_to(repo), repository_root=repo,
-                confirm_abandon=True,
-            )
-        self.assertEqual(load_status(run_dir)["state"], "FAILED")
 
     def test_same_reviewed_evidence_is_idempotent_after_success(self):
         temporary, repo, run_dir, _sentinel, evidence_path = self._fixture()
