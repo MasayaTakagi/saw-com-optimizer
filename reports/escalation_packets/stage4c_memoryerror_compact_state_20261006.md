@@ -84,13 +84,18 @@ run is authorized.
 ## Implementation validation
 
 - TDD regression coverage verifies duplicate-heavy Stage 4C-path trajectory
-  parity, checkpoint/resume parity, frequency-grid exchange, compact-mode
-  expanded-bounds safety, stable finalist ties, counter state persistence,
-  non-finite rank serialization, large-payload compaction, and pre-parse v3
-  rejection. General full-cache trajectory parity across an `update_bounds()`
-  historical-key collision is intentionally not claimed.
-- The relevant optimizer, study, and orchestration suites pass: 44 tests.
-- The full repository suite passes: 350 tests and 20 subtests.
+  parity, checkpoint/resume parity, frequency-grid exchange, stable finalist
+  ties, counter state persistence, non-finite rank serialization, large-payload
+  compaction, and pre-parse v3 rejection. General full-cache trajectory parity
+  across an `update_bounds()` historical-key collision is intentionally not
+  claimed.
+- At repair commit `472c978c8534d5f7650249c53dfc752740299f5e`, the relevant optimizer,
+  study, and orchestration suites passed 44 tests, and the full repository suite
+  passed 350 tests and 20 subtests.
+- Follow-up GitHub review clarified the compact `update_bounds()` collision
+  policy and added a dedicated regression test for it. Those follow-up commits
+  have not yet been re-run through the local/full suite at the time of this
+  packet update; CI or an equivalent full rerun is required before merge.
 - A synthetic 96,000-entry history-storage smoke completed in 17.248 seconds.
   It serialized and reloaded 96,000 rank/index rows while retaining 16 full
   finalist records plus 234 active-population records. The resulting compact
@@ -98,7 +103,9 @@ run is authorized.
   design would contribute at least 786,432,000 payload bytes before JSON and
   Python-object overhead. This smoke validates history storage/round-trip, not
   an optimizer trajectory or a production run.
-- `git diff --check` passes. No Stage 4C production or shakedown was launched.
+- `git diff --check` passed at the repair commit. The follow-up review commits
+  require the normal CI/full-suite check before merge. No Stage 4C production
+  or shakedown was launched.
 
 The original run was rechecked read-only after the repair work. Its orchestration
 status still says `RUNNING`, but neither recorded PID (`21068` worker,
