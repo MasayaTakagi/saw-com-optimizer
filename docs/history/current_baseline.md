@@ -116,6 +116,9 @@ behind each item.
   qualification for `P_D` and `D_P`, with a predeclared longer L-SHADE horizon,
   matched seeds, cold starts, common dense validation, and late-improvement /
   boundary diagnostics. Stage 4C has not been launched.
+- The Stage 4C confirmatory protocol is now prepared and frozen for independent
+  review on branch `codex/stage4c-confirmatory-protocol`. Production remains
+  not launched and is not authorized by the protocol-preparation change.
 - Keep the final asymmetric impedance sweep premature until topology/design
   space is sufficiently stable and the COM/material model has been physically
   qualified. If Stage 4C does not establish a robust winner, both `P_D` and

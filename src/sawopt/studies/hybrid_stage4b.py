@@ -1015,4 +1015,13 @@ __all__ = [
     "build_authorization_metadata", "load_stage4b_context",
     "run_stage4b_production", "run_stage4b_shakedown",
     "verify_production_manifest",
+    "write_atomic_json", "matched_cell_paths", "read_source_state",
+    "run_matched_cell",
 ]
+
+# Public, unchanged production primitives reused by the confirmatory adapter.
+# The Stage 4B entry points and scientific protocol remain unchanged.
+write_atomic_json = _atomic_json
+matched_cell_paths = _cell_paths
+read_source_state = _source_state
+run_matched_cell = _run_cell

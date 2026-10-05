@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -56,6 +57,7 @@ def resolve_run_dir(value: str, root: Path | None = None) -> Path:
 def _build_optimizer_command(
     config: Path, optimizer_run_dir: Path, *, workers: int | None,
     stage4b_authorization_manifest: Path | None = None,
+    stage4c_authorization_manifest: Path | None = None,
 ) -> list[str]:
     command = [
         sys.executable,
@@ -71,6 +73,8 @@ def _build_optimizer_command(
         command.extend(["--workers", str(workers)])
     if stage4b_authorization_manifest is not None:
         command.extend(["--stage4b-authorization-manifest", str(stage4b_authorization_manifest)])
+    if stage4c_authorization_manifest is not None:
+        command.extend(["--stage4c-authorization-manifest", str(stage4c_authorization_manifest)])
     return command
 
 
@@ -93,6 +97,37 @@ def _claim_stage4b_authorization(root: Path, metadata: dict) -> tuple[str, Path]
             "computation_fingerprint": metadata["computation_fingerprint"],
             "source_commit_sha": metadata["source_commit_sha"],
             "run_id": metadata["run_id"],
+            "claimed_at_utc": utc_now(),
+        }
+        with claim_path.open("x", encoding="utf-8") as stream:
+            json.dump(claim, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+    return claim_id, claim_path
+
+
+def _claim_stage4c_authorization(root: Path, metadata: dict) -> tuple[str, Path]:
+    """Persist an exclusive one-shot claim for the frozen Stage 4C protocol."""
+    identity = {
+        "authorization_scope": "stage4c-confirmatory-production-v1",
+        "computation_fingerprint": metadata["computation_fingerprint"],
+        "source_commit_sha": metadata["source_commit_sha"],
+        "run_id": metadata["run_id"],
+    }
+    claim_id = hashlib.sha256(json.dumps(
+        identity, sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8")).hexdigest()
+    claim_directory = root / "runs" / ".stage4c_authorization_claims"
+    claim_path = claim_directory / f"{claim_id}.json"
+    claim_directory.mkdir(parents=True, exist_ok=True)
+    with exclusive_lock(claim_directory / ".claim.lock"):
+        if claim_path.exists():
+            raise RuntimeError("Stage 4C one-shot production authorization has already been claimed")
+        claim = {
+            "schema_version": 1,
+            "claim_id": claim_id,
+            **identity,
             "claimed_at_utc": utc_now(),
         }
         with claim_path.open("x", encoding="utf-8") as stream:
@@ -201,11 +236,16 @@ def launch(args: argparse.Namespace) -> int:
     config_payload = load_experiment_config(config)
     configured_study = config_payload.get("study", {})
     stage4b_launch = configured_study.get("type") == "hybrid_stage4b_topology_comparison"
+    stage4c_launch = configured_study.get("type") == "hybrid_stage4c_confirmatory"
     if stage4b_launch and not getattr(args, "authorize_stage4b_production", False):
         raise PermissionError("Stage 4B production requires --authorize-stage4b-production")
     if not stage4b_launch and getattr(args, "authorize_stage4b_production", False):
         raise ValueError("--authorize-stage4b-production is valid only for Stage 4B")
-    production_launch = stage4b_launch or any(
+    if stage4c_launch and not getattr(args, "authorize_stage4c_production", False):
+        raise PermissionError("Stage 4C production requires --authorize-stage4c-production")
+    if not stage4c_launch and getattr(args, "authorize_stage4c_production", False):
+        raise ValueError("--authorize-stage4c-production is valid only for Stage 4C")
+    production_launch = stage4b_launch or stage4c_launch or any(
         configured_study.get(key) is True
         for key in ("user_authorized_production", "production_launch_authorized", "ranking_eligible")
     ) or bool(configured_study.get("ranking_eligibility") not in (None, "", "never", False))
@@ -232,6 +272,16 @@ def launch(args: argparse.Namespace) -> int:
         storage_provenance = True
     else:
         run_dir = resolve_run_dir(args.run_dir, root) if args.run_dir else root / "runs" / run_id
+    if stage4c_launch:
+        required_production_root = Path(
+            config_payload.get("storage_contract", {}).get("production_root", "")
+        ).resolve(strict=False)
+        try:
+            run_dir.resolve(strict=False).relative_to(required_production_root)
+        except ValueError as exc:
+            raise ValueError(
+                "Stage 4C production destination must be below the frozen external production root"
+            ) from exc
     if storage_provenance:
         storage_validation = validate_persistent_run_location(run_dir, root)
         if not storage_validation.passed:
@@ -241,6 +291,8 @@ def launch(args: argparse.Namespace) -> int:
             )
     stage4b_context = None
     stage4b_source = None
+    stage4c_context = None
+    stage4c_source = None
     if stage4b_launch:
         if continuation_mode != "queue":
             raise ValueError("Stage 4B production requires exact-thread queue continuation")
@@ -265,6 +317,28 @@ def launch(args: argparse.Namespace) -> int:
             raise RuntimeError("Stage 4B production must launch from the named Stage 4B branch")
         if stage4b_source["status_short"]:
             raise RuntimeError("Stage 4B production requires a clean committed source tree")
+    if stage4c_launch:
+        if continuation_mode != "queue":
+            raise ValueError("Stage 4C production requires exact-thread queue continuation")
+        from ..studies.hybrid_stage4c import load_stage4c_context
+
+        stage4c_context = load_stage4c_context(config)
+        stage4c_source = {
+            "branch": subprocess.check_output(
+                ["git", "branch", "--show-current"], cwd=root, text=True,
+                encoding="utf-8", errors="replace",
+            ).strip(),
+            "head": subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True,
+                encoding="utf-8", errors="replace",
+            ).strip(),
+            "status_short": subprocess.check_output(
+                ["git", "status", "--short"], cwd=root, text=True,
+                encoding="utf-8", errors="replace",
+            ).strip(),
+        }
+        if stage4c_source["status_short"]:
+            raise RuntimeError("Stage 4C production requires a clean committed source tree")
     optimizer_run_dir = run_dir / "optimizer"
     if run_dir.exists() and any(run_dir.iterdir()):
         raise FileExistsError(f"orchestration directory is not empty: {run_dir}")
@@ -324,6 +398,7 @@ def launch(args: argparse.Namespace) -> int:
         optimizer_run_dir,
         workers=args.workers,
         stage4b_authorization_manifest=(run_dir / "run_manifest.json") if stage4b_launch else None,
+        stage4c_authorization_manifest=(run_dir / "run_manifest.json") if stage4c_launch else None,
     )
     experiment_metadata = None
     if stage4b_launch:
@@ -332,6 +407,19 @@ def launch(args: argparse.Namespace) -> int:
         experiment_metadata = build_authorization_metadata(
             stage4b_context,
             source_commit_sha=stage4b_source["head"],
+            run_id=run_id,
+            authorized_at=utc_now(),
+        )
+        experiment_metadata.update({
+            "orchestration_run_dir": str(run_dir.resolve()),
+            "optimizer_run_dir": str(optimizer_run_dir.resolve()),
+        })
+    elif stage4c_launch:
+        from ..studies.hybrid_stage4c import build_authorization_metadata
+
+        experiment_metadata = build_authorization_metadata(
+            stage4c_context,
+            source_commit_sha=stage4c_source["head"],
             run_id=run_id,
             authorized_at=utc_now(),
         )
@@ -411,6 +499,13 @@ def launch(args: argparse.Namespace) -> int:
         experiment_metadata["authorization_claim_path"] = str(claim_path.resolve())
         # The manifest is frozen, so build the final object after the exclusive
         # claim is persisted and include its durable identity.
+        manifest = RunManifest(
+            **{**manifest.to_dict(), "experiment_metadata": experiment_metadata}
+        )
+    elif stage4c_launch:
+        claim_id, claim_path = _claim_stage4c_authorization(root, experiment_metadata)
+        experiment_metadata["authorization_claim_id"] = claim_id
+        experiment_metadata["authorization_claim_path"] = str(claim_path.resolve())
         manifest = RunManifest(
             **{**manifest.to_dict(), "experiment_metadata": experiment_metadata}
         )
@@ -589,6 +684,10 @@ def build_parser() -> argparse.ArgumentParser:
     launch_parser.add_argument(
         "--authorize-stage4b-production", action="store_true",
         help="consume the current task's one-shot authorization for the exact Stage 4B protocol",
+    )
+    launch_parser.add_argument(
+        "--authorize-stage4c-production", action="store_true",
+        help="consume the current task's one-shot authorization for the exact Stage 4C protocol",
     )
     launch_parser.add_argument("--session-file", help=argparse.SUPPRESS)
     launch_parser.set_defaults(handler=launch)

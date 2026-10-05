@@ -470,6 +470,10 @@ def export_review(run_directory: str | Path, *, destination: str | Path | None =
         spec = load_review_spec(spec_id, repo)
         stage = str(spec["stage"])
         canonical = f"reports/experiment_reviews/{stage}/{raw.get('run_id', '')}"
+    if spec.get("spec_id") == "hybrid_stage4c":
+        from .hybrid_stage4c import validate_stage4c_review_contract
+
+        validate_stage4c_review_contract(run_root, repo)
     _validate_spec(spec)
     run_id = str(raw.get("run_id", ""))
     _safe_stage(stage, run_id)
