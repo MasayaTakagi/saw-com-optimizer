@@ -1,17 +1,17 @@
 # menaje Codex MCP Bridge — Task 1 Qualification
 
 Date: 2026-10-06 (Asia/Tokyo)
-Scope: Task 1 preflight and pinned upstream review, plus Task 1R Windows failure classification, dependency reachability, and live qualification readiness.
+Scope: Task 1 preflight and pinned upstream review, Task 1R Windows failure classification, Task 1F local Windows fix feasibility, dependency reachability, and live qualification readiness.
 
 ## Final decision
 
 TASK1_SECURITY_BLOCKED
 
-Task 1R re-ran the selected Windows suite against the unchanged pinned v0.4.1 checkout: 50 passed and 15 failed. All 15 failures are individually classified below. A clean isolated Windows reproduction confirms an A-class state-lock runtime defect: first open succeeds but leaves the lock, and the next open fails with `State migration lock is unreadable`. The observed test-temp lock and database also inherit `CodexSandboxUsers: Modify`; this is a plausible confidentiality/integrity concern for principals in that group, but group membership, access, disclosure, and production-state ACLs were not established. A bounded high-risk judgment is recorded in `reports/escalation_packets/menaje_task1r_windows_state_lock_20261006.md`.
+Task 1R re-ran the selected Windows suite against the unchanged pinned v0.4.1 checkout: 50 passed and 15 failed. All 15 failures are individually classified below. A clean isolated Windows reproduction confirmed an A-class state-lock runtime defect. Task 1F applied a local-only Windows state-boundary patch in the exact pinned clone; focused state/migration tests pass, the seven original A-class settings failures now pass, and the one remaining settings-file failure is the already-classified B-class POSIX mode assertion. The proposed fix remains conditional and is not part of an upstream release or an independently accepted patch. The observed test-temp lock and database inherited `CodexSandboxUsers: Modify`; that is a plausible confidentiality/integrity concern, not evidence of access or breach. ACLs were separately inspected on qualification-only profile-backed state files; see Task 1F evidence below.
 
-The official OpenAI tunnel-client v0.0.15 binary was integrity-verified and its version/help commands succeeded, but the user-private Tunnel configuration is not yet present: no runtime key, Tunnel ID, ChatGPT Tunnel connection, or Bridge runtime exists. No live security gate passed. Dependency advisories were assessed by path and reachability; their moderate severity alone is not treated as a blocker. Task 2 remains unauthorized because the state-lock defect is unresolved and the required live gates are incomplete. Do not use another transport or API billing mode to bypass the missing Tunnel prerequisites.
+The official OpenAI tunnel-client v0.0.15 binary was integrity-verified and its version/help commands succeeded. The Task 1 baseline had no private Tunnel configuration or Bridge runtime. Task 1F did not inspect credential values or run a Tunnel/live Bridge test. No live security gate passed. Dependency advisories were assessed by path and reachability; their moderate severity alone is not treated as a blocker. Task 2 remains unauthorized because the pinned release still has the state-lock defect and the required live gates are incomplete. Do not use another transport or API billing mode to bypass Tunnel prerequisites.
 
-Upstream Bridge source modifications: 0. SAW source modifications: 0. Dependency changes: 0.
+Upstream Bridge branch/tag modifications: 0; no upstream push. Local pinned-clone Task 1F patch: 7 files (6 tracked plus a new helper). SAW source-code modifications: 0. Dependency changes: 0.
 
 A separate source-review concern remains: upstream explicitly says project roots constrain the starting directory and are not OS-level isolation. Filesystem escape and prompt-injection tests therefore need a dedicated Windows user, VM, or equivalent disposable isolation before any later SAW access.
 
@@ -36,7 +36,7 @@ This task does not run fault injection, long jobs, workspace-write development, 
 - Exact tag commit: 8bb81b1b27745532b7bc2113bb00e66c43df3bbb
 - Pin method: read-only git ls-remote for refs/tags/v0.4.1, then clone and verify the exact commit. No moving latest reference was used.
 - Source checkout: C:/Users/sub/AppData/Local/Temp/menaje-task1-upstream-v0.4.1
-- Source checkout status: clean detached HEAD at the pinned commit; no upstream files were modified.
+- Source checkout baseline: detached HEAD at the pinned commit. Task 1F later added a local-only, uncommitted feasibility patch in this clone; the public upstream tag/branch was not changed.
 - Release page: https://github.com/menaje/codex-mcp-bridge-for-chatgpt/releases/tag/v0.4.1
 - Upstream modifications: 0.
 
@@ -220,6 +220,46 @@ The observed temp lock contained only the fields `acquiredAt`, `databaseFile`, `
 
 Bounded high-risk judgment: classify the lock behavior as A and block Task 1 independently of Tunnel success. Treat the group ACE as a plausible lock/database confidentiality and integrity concern, not a confirmed breach. See the packet and outcome in `reports/escalation_packets/menaje_task1r_windows_state_lock_20261006.md` and `reports/escalation_log.md`. No upstream fix or dependency patch was made.
 
+### Task 1F Phase 1 — Windows private-state fix criteria
+
+- Windows does not provide a trustworthy POSIX `stat.mode` private-file authority through this Node runtime; the `0666`-equivalent result cannot prove that a file is or is not private.
+- POSIX and Windows private-state verification must be separate. Existing POSIX mode/owner checks remain unchanged. Windows private-state authority is the NTFS security descriptor/DACL, interpreted by SID and access rules rather than locale-dependent `icacls` text.
+- The previous `CodexSandboxUsers: Modify` observation applies to a disposable Temp hierarchy. It is not evidence of the production state-path ACL. The current default per-user `.codex-mcp-bridge` directory and state files are absent. The profile root has a protected DACL for the user, SYSTEM, and Administrators, plus a non-inheritable AppContainer traverse ACE; this makes profile-root inheritance a candidate to test, not a substitute for inspecting the actual qualification state root and its files.
+- Rejected design: skip the private-state check on Windows. Also rejected: accept mode `0666` without independently proving Windows ACL privacy.
+
+Candidate designs for the minimal fix:
+
+| Design | Security/correctness | Windows and restart behavior | Race resistance | Dependency / size / maintenance |
+| --- | --- | --- | --- | --- |
+| A. Per-file Windows ACL validation | Strong if the opened lock/status file and its owner/allow ACEs are inspected without following a reparse point; fail closed on unknown ACEs. | Correctly handles Windows DACL authority and preserves existing lock semantics. | A pathname-only ACL probe may race file replacement; needs same-object or trusted-parent reasoning. | No npm dependency if implemented with a supported OS API; runtime/API bridge may add complexity. |
+| B. Establish and validate a protected state root; private files inherit it | Strong if root creation is protected, all parent path components are trusted, and explicit/broadened child ACLs are rejected. | Keeps the existing lock and restart protocol; new sidecars inherit an owner/SYSTEM/Admin-only boundary. | Better against untrusted principals when parent/root cannot be renamed or replaced; reparse and child ACL checks remain necessary. | Potentially small if Windows ACL setup/inspection uses a supported built-in API; requires safe handling of existing roots. |
+| C. Separate Windows lock mechanism | An OS-held lock can avoid stale ownership metadata after process exit, but does not establish privacy for the DB/status/model metadata. | Could change restart and crash recovery semantics substantially. | Kernel ownership can help with stale-owner races, but named-object ACLs and stale sidecars still need a design. | Larger behavior change; no external dependency is automatically justified. |
+
+Chosen direction after bounded high-risk review: retain POSIX checks and lock semantics; on Windows fail closed using owner/SID/ACE ACL checks for the full path, protected-root inheritance, and reparse/object-type checks. Do not add a separate lock mechanism. The implementation is limited to the local pinned clone for feasibility evidence; it is neither an upstream patch nor approved for production use.
+
+### Task 1F — implementation and requalification result
+
+Root cause confirmed: `readPrivateJson()` treated Windows `stat.mode` bits as a POSIX authority. The initial red first-open regression reproduced the defect before the implementation: first open and `complete()` left the lock and second open failed as unreadable.
+
+Local candidate patch:
+
+- Added `scripts/verify-private-state-acl.ps1`, using built-in PowerShell/.NET security descriptors and SID/ACE data. It walks and validates each path component, rejects untrusted owners, untrusted allow ACEs, null/missing DACLs, wrong object types, and reparse points, and fails closed when evidence is missing. Runtime invocation uses `-EncodedCommand`, a sanitized Windows PowerShell module path, no execution-policy override, and no npm dependency.
+- `src/stateDatabaseLifecycle.ts` now uses the Windows ACL boundary for state database/private JSON/lock access, verifies/creates the private root before writing, skips POSIX mode/uid checks only on Windows, and caches checks only after the protected path boundary is verified. Existing POSIX checks and lock token/live-owner/recovery semantics are retained.
+- Full migration tests exposed a separate Windows backup durability defect: `fsyncSync()` on an `O_RDONLY` descriptor returns `EPERM`. A bounded second review approved switching only the Windows snapshot descriptor to `O_RDWR`; POSIX remains `O_RDONLY`, and no file bytes are changed. Microsoft documents that `FlushFileBuffers` requires `GENERIC_WRITE` access ([FlushFileBuffers](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-flushfilebuffers)).
+- Test fixtures that exercise private state use a profile-backed root on Windows instead of inheriting the broad Temp ACL. The one B-class assertion expecting POSIX `0600` mode bits was deliberately not rewritten in the settings suite; it remains classified as test portability.
+- Patch size in the pinned local clone: 7 files total (6 tracked files plus the 98-line PowerShell helper); `git diff --check` is clean. The local diff has 556 insertions and 45 deletions including the helper. No dependency, MCP contract, policy, sandbox, Tunnel, SAW, or C2C changes were made.
+
+Windows evidence and tests:
+
+- Focused `stateDatabaseLifecycle.test.ts` and `stateSchemaMigration.test.ts`: 29/29 pass. Coverage includes first open/complete/lock removal/second open; separate-process reopen; separate-process contention while a live owner holds the lock; token mismatch; live/stale owner; malformed and oversized lock; directory and junction/reparse rejection; failed migration and maintenance-lease recovery; migration checkpoints/backup restore paths; Windows ACL-negative rejection; and snapshot flush with byte-for-byte unchanged backup contents.
+- `userSettings.test.ts`: 20/21 pass. All seven original A-class state-lock failures pass. The sole remaining failure is the unchanged B-class assertion that Windows `stat.mode` equals POSIX `0600`.
+- `tsc --noEmit -p tsconfig.json`: pass. `git diff --check`: pass. Vitest used the thread pool because this sandbox blocks fork workers; the native Windows tests ran with the required profile-root access.
+- ACL evidence was collected from a disposable qualification root directly under `C:\Users\sub`, then the root was removed. The root, SQLite database, backup snapshot, migration lock, migration status, and state metadata had current-user ownership. Their allow ACEs granted Full Control only to the current user, SYSTEM, and Administrators; no `CodexSandboxUsers` ACE or other principal allow ACE was present. The resolved `CodexSandboxUsers` SID was absent from the current process token. This verifies the disposable profile-backed qualification boundary, not the absent default `.codex-mcp-bridge` path or a different account's effective token; no separate-principal access attempt was made.
+- The original Temp hierarchy remains broader (`CodexSandboxUsers: Modify, Synchronize`) and is rejected as a private-state location. No evidence shows access or disclosure.
+- POSIX runtime tests were not rerun on a POSIX host. Their implementation branches remain unchanged by the patch; that is still a condition for accepting or releasing a fix.
+
+Feasibility judgment: `MENAJE_WINDOWS_FIX_FEASIBLE_WITH_CONDITIONS`. Keep menaje as a conditional candidate for a reviewed upstream fix or separately accepted mitigation. Do not treat the local patch as Task 1 qualification: the exact release remains affected, Task 1 live Tunnel/security gates remain unrun, the default state path has not been populated/qualified, and POSIX-host validation plus external review are outstanding. Task 2 remains unauthorized.
+
 ## Pinned source security findings
 
 - Bridge binds to loopback by default; this was read in source, not verified by a running listener.
@@ -253,11 +293,11 @@ An upstream source test being present does not count as a test result. No mandat
 
 | Test | Result | Evidence |
 | --- | --- | --- |
-| Secure Tunnel smoke | BLOCKED / not run | Official tunnel-client v0.0.15 verified locally; private config, Tunnel ID/key, and ChatGPT Tunnel connection absent. No network tunnel or fallback used. |
+| Secure Tunnel smoke | BLOCKED / not run | Task 1 baseline lacked private config, Tunnel ID/key, and ChatGPT Tunnel connection. Task 1F did not inspect credentials or start any tunnel. |
 | Read-only Codex task through ChatGPT | BLOCKED / not run | Depends on Secure Tunnel setup; no Bridge or App Server task was started. |
 | Bridge loopback bind | SOURCE ONLY | Pinned default is 127.0.0.1; no server was started. |
 | Fixture-only registration | NOT RUN | Fixture prepared; no Bridge settings or registration. |
-| Selected upstream Windows unit tests | FAIL (50/65 passed; 15 individually classified) | Exact v0.4.1, Node 24.19.0/npm 10.9.3; detailed table above; isolated state-lock repro confirms A runtime defect. No source or dependency changes. |
+| Selected upstream Windows unit tests | BASELINE FAIL (50/65 passed; 15 individually classified) | Exact v0.4.1, Node 24.19.0/npm 10.9.3; detailed table above. Task 1F local-clone reruns are recorded below; the pinned release remains unchanged. |
 | Absolute path escape | NOT RUN | Source rejects per-call cwd; no live task or filesystem probe. |
 | Parent traversal | NOT RUN | No live project/sandbox boundary test. |
 | Symlink escape | NOT RUN | Registry root is canonicalized; nested target access untested. |
@@ -285,18 +325,18 @@ Task 1 is PASS only when the exact pinned release runs on Windows native, Secure
 - TASK1_SECURITY_QUALIFIED_WITH_CONDITIONS requires explicit conditions, risks, mitigations, and a justified decision that Task 2 may proceed.
 - TASK1_SECURITY_BLOCKED applies when prerequisites are missing or a security boundary fails.
 
-Current gate: BLOCKED. The independently reproduced A-class Windows state-lock defect is the decisive blocker. The private Tunnel setup and all live runtime/security tests also remain incomplete. Advisory severity counts alone are not a block based on the reviewed reachability. Windows temp-file ACL evidence raises a plausible confidentiality/integrity question that must be checked against the intended private state paths. Do not proceed to Task 2 from this result. Do not use the SAW repository or enable workspace-write.
+Current gate: BLOCKED. The local Task 1F patch clears the tested state-lock and migration regressions, but the exact pinned release is unchanged and still contains the defect. Tunnel status was not rechecked in Task 1F, and all live runtime/security tests remain incomplete. Advisory severity counts alone are not a block based on reviewed reachability. The profile-backed ACL evidence qualifies only the disposable Task 1F root; it is not the default `.codex-mcp-bridge` runtime state. Do not proceed to Task 2 from this result. Do not use the SAW repository or enable workspace-write.
 
 ## Remaining conditions before Task 2
 
-- Resolve the Windows state-lock behavior through a supported upstream release or a separately reviewed mitigation, then pass clean first-open, release, separate-process restart/reopen, and recovery checks. A one-shot live success cannot waive this defect.
-- Establish effective Windows access for the actual qualification lock, SQLite database, and secret-bearing files; establish the intended trust boundary and membership/effective rights of `CodexSandboxUsers`. Current evidence is limited to the disposable Temp hierarchy; no breach was established.
-- Finish the user-private Secure MCP Tunnel setup using the runtime-scoped credential, Tunnel ID, ChatGPT Developer Mode connection, private Bridge config, and isolated qualification state. Do not disclose credential values.
+- Land or otherwise accept a reviewed fix through a supported upstream release or a separately approved mitigation; the local feasibility patch alone does not clear the pinned release. Re-run first-open, release, separate-process reopen/contention, migration, and recovery checks against that accepted artifact.
+- Qualify the actual configured `.codex-mcp-bridge` state root and files when the Bridge runtime is authorized. Task 1F inspected a disposable profile-backed state root; Temp remains unsuitable. No breach was established.
+- Verify the user-private Secure MCP Tunnel setup using only non-secret readiness indicators, then run the required Tunnel/Bridge gates only when separately authorized. Do not disclose credential values.
 - With the required read-only policy and fixture-only registration, execute every required live gate: Tunnel and loopback path; read-only ChatGPT-to-App-Server task; selector fail-closed cases; permission escalation; secret preflight; prompt-injection boundary; isolated absolute/parent/symlink/junction tests; and replay/idempotency. Record evidence for each.
 - Replace the C-class symlink tests with safe Windows-native tests under disposable isolation. Validate the B-class Windows path/profile/config and fake-executable cases with an equivalent Windows-native runtime harness; do not edit the pinned upstream source or tests in this qualification.
 - Keep Task 2 unauthorized until all required live tests pass and unresolved security-relevant runtime defects equal zero.
 
-Upstream Bridge source modifications: 0. SAW source modifications: 0. Dependency changes: 0.
+Upstream Bridge branch/tag modifications: 0; no upstream push. Local pinned-clone Task 1F patch: 7 files. SAW source-code modifications: 0. Dependency changes: 0.
 
 ## References
 

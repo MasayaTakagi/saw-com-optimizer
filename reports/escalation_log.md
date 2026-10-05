@@ -1785,3 +1785,55 @@ confirmation or a separately approved FEM extraction is required.
   first-open, release, separate-process reopen, and recovery checks before
   positive qualification. No implementation or dependency change was made.
 - Packet: `reports/escalation_packets/menaje_task1r_windows_state_lock_20261006.md`.
+
+### Task 1F menaje Windows private-state fix feasibility — 2026-10-06
+
+- Before implementation, requested bounded high-risk judgment on the private
+  state ACL boundary, race protection, and whether a separate Windows lock
+  mechanism was necessary. The first-open/reopen regression was added and run
+  red against the pinned v0.4.1 source: the first completion leaves the lock;
+  the second open fails because the Windows POSIX-mode check reports it as
+  unreadable.
+- Judgment supports attempting a bounded A+B patch (Windows-specific ACL
+  validation inside a protected state root, retaining POSIX behavior), with no
+  new npm dependency. A pathname-only ACL query followed by Node reopening the
+  path is insufficient unless the verified protected root excludes lower-trust
+  replacement. Required controls include trusted root creation/verification,
+  SID/ACE-based fail-closed checks, owner and reparse/regular-file checks, and
+  restart/recovery/ACL-negative/reparse/concurrency tests. A separate lock
+  implementation is not required absent an independent crash or concurrency
+  defect.
+- Judgment #1 supported trying a bounded A+B local patch with no new npm
+  dependency; C was not required absent an independent lock/concurrency defect.
+  The implementation uses a built-in PowerShell/.NET SID/ACE helper and
+  relies on a verified profile-backed parent boundary to close the pathname
+  check/reopen race against lower-trust principals. This is a conditional
+  design judgment; backend identity was not independently exposed.
+- Migration requalification then exposed an independent Windows durability
+  issue: `fsyncSync()` on an `O_RDONLY` migration backup descriptor fails with
+  `EPERM`. Judgment #2 approved a narrow adjunct: use `O_RDWR` only for the
+  Windows snapshot flush while retaining `O_RDONLY` and the existing no-follow,
+  validation, ordering, close, and error paths on POSIX/Windows as applicable.
+  Microsoft documents that `FlushFileBuffers` requires a handle with
+  `GENERIC_WRITE` access:
+  https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-flushfilebuffers.
+- Local pinned-clone result: first-open/release/reopen, separate-process reopen
+  and contention, lock invariants, reparse rejection, ACL-negative check,
+  migration/recovery/checkpoint, backup flush, and unchanged backup bytes pass
+  in the two focused suites (29/29). All seven original A-class
+  `userSettings.test.ts` failures now pass; its sole remaining failure is the
+  original B-class POSIX mode-bit assertion (20/21). TypeScript check and
+  `git diff --check` pass. Profile-backed qualification ACL inspection found
+  only current user, SYSTEM, and Administrators Full Control ACEs on the root,
+  database, backup, lock, status, and metadata; the Temp `CodexSandboxUsers`
+  ACE was absent from these objects and from the current token. The disposable
+  directory was removed after inspection.
+- Final feasibility: `MENAJE_WINDOWS_FIX_FEASIBLE_WITH_CONDITIONS`; retain
+  menaje as a conditional candidate for external review and a supported
+  upstream fix or separately accepted mitigation. The patch is not upstream,
+  the default `.codex-mcp-bridge` runtime state remains absent, POSIX-host
+  validation is outstanding, and no Task 1 live Tunnel/security gate passed.
+  Task 1 remains BLOCKED and Task 2 remains unauthorized. No dependency or SAW
+  source-code change, Tunnel test, Task 2 test, or upstream push was made.
+- Packet: `reports/escalation_packets/menaje_task1f_windows_acl_design_20261006.md`.
+- Follow-up packet: `reports/escalation_packets/menaje_task1f_backup_fsync_scope_20261006.md`.
