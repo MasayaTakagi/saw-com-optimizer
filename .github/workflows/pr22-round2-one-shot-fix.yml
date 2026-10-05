@@ -1,0 +1,362 @@
+name: PR22 Round 2 one-shot authorization fix
+
+on:
+  push:
+    branches: [codex/stage4c-confirmatory-protocol]
+
+permissions:
+  contents: write
+
+jobs:
+  fix-and-verify:
+    if: github.event.head_commit.message == 'chore: apply PR22 Round 2 authorization fix'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/stage4c-confirmatory-protocol
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Apply narrow Round 2 fix
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          # --- orchestration/cli.py: source/protocol claim identity and claim-before-registry ordering ---
+          path = Path('src/sawopt/orchestration/cli.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('import hashlib\n', '')
+          pattern = re.compile(
+              r'def _claim_stage4c_authorization\(root: Path, metadata: dict\) -> tuple\[str, Path\]:\n.*?\n\ndef _write_session_checkpoint',
+              re.S,
+          )
+          replacement = '''def _claim_stage4c_authorization(root: Path, metadata: dict) -> tuple[str, Path]:
+              """Persist one source/protocol-scoped claim bound to the consuming run."""
+              from ..studies.hybrid_stage4c import authorization_claim_id
+
+              claim_id = authorization_claim_id(metadata)
+              claim_directory = git_common_dir(root) / "sawopt-stage4c-authorization-claims"
+              claim_path = claim_directory / f"{claim_id}.json"
+              claim_directory.mkdir(parents=True, exist_ok=True)
+              with exclusive_lock(claim_directory / ".claim.lock"):
+                  if claim_path.exists():
+                      raise RuntimeError("Stage 4C one-shot production authorization has already been claimed")
+                  claim = {
+                      "schema_version": 1,
+                      "claim_id": claim_id,
+                      "authorization_scope": metadata["authorization_scope"],
+                      "computation_fingerprint": metadata["computation_fingerprint"],
+                      "source_commit_sha": metadata["source_commit_sha"],
+                      "run_id": metadata["run_id"],
+                      "claimed_at_utc": utc_now(),
+                  }
+                  with claim_path.open("x", encoding="utf-8") as stream:
+                      json.dump(claim, stream, ensure_ascii=False, indent=2)
+                      stream.write("\\n")
+                      stream.flush()
+                      os.fsync(stream.fileno())
+              return claim_id, claim_path
+
+
+def _write_session_checkpoint'''
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('failed to replace Stage 4C claim function')
+
+          stage4c_block = '''    elif stage4c_launch:
+              claim_id, claim_path = _claim_stage4c_authorization(root, experiment_metadata)
+              experiment_metadata["authorization_claim_id"] = claim_id
+              experiment_metadata["authorization_claim_path"] = str(claim_path.resolve())
+              manifest = RunManifest(
+                  **{**manifest.to_dict(), "experiment_metadata": experiment_metadata}
+              )
+'''
+          if text.count(stage4c_block) != 1:
+              raise SystemExit('unexpected Stage 4C claim block count')
+          text = text.replace(stage4c_block, '', 1)
+          insertion = '''    if stage4c_launch:
+              claim_id, claim_path = _claim_stage4c_authorization(root, experiment_metadata)
+              experiment_metadata["authorization_claim_id"] = claim_id
+              experiment_metadata["authorization_claim_path"] = str(claim_path.resolve())
+              manifest = RunManifest(
+                  **{**manifest.to_dict(), "experiment_metadata": experiment_metadata}
+              )
+'''
+          marker = '''    if storage_provenance:
+              # Final recheck plus exclusive directory reservation closes the gap
+'''
+          if marker not in text:
+              raise SystemExit('storage reservation marker not found')
+          text = text.replace(marker, insertion + marker, 1)
+          path.write_text(text, encoding='utf-8', newline='\n')
+
+          # --- hybrid_stage4c.py: stable claim key and child-side durable claim verification ---
+          path = Path('src/sawopt/studies/hybrid_stage4c.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              'PROTOCOL_REVISION = "stage4c_confirmatory_v1"\n',
+              'PROTOCOL_REVISION = "stage4c_confirmatory_v1"\nAUTHORIZATION_SCOPE = "stage4c-confirmatory-production-v1"\n',
+              1,
+          )
+          helper_marker = 'def build_authorization_metadata(\n'
+          helper = '''def authorization_claim_id(metadata: Mapping[str, Any]) -> str:
+              """Return the source/protocol-scoped one-shot authorization identity."""
+              payload = "|".join((
+                  str(metadata.get("authorization_scope", "")),
+                  str(metadata.get("computation_fingerprint", "")),
+                  str(metadata.get("source_commit_sha", "")),
+              ))
+              if not all(payload.split("|")):
+                  raise ValueError("Stage 4C authorization claim key is incomplete")
+              return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+'''
+          if 'def authorization_claim_id(' not in text:
+              if helper_marker not in text:
+                  raise SystemExit('build_authorization_metadata marker not found')
+              text = text.replace(helper_marker, helper + helper_marker, 1)
+          text = text.replace(
+              '"authorization_scope": "stage4c-confirmatory-production-v1",',
+              '"authorization_scope": AUTHORIZATION_SCOPE,',
+          )
+          verifier_tail = '''    if "codex_session_id" in metadata or "callback_enabled" in metadata:
+              raise PermissionError("Stage 4C protocol metadata contains deprecated session/callback fields")
+              return {"manifest": raw, "authorization": dict(metadata)}
+'''
+          if verifier_tail not in text:
+              raise SystemExit('Stage 4C verifier tail not found')
+          verifier_replacement = '''    if "codex_session_id" in metadata or "callback_enabled" in metadata:
+              raise PermissionError("Stage 4C protocol metadata contains deprecated session/callback fields")
+
+              from ..orchestration.active_runs import git_common_dir
+
+              claim_id = authorization_claim_id(metadata)
+              claim_path = (
+                  git_common_dir(Path(context["root"]))
+                  / "sawopt-stage4c-authorization-claims"
+                  / f"{claim_id}.json"
+              )
+              if metadata.get("authorization_claim_id") != claim_id:
+                  raise PermissionError("Stage 4C authorization claim identifier mismatch")
+              recorded_claim_path = Path(str(metadata.get("authorization_claim_path", ""))).resolve(strict=False)
+              if recorded_claim_path != claim_path.resolve(strict=False):
+                  raise PermissionError("Stage 4C authorization claim path mismatch")
+              if not claim_path.is_file():
+                  raise PermissionError("Stage 4C one-shot authorization claim is missing")
+              claim = json.loads(claim_path.read_text(encoding="utf-8"))
+              if (
+                  not isinstance(claim, Mapping)
+                  or claim.get("schema_version") != 1
+                  or claim.get("claim_id") != claim_id
+                  or claim.get("authorization_scope") != AUTHORIZATION_SCOPE
+                  or claim.get("computation_fingerprint") != metadata.get("computation_fingerprint")
+                  or claim.get("source_commit_sha") != metadata.get("source_commit_sha")
+                  or claim.get("run_id") != raw.get("run_id")
+              ):
+                  raise PermissionError("Stage 4C one-shot authorization claim does not match this run")
+              return {
+                  "manifest": raw,
+                  "authorization": dict(metadata),
+                  "claim_id": claim_id,
+                  "claim_path": claim_path,
+              }
+'''
+          text = text.replace(verifier_tail, verifier_replacement, 1)
+          text = text.replace(
+              '"QUALIFICATION_RUN_ROOT", "build_authorization_metadata",',
+              '"QUALIFICATION_RUN_ROOT", "AUTHORIZATION_SCOPE", "authorization_claim_id", "build_authorization_metadata",',
+              1,
+          )
+          path.write_text(text, encoding='utf-8', newline='\n')
+
+          # --- tests: update existing verifier fixture and add Round 2 regressions ---
+          path = Path('tests/unit/studies/test_hybrid_stage4c.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              '    BUDGET,\n',
+              '    AUTHORIZATION_SCOPE,\n    BUDGET,\n',
+              1,
+          )
+          text = text.replace(
+              '    build_authorization_metadata,\n',
+              '    authorization_claim_id,\n    build_authorization_metadata,\n',
+              1,
+          )
+          text = text.replace(
+              'def test_stage4c_manifest_and_authorization_contract_have_no_legacy_fields(tmp_path):',
+              'def test_stage4c_manifest_and_authorization_contract_have_no_legacy_fields(tmp_path, monkeypatch):',
+              1,
+          )
+          fixture_anchor = '''    assert metadata["authorization_scope"] == "stage4c-confirmatory-production-v1"
+              assert not ({"codex_session_id", "callback_enabled"} & set(metadata))
+              orchestration_manifest = {
+'''
+          fixture_insert = '''    assert metadata["authorization_scope"] == AUTHORIZATION_SCOPE
+              assert not ({"codex_session_id", "callback_enabled"} & set(metadata))
+              git_common = tmp_path / "git-common"
+              claim_dir = git_common / "sawopt-stage4c-authorization-claims"
+              claim_dir.mkdir(parents=True)
+              monkeypatch.setattr("sawopt.orchestration.active_runs.git_common_dir", lambda _root: git_common)
+              claim_id = authorization_claim_id(metadata)
+              claim_path = claim_dir / f"{claim_id}.json"
+              claim_payload = {
+                  "schema_version": 1,
+                  "claim_id": claim_id,
+                  "authorization_scope": metadata["authorization_scope"],
+                  "computation_fingerprint": metadata["computation_fingerprint"],
+                  "source_commit_sha": metadata["source_commit_sha"],
+                  "run_id": metadata["run_id"],
+                  "claimed_at_utc": "2026-10-05T00:00:01+00:00",
+              }
+              claim_path.write_text(json.dumps(claim_payload), encoding="utf-8")
+              metadata["authorization_claim_id"] = claim_id
+              metadata["authorization_claim_path"] = str(claim_path.resolve())
+              orchestration_manifest = {
+'''
+          if fixture_anchor not in text:
+              raise SystemExit('authorization fixture anchor not found')
+          text = text.replace(fixture_anchor, fixture_insert, 1)
+
+          relative_anchor = '''    orchestration_manifest["persistent_run_root"] = "relative/run-root"
+              path.write_text(json.dumps(orchestration_manifest), encoding="utf-8")
+              with pytest.raises(PermissionError, match="absolute external persistent run root"):
+                  verify_stage4c_authorization(context, path)
+'''
+          relative_replacement = relative_anchor + '''
+              orchestration_manifest["persistent_run_root"] = PRODUCTION_RUN_ROOT
+              path.write_text(json.dumps(orchestration_manifest), encoding="utf-8")
+              claim_path.unlink()
+              with pytest.raises(PermissionError, match="one-shot authorization claim is missing"):
+                  verify_stage4c_authorization(context, path)
+
+              claim_path.write_text(json.dumps({**claim_payload, "run_id": "different-run"}), encoding="utf-8")
+              with pytest.raises(PermissionError, match="one-shot authorization claim does not match this run"):
+                  verify_stage4c_authorization(context, path)
+
+              claim_path.write_text(json.dumps(claim_payload), encoding="utf-8")
+              orchestration_manifest["experiment_metadata"]["authorization_claim_path"] = str(tmp_path / "wrong-claim.json")
+              path.write_text(json.dumps(orchestration_manifest), encoding="utf-8")
+              with pytest.raises(PermissionError, match="authorization claim path mismatch"):
+                  verify_stage4c_authorization(context, path)
+'''
+          if relative_anchor not in text:
+              raise SystemExit('relative-root assertion anchor not found')
+          text = text.replace(relative_anchor, relative_replacement, 1)
+
+          claim_test_anchor = '''def _synthetic_review_run(tmp_path, *, repository_root, context):
+'''
+          claim_tests = '''def test_stage4c_claim_is_source_protocol_scoped_and_duplicate_run_id_is_rejected(tmp_path):
+              repository = tmp_path / "repo"
+              repository.mkdir()
+              subprocess.run(["git", "init", "-q", str(repository)], check=True)
+              metadata_a = {
+                  "authorization_scope": AUTHORIZATION_SCOPE,
+                  "computation_fingerprint": "c" * 64,
+                  "source_commit_sha": "a" * 40,
+                  "run_id": "stage4c-run-a",
+              }
+              metadata_b = {**metadata_a, "run_id": "stage4c-run-b"}
+              assert authorization_claim_id(metadata_a) == authorization_claim_id(metadata_b)
+              claim_id, claim_path = orchestration_cli._claim_stage4c_authorization(repository, metadata_a)
+              assert claim_id == authorization_claim_id(metadata_a)
+              claim = json.loads(claim_path.read_text(encoding="utf-8"))
+              assert claim["run_id"] == "stage4c-run-a"
+              with pytest.raises(RuntimeError, match="already been claimed"):
+                  orchestration_cli._claim_stage4c_authorization(repository, metadata_b)
+              assert not (repository / "runs").exists()
+
+
+          def test_stage4c_claim_is_consumed_before_active_run_registration():
+              import inspect
+
+              source = inspect.getsource(orchestration_cli.launch)
+              claim_marker = "claim_id, claim_path = _claim_stage4c_authorization"
+              registry_marker = "register_active_run("
+              assert source.index(claim_marker) < source.index(registry_marker)
+
+
+'''
+          if claim_test_anchor not in text:
+              raise SystemExit('synthetic review anchor not found')
+          text = text.replace(claim_test_anchor, claim_tests + claim_test_anchor, 1)
+
+          old_claim_metadata = '''    metadata = {
+              "computation_fingerprint": "c" * 64,
+              "source_commit_sha": "a" * 40,
+              "run_id": "stage4c-claim-fixture",
+          }
+'''
+          new_claim_metadata = '''    metadata = {
+              "authorization_scope": AUTHORIZATION_SCOPE,
+              "computation_fingerprint": "c" * 64,
+              "source_commit_sha": "a" * 40,
+              "run_id": "stage4c-claim-fixture",
+          }
+'''
+          if old_claim_metadata in text:
+              text = text.replace(old_claim_metadata, new_claim_metadata, 1)
+          path.write_text(text, encoding='utf-8', newline='\n')
+
+          # --- docs / decision log ---
+          readiness = Path('docs/plans/stage4c_launch_readiness_20261005.md')
+          rtext = readiness.read_text(encoding='utf-8')
+          rtext = rtext.replace(
+              'STAGE4C_PROTOCOL_FROZEN_READY_FOR_EXTERNAL_REVIEW_ROUND2',
+              'STAGE4C_PROTOCOL_FROZEN_READY_FOR_EXTERNAL_REVIEW_ROUND3',
+          )
+          if 'source/protocol-scoped one-shot authorization' not in rtext:
+              rtext += '''\n## External review Round 2 authorization hardening\n\n- Stage 4C one-shot authorization identity is scoped to authorization scope + computation fingerprint + source commit SHA; run ID is excluded from the claim hash and retained in the durable claim payload.\n- The optimizer child verifies the exact Git-common claim path and payload before production execution.\n- The claim is consumed before active-run registration or external run-directory reservation, so a duplicate claim fails before those mutations.\n- The prior 512-evaluation non-scientific shakedown remains valid; this change does not alter the numerical protocol or cell engine.\n'''
+          readiness.write_text(rtext, encoding='utf-8', newline='\n')
+
+          protocol = Path('docs/plans/stage4c_protocol_20261005.md')
+          ptext = protocol.read_text(encoding='utf-8')
+          if '## Round 2 one-shot authorization hardening' not in ptext:
+              ptext += '''\n## Round 2 one-shot authorization hardening\n\nThe production authorization claim is source/protocol scoped: authorization scope, computation fingerprint, and source commit SHA determine the one-shot claim ID. The consuming run ID is stored in the claim payload but is not part of the hash, so changing only the run ID cannot mint a second authorization. The optimizer child verifies the exact Git-common claim path and payload. The claim is consumed before active-run registration and run-directory reservation; after consumption, a later launch failure does not recycle the authorization.\n'''
+          protocol.write_text(ptext, encoding='utf-8', newline='\n')
+
+          log = Path('reports/escalation_log.md')
+          ltext = log.read_text(encoding='utf-8')
+          if 'STAGE4C_EXTERNAL_REVIEW_ROUND2_CHANGES_REQUESTED' not in ltext:
+              ltext += '''\n### Stage 4C external review Round 2 — one-shot authorization lifecycle — 2026-10-05\n\n- Classification entering the fix: `STAGE4C_EXTERNAL_REVIEW_ROUND2_CHANGES_REQUESTED`.\n- Finding: the Stage 4C authorization claim ID was run-ID-scoped and the optimizer child did not independently verify the durable claim. Claim creation also followed active-run registration, which could leave stale state when duplicate claims become fail-closed.\n- Fix: claim identity is now authorization-scope + computation-fingerprint + source-SHA scoped; run ID remains in the claim payload. Child verification requires the exact Git-common claim path and matching payload. Stage 4C consumes the claim before active-run registration/run-directory reservation.\n- Scientific protocol, optimizer, 96k budget, seeds, grids, maturity/materiality rules, and Stage 4B behavior are unchanged. Production remains unauthorized and was not launched by this fix.\n'''
+          log.write_text(ltext, encoding='utf-8', newline='\n')
+          PY
+
+      - name: Install package and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . pytest
+
+      - name: Run focused Stage 4C and orchestration regressions
+        run: >-
+          python -m pytest -q
+          tests/unit/studies/test_hybrid_stage4c.py
+          tests/unit/studies/test_hybrid_stage4b.py
+          tests/unit/orchestration/test_cli.py
+          tests/unit/orchestration/test_persistent_storage.py
+
+      - name: Run full suite
+        run: python -m pytest -q
+
+      - name: Diff check
+        run: git diff --check
+
+      - name: Commit verified fix and remove one-shot workflow
+        shell: bash
+        run: |
+          rm .github/workflows/pr22-round2-one-shot-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: harden Stage 4C one-shot authorization'
+          git push origin HEAD:codex/stage4c-confirmatory-protocol
