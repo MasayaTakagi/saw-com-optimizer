@@ -1732,3 +1732,24 @@ confirmation or a separately approved FEM extraction is required.
   registry and requires explicit one-time reconciliation before initialization.
 - No optimizer, COM/RF, study conditions, historical manifests, or production
   results are changed. Stage 4C and queue requalification remain out of scope.
+
+### Stage 4C pre-run maturity and equivalence closeout judgment — 2026-10-05
+
+- Packet:
+  `reports/escalation_packets/stage4c_closeout_margin_sol_2026-10-05.md`.
+- Requested bounded judgment from `gpt-6-sol`: determine what Stage 4B can
+  support for equivalence margins and late-checkpoint direction. Backend model
+  identity and actual reasoning effort were not independently verified.
+- Judgment: Stage 4B cannot support a numeric equivalence margin or a mature
+  tail claim. Require the same topology to win at least 4/5 matched seeds at
+  each of 64k, 80k, and 96k, inspect late reversals/gain, and require a
+  predeclared numeric margin plus mature tails before practical equivalence.
+  A 3–2 split or inadequate evidence remains unresolved. No numeric margin was
+  recommended.
+- Codex froze pre-run planning margins of 0.02 absolute and 1% relative for
+  max/sum normalized violation, and 0.05 dB for worst in-band IL/ripple. These
+  are an explicit planning assumption, not values inferred from Stage 4B.
+  The classifier also requires at least four of the same winning seeds across
+  late checkpoints and four winning pairs outside the envelope for a clear
+  winner. Focused tests cover the implementation. No production was launched
+  or authorized.

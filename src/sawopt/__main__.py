@@ -33,7 +33,11 @@ def _refinement_points(command, step, records, configured_resistances):
     return np.arange(max(20, resistance - 10), min(200, resistance + 10) + 1e-9, step).tolist()
 
 
-def _run_study(config_path, run_path, *, resume=False, stage4b_authorization_manifest=None):
+def _run_study(
+    config_path, run_path, *, resume=False,
+    stage4b_authorization_manifest=None,
+    stage4c_authorization_manifest=None,
+):
     cfg = load_experiment_config(config_path)
     study = cfg.get("study", {})
     protocol = study.get("type") if isinstance(study, dict) else None
@@ -45,13 +49,21 @@ def _run_study(config_path, run_path, *, resume=False, stage4b_authorization_man
         return run_stage4b_production(
             config_path, run_path, stage4b_authorization_manifest,
         )
+    if protocol == "hybrid_stage4c_confirmatory":
+        if not stage4c_authorization_manifest:
+            raise PermissionError("Stage 4C production requires a bound orchestration authorization manifest")
+        from .studies.hybrid_stage4c import run_stage4c_production
+
+        return run_stage4c_production(
+            config_path, run_path, stage4c_authorization_manifest,
+        )
     if protocol == "postrun_workflow_qualification":
         from .studies.postrun_workflow_qualification import run_qualification_fixture
 
         return run_qualification_fixture(config_path, run_path)
     if protocol != "dms_topology_screening":
         raise ValueError(
-            f"Unknown study.type {protocol!r}; expected 'dms_topology_screening' or Stage 4B production"
+            f"Unknown study.type {protocol!r}; expected 'dms_topology_screening', Stage 4B, or Stage 4C production"
         )
     from .studies.dms_topology_screening import run_dms_topology_screening
 
@@ -71,6 +83,7 @@ def main():
     parser.add_argument("--refine-step", type=float)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--stage4b-authorization-manifest")
+    parser.add_argument("--stage4c-authorization-manifest")
     parser.add_argument("--destination", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
@@ -87,6 +100,7 @@ def main():
         result = _run_study(
             args.config, args.run, resume=args.resume,
             stage4b_authorization_manifest=args.stage4b_authorization_manifest,
+            stage4c_authorization_manifest=args.stage4c_authorization_manifest,
         )
         complete_study_run(
             args.run, result,
