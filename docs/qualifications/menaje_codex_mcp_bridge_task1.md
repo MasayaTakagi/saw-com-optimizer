@@ -404,3 +404,53 @@ Upstream Bridge branch/tag modifications: 0; no upstream push. Local pinned-clon
 - OpenAI MCP servers and approval behavior: https://developers.openai.com/api/docs/guides/tools-connectors-mcp
 
 Final classification: `TASK1_SECURITY_BLOCKED`
+
+## Task 1H — fail-closed stale-lock policy (2026-10-06)
+
+Task 1G candidate v3 remains immutable and REJECTED. Task 1H fixes the policy for candidate v4: the runtime must never automatically reclaim an existing lock path. A dead PID is only evidence that the lock may be stale; it is not authority to delete. Existing locks are inspected where safe. A valid live owner produces an ownership-conflict error; stale, malformed, oversized, unreadable, ACL-invalid, wrong-type, reparse, or otherwise uncertain locks fail closed with recovery required. The runtime must not acquire ownership, replace, or delete such a lock.
+
+Lock invariant: once the lock path exists, runtime code may delete it only when it can safely prove that it still owns the same object. Candidate v4 will not add a native Windows identity-deletion or coordination layer. In particular, PID liveness, mtime, age, empty content, malformed JSON, or a prior token read will not authorize stale-lock deletion. A post-create ACL validation failure may leave the newly created lock in place; the operation fails, later starts fail closed, and an operator performs offline recovery.
+
+### Controlled offline recovery procedure
+
+1. Stop the Bridge.
+2. Verify no Bridge process remains.
+3. Ensure no concurrent starter or supervisor can start it during recovery.
+4. Confirm the configured private state root is the explicitly qualified root.
+5. Verify the state root and lock path are not reparse points.
+6. Verify lock owner and ACL against the approved principals.
+7. Inspect the lock contents and object type without modifying them.
+8. Inspect database ownership and Bridge state for a live owner.
+9. Have the operator explicitly determine that the lock is stale.
+10. Remove the lock offline while the Bridge and all starters remain stopped.
+11. Restart the Bridge.
+12. Verify state integrity and lock ownership/release.
+
+Never perform manual recovery while a Bridge or competing starter may be running. No recovery automation or cleanup helper is introduced by Task 1H.
+
+The existing normal-release paths read a token and then unlink by path. Sol confirmed this has the same replacement race: a different lock can replace the path between token validation and `rmSync`. Existing Node path APIs provide no atomic compare-token-and-unlink; extra reads or rename do not close the race. This remains a candidate-v4 blocker under the user's constraints. Candidate v4 will disclose it and will not add an unreviewed native mechanism.
+
+### Candidate v4 freeze and local Windows evidence
+
+- Identity: `menaje-v0.4.1-task1h-windows-lock-policy-v4`.
+- Upstream base: `8bb81b1b27745532b7bc2113bb00e66c43df3bbb`.
+- Exact patch: `reports/qualifications/menaje_task1h_v0.4.1_windows_lock_policy_candidate_v4.patch`.
+- Patch SHA-256: `DC8F69667792B722F0ECBC7A83518C2338FDC3434D2DA4AF48F25574C2024647`.
+- Exact patch replay from the base passed `git apply --check`; replay diffstat matched.
+- Changed files: `package.json`; `scripts/verify-private-state-acl.ps1`; `src/stateBackup.ts`; `src/stateDatabaseLifecycle.ts`; `test/stateDatabaseLifecycle.test.ts`; `test/stateMigrationLockPolicy.test.ts`; `test/stateSchemaMigration.test.ts`; `test/userSettings.test.ts`.
+- Diffstat: 8 files, 1,288 insertions, 70 deletions. Relative to v3: +1 file, +306 insertions, +24 deletions.
+- Automatic stale-lock reclamation removed: YES. New lock acquisition still uses exclusive create. Existing live owner reports conflict; dead owner reports recovery required; malformed/unreadable/oversized/ACL-invalid/wrong-type/reparse/uncertain locks remain unchanged and fail closed. A post-create Windows ACL failure closes the descriptor, retains the empty lock, and reports controlled manual recovery.
+- The two token-read-then-path-unlink release paths remain unchanged. Deterministic expected-failure tests reproduce replacement deletion in both open-lease and maintenance-lease release. This is an unresolved correctness blocker; no safe Node path-only repair was identified.
+- TypeScript check: PASS. Focused lock/lifecycle regressions passed, including first/second open, separate-process reopen/contention, stale and malformed locks, ACL-invalid lock, concurrent stale contenders, replacement after stale inspection, and injected post-create ACL failure. The two normal-release replacement tests are expected failures and block acceptance.
+- Selected migration/backup/recovery tests: 5 PASS (Windows backup flush with unchanged bytes, schema 18 upgrade, interrupted recovery/retry, stale-backup replacement, and multi-checkpoint recovery). Full lifecycle checkpoint enumeration was stopped after several minutes without a result; it is not counted as a pass. The Windows owner-SID negative fixture remains skipped because this token cannot assign that SID.
+- Independent candidate-v4 review: REJECT. No POSIX regression, Secure MCP Tunnel, live Bridge gate, or Task 2 work was run.
+
+### Task 1H final decision
+
+`TASK1H_LOCK_POLICY_REJECTED`
+
+Independent review rejected candidate v4. The major finding is that both normal-release paths still validate a token and then unlink by path, allowing a replacement lock to be deleted. The reviewer requires a separately authorized design or an explicit policy decision accepting this residual risk. The reviewer also noted that disabling stale-lock reclamation changes behavior on POSIX as well as Windows; POSIX checks remain present, but the platform behavior has not been qualified. Under the user's stop condition, do not proceed to POSIX regression, Secure MCP Tunnel, live Bridge gates, or Task 2.
+
+Candidate v4 remains a frozen, reproducible partial remediation, not an accepted lock lifecycle. Its acquisition path removes automatic stale-lock reclamation, preserves existing locks on stale/malformed/ACL-invalid/reparse/unreadable cases, and leaves the new lock after a post-create ACL failure. The two normal-release replacement races remain unresolved. Candidate v3 remains frozen and untouched.
+
+Overall Task 1 state remains `TASK1_SECURITY_BLOCKED`; Task 2 authorization remains `NO`.
