@@ -125,27 +125,49 @@ separately. The L-SHADE best-so-far trace supplies improvement timing. Fixed
 grid identity and the absence of recovery/polish phases in this execution path
 are recorded as explicit protocol facts. Late gain uses the existing
 convergence helper's primary rank component (maximum normalized violation),
-not a newly weighted score. An active hard-bound hit is treated conservatively
-as unresolved for maturity.
+not a newly weighted score. A historical checkpoint hit is diagnostic; only
+an unresolved terminal hit or pending follow-up blocks maturity.
 
-A cell is mature only when evidence is complete, the grid is stable, recovery
-and boundary states are clear, no unresolved hard-bound condition remains,
-there is no significant 80k→96k improvement, and the last significant gain is
-at or before 80% of the terminal budget. Reaching 96k alone does not establish
-maturity. Maturity is post-run interpretation only and never an early-stop
-condition.
+A selected candidate touching a hard bound at a checkpoint is recorded as a
+`historical_bound_hit`. That history remains visible in the convergence and
+bound-pressure reports, but by itself does not keep the cell immature. At the
+terminal interpretation point, a selected candidate touching a hard bound is
+recorded as both `hard_bound_unresolved` and
+`boundary_pending_confirmation`; either terminal state blocks maturity. An
+earlier bound hit that is clear at 96k does not block maturity. Reaching 96k
+alone does not establish maturity. Maturity is post-run interpretation only
+and never an early-stop condition.
 
-Stage 4B did not supply a numerical paired-equivalence margin. Before Stage 4C
-production, this protocol therefore freezes the following planning judgment;
-these margins are not estimated from Stage 4B outcomes: max and sum normalized
-violation differences must each be within both 0.02 absolute and 1% relative;
-worst in-band IL and ripple must each be within 0.05 dB. Practical equivalence
-requires all five final matched pairs inside every margin and all cells mature.
-Sol judgment advised that equivalence margins must be declared before results
-are seen and that incomplete maturity cannot support equivalence. Sol did not
-recommend numerical values. Requested model: `gpt-6-sol`; backend model
-identity was not independently verified. The recorded judgment and decision
-are in `reports/escalation_packets/stage4c_closeout_margin_sol_2026-10-05.md`.
+## External-review materiality and closeout rule
+
+The feasibility-first lexicographic comparator is unchanged. An external
+review before production replaced the earlier component-wise planning margins
+with one model-level interpretation threshold on the primary infeasibility
+metric. A clear winner requires all ten cells to be mature; the same topology
+must win at least four of five matched seeds at each of 64k, 80k, and 96k, with
+at least four of those same seeds winning at all three checkpoints; and the
+terminal lexicographic result must also be at least four of five wins. For at
+least four terminal winning pairs, feasibility must differ in favor of the
+winner or both cells must be infeasible and their absolute max-normalized-
+violation difference must be at least 0.02. Any maturity or boundary caveat
+keeps the result unresolved.
+
+Practical equivalence requires all ten cells mature, no stable four-of-five
+late preference, matched feasibility status for every seed, and an absolute
+terminal max-normalized-violation difference below 0.02 for all five pairs.
+Sum violation, worst in-band IL, ripple, stop_1, and stop_2 remain required
+diagnostics; they do not independently make a topology win materially better.
+Everything else is `STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED`.
+
+**0.02 is an internal computational interpretation threshold inherited from
+the existing significant-improvement convention. It is not a calibrated
+manufacturing or measurement equivalence tolerance.**
+
+The review round is recorded as
+`STAGE4C_EXTERNAL_REVIEW_ROUND1_CHANGES_REQUESTED`; it identified the resume
+manifest timestamp, boundary-maturity semantics, and ungrounded
+equivalence/materiality provenance. The updated protocol applies that review
+decision; no unverified Sol attribution is retained.
 
 ## Topology ordering and closeout classes
 
@@ -154,16 +176,24 @@ feasibility, maximum normalized violation, sum normalized violation, and worst
 in-band insertion loss. Ripple and stopband metrics remain reported separately;
 no weighted scalar score is used. Paired comparisons match each fresh seed.
 
-- `STAGE4C_CLEAR_CONFIRMATORY_WINNER`: one topology wins at least 4/5 matched
-  seeds at each of 64k, 80k, and 96k; at least four of those same seeds retain
-  that direction at every late checkpoint; the terminal result is mature and
-  outside the frozen equivalence envelope for at least four winning pairs.
-- `STAGE4C_PRACTICALLY_EQUIVALENT`: all cells are mature, all five final paired
-  differences fit the frozen margins, and neither topology has a robust
-  matched-seed advantage.
+- `STAGE4C_CLEAR_CONFIRMATORY_WINNER`: all ten cells are mature; one topology
+  wins at least 4/5 matched seeds at each of 64k, 80k, and 96k, with at least
+  four of the same seeds winning all three checkpoints; and its terminal
+  lexicographic count is at least 4/5. At least four terminal winning pairs
+  must show feasibility in favor of the winner or, when both are infeasible,
+  an absolute max-normalized-violation difference of at least 0.02.
+- `STAGE4C_PRACTICALLY_EQUIVALENT`: all cells are mature, there is no stable
+  four-of-five late preference, feasibility matches within every seed pair,
+  and all five terminal max-normalized-violation differences are strictly
+  below 0.02.
 - `STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED`: every other outcome, including a
   3–2 split, unstable late direction, material final improvement, incomplete
   convergence evidence, or unresolved boundary limitation.
+
+Sum violation, worst in-band IL, ripple, stop_1, and stop_2 remain reported
+diagnostics. They do not independently make a topology win materially better.
+The 0.02 threshold is internal to this computational model and is not a
+calibrated manufacturing or measurement equivalence tolerance.
 
 The report includes feasibility counts, max/sum violation, worst in-band IL,
 ripple, stop_1 and stop_2 violation, dominant constraint, active-bound events,
@@ -178,10 +208,12 @@ Any later authorized production must use an absolute external persistent
 destination below
 `C:\Users\sub\Documents\ChatGPT\saw-com-optimizer-runs\production` and
 record `external_persistent_v1`. The optimizer never falls back to repository
-`runs/`. A non-scientific shakedown, if separately chosen, uses the external
+`runs/`. A non-scientific shakedown uses the external
 qualification destination `...\qualification\stage4c\`, seed `20261012`,
 512 unique evaluations per cell, terminal schedule 512, and checkpoints 400 /
-512. This preparation did not run that optional shakedown.
+512. Round 1 external review required this shakedown before merge; it is
+operational validation only and is never topology evidence or production
+authorization.
 
 The qualified launch flow remains automated Codex launch, external raw
 storage, active-run registry, optimizer terminal state, exact-thread queue

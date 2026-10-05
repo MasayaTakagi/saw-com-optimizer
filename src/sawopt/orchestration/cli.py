@@ -36,7 +36,7 @@ from .run_manager import (
     utc_now,
 )
 from .persistent_storage import validate_persistent_run_location
-from .active_runs import register_active_run
+from .active_runs import git_common_dir, register_active_run
 from .worker import execute_run
 
 
@@ -118,7 +118,7 @@ def _claim_stage4c_authorization(root: Path, metadata: dict) -> tuple[str, Path]
     claim_id = hashlib.sha256(json.dumps(
         identity, sort_keys=True, separators=(",", ":"),
     ).encode("utf-8")).hexdigest()
-    claim_directory = root / "runs" / ".stage4c_authorization_claims"
+    claim_directory = git_common_dir(root) / "sawopt-stage4c-authorization-claims"
     claim_path = claim_directory / f"{claim_id}.json"
     claim_directory.mkdir(parents=True, exist_ok=True)
     with exclusive_lock(claim_directory / ".claim.lock"):

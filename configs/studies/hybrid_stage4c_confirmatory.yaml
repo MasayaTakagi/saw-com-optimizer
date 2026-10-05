@@ -129,6 +129,7 @@ stage4c:
     convergence_evidence_complete: true
     grid_converged: true
     recovery_pending_confirmation: false
+    historical_bound_hit_alone_blocks_maturity: false
     hard_bound_unresolved: false
     boundary_pending_confirmation: false
     significant_improvement_80k_to_96k: false
@@ -137,20 +138,22 @@ stage4c:
     primary_comparator: feasibility_first_lexicographic
     comparator_fields: [feasible, max_violation, sum_violation, worst_il_db]
     no_weighted_scalar_score: true
+    model_level_materiality:
+      primary_metric: max_normalized_violation
+      absolute_difference_threshold: 0.02
+      meaning: internal_computational_interpretation_threshold
+      manufacturing_or_measurement_tolerance: false
     clear_winner:
       minimum_matched_seed_wins: 4
       late_checkpoints: [64000, 80000, 96000]
       same_seed_wins_required_at_each_late_checkpoint: 4
       require_all_cells_mature: true
-      require_winning_differences_outside_equivalence_envelope: true
+      terminal_winner_pairs_required: 4
+      material_pair_rule: "feasibility_differs_in_favor_of_winner OR both_infeasible_and_abs_delta_max_violation_at_least_0.02"
+      require_no_convergence_or_boundary_caveat: true
     practically_equivalent:
       require_all_cells_mature: true
-      require_all_five_final_pairs_inside_component_margins: true
-      max_violation_absolute_margin: 0.02
-      max_violation_relative_margin: 0.01
-      sum_violation_absolute_margin: 0.02
-      sum_violation_relative_margin: 0.01
-      worst_il_db_absolute_margin: 0.05
-      ripple_db_absolute_margin: 0.05
-      margins_are_post_run_interpretation_only: true
+      require_no_stable_four_of_five_late_preference: true
+      require_matched_feasibility_status_for_every_seed: true
+      all_five_terminal_abs_delta_max_violation_strictly_below: 0.02
     otherwise: STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED
