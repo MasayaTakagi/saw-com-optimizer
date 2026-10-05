@@ -7,8 +7,7 @@
   "expected_worker_pid": 21068,
   "expected_optimizer_pid": 36644,
   "allowed_preclose_states": [
-    "RUNNING",
-    "ORPHANED"
+    "RUNNING"
   ],
   "failure_class": "MemoryError",
   "reason": "The Stage 4C production worker and optimizer are no longer running. The attempted P_D/seed20261007 cell is INCOMPLETE at 80000 recorded unique evaluations, B80000 is absent, and the exact failing allocation is unrecoverable because the original run did not persist a traceback. The run is administratively abandoned as failed and must not be resumed.",
