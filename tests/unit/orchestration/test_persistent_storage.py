@@ -111,7 +111,7 @@ class PersistentStorageTests(unittest.TestCase):
             b"worktree C:/repo with spaces\0HEAD abc123\0branch refs/heads/main\0\0"
         )
         self.assertEqual(len(parsed), 1)
-        self.assertEqual(str(parsed[0]), "C:\\repo with spaces")
+        self.assertEqual(parsed[0], Path("C:/repo with spaces"))
 
 
 if __name__ == "__main__":
