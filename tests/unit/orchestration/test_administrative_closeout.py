@@ -115,16 +115,19 @@ class AdministrativeCloseoutTests(unittest.TestCase):
         evidence_path = _commit_evidence(repo, evidence)
         return temporary, repo, run_dir, sentinel, evidence_path
 
-    def test_closeout_marks_failed_writes_audit_and_releases_registry(self):
-        temporary, repo, run_dir, sentinel, evidence_path = self._fixture()
-        self.addCleanup(temporary.cleanup)
-        active = ({
+    @staticmethod
+    def _active(run_dir: Path):
+        return ({
             "run_id": "run-1",
             "run_dir": str(run_dir.resolve()),
             "source_head": "a" * 40,
         },)
+
+    def test_closeout_marks_failed_writes_audit_and_releases_registry(self):
+        temporary, repo, run_dir, sentinel, evidence_path = self._fixture()
+        self.addCleanup(temporary.cleanup)
         with mock.patch("sawopt.orchestration.administrative_closeout.pid_exists", return_value=False), \
-                mock.patch("sawopt.orchestration.administrative_closeout.active_runs_for_worktree", return_value=active), \
+                mock.patch("sawopt.orchestration.administrative_closeout.active_runs_for_worktree", return_value=self._active(run_dir)), \
                 mock.patch("sawopt.orchestration.administrative_closeout.release_active_run", return_value=True) as release:
             result = finalize_orphaned_failure(
                 run_dir, evidence_path.relative_to(repo), repository_root=repo,
@@ -182,16 +185,36 @@ class AdministrativeCloseoutTests(unittest.TestCase):
         self.assertEqual(load_status(run_dir)["state"], "RUNNING")
         release.assert_not_called()
 
+    def test_matching_audit_allows_retry_after_interrupted_closeout(self):
+        temporary, repo, run_dir, _sentinel, evidence_path = self._fixture()
+        self.addCleanup(temporary.cleanup)
+        with mock.patch("sawopt.orchestration.administrative_closeout.pid_exists", return_value=False), \
+                mock.patch("sawopt.orchestration.administrative_closeout.active_runs_for_worktree", return_value=self._active(run_dir)), \
+                mock.patch("sawopt.orchestration.administrative_closeout.record_optimizer_completion", side_effect=OSError("fixture interruption")), \
+                mock.patch("sawopt.orchestration.administrative_closeout.release_active_run") as release:
+            with self.assertRaisesRegex(OSError, "fixture interruption"):
+                finalize_orphaned_failure(
+                    run_dir, evidence_path.relative_to(repo), repository_root=repo,
+                    confirm_abandon=True,
+                )
+            release.assert_not_called()
+        self.assertEqual(load_status(run_dir)["state"], "RUNNING")
+        self.assertTrue((run_dir / "administrative_failure_closeout.json").is_file())
+        with mock.patch("sawopt.orchestration.administrative_closeout.pid_exists", return_value=False), \
+                mock.patch("sawopt.orchestration.administrative_closeout.active_runs_for_worktree", return_value=self._active(run_dir)), \
+                mock.patch("sawopt.orchestration.administrative_closeout.release_active_run", return_value=True):
+            result = finalize_orphaned_failure(
+                run_dir, evidence_path.relative_to(repo), repository_root=repo,
+                confirm_abandon=True,
+            )
+        self.assertEqual(result["status"], "CLOSED_FAILED")
+        self.assertEqual(load_status(run_dir)["state"], "FAILED")
+
     def test_same_reviewed_evidence_is_idempotent_after_success(self):
         temporary, repo, run_dir, _sentinel, evidence_path = self._fixture()
         self.addCleanup(temporary.cleanup)
-        active = ({
-            "run_id": "run-1",
-            "run_dir": str(run_dir.resolve()),
-            "source_head": "a" * 40,
-        },)
         with mock.patch("sawopt.orchestration.administrative_closeout.pid_exists", return_value=False), \
-                mock.patch("sawopt.orchestration.administrative_closeout.active_runs_for_worktree", side_effect=[active, ()]), \
+                mock.patch("sawopt.orchestration.administrative_closeout.active_runs_for_worktree", side_effect=[self._active(run_dir), ()]), \
                 mock.patch("sawopt.orchestration.administrative_closeout.release_active_run", return_value=True):
             first = finalize_orphaned_failure(
                 run_dir, evidence_path.relative_to(repo), repository_root=repo,
