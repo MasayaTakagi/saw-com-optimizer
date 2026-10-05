@@ -15,6 +15,42 @@ Upstream Bridge branch/tag modifications: 0; no upstream push. Local pinned-clon
 
 A separate source-review concern remains: upstream explicitly says project roots constrain the starting directory and are not OS-level isolation. Filesystem escape and prompt-injection tests therefore need a dedicated Windows user, VM, or equivalent disposable isolation before any later SAW access.
 
+## Task 1G status snapshot — 2026-10-06
+
+Current decision: TASK1_SECURITY_BLOCKED. Task 2 authorization: NO.
+
+### Reproducible patched candidate
+
+- Upstream base: 8bb81b1b27745532b7bc2113bb00e66c43df3bbb (v0.4.1).
+- Candidate: menaje-v0.4.1-task1g-windows-acl-v3, identified by the exact base plus patch SHA-256 below.
+- Patch artifact: reports/qualifications/menaje_task1g_v0.4.1_windows_acl_candidate_v3.patch.
+- Patch SHA-256: 2CCFEBAEA2CE6744E959A65A34BE779D5D1070C1F05470DCFBE7B22DA6B5765C.
+- Clean replay from the base passed git apply --check.
+- Changed files: package.json; scripts/verify-private-state-acl.ps1; src/stateBackup.ts; src/stateDatabaseLifecycle.ts; test/stateDatabaseLifecycle.test.ts; test/stateSchemaMigration.test.ts; test/userSettings.test.ts.
+- Diffstat: 7 files changed, 982 insertions, 46 deletions.
+- This is a local qualification patch, not an upstream release or adopted fork.
+
+### Local Windows evidence
+
+- TypeScript tsc --noEmit: PASS.
+- git diff --check: PASS (Git printed only its usual LF-to-CRLF working-tree warnings).
+- Focused Windows ACL/lock/environment regressions: 14 PASS; 15 skipped by filter or because the unelevated test token could not assign the Users SID as a disposable owner. The owner-negative fixture is not verified on this account; the live private-root owner check remains pending.
+- Full stateSchemaMigration.test.ts: 12 PASS, including backup flush with unchanged bytes, schema checkpoints, interrupted recovery, stale-backup replacement, and resume paths. Runtime was 330.71 seconds under per-access Windows ACL verification; tests use a Windows-specific 180-second per-case ceiling.
+- The Windows private-state root for a Bridge run has not been created. Focused tests are not the live Windows ACL qualification.
+
+### Review and remaining gates
+
+- Independent review of exact candidate v3: REJECT. The reviewer found (1) a post-create ACL-check failure can leave an unreadable empty lock, and (2) concurrent stale-lock reclamation can delete a replacement lock and allow two owners. Sol judged current Node path APIs cannot safely identity-delete the just-created file; leave it and fail closed, with controlled manual recovery. A Windows handle-disposition design would need separate implementation and validation. No live qualification may proceed on this candidate. Stale-lock semantics remain unchanged pending the user's earlier policy choice.
+- The reviewer confirmed the LF-normalized artifact hash above and verified its source diff is identical to the previously reviewed bytes; both REJECT findings apply to this exact artifact.
+- Sol packets: reports/escalation_packets/menaje_task1g_createdirectories_policy_20261006.md and reports/escalation_packets/menaje_task1g_inheritonly_ancestor_20261006.md. Their bounded ACL policy judgments are reflected in candidate v3.
+- POSIX regression: NOT RUN. No WSL distribution or Docker runtime is available here; a reproducible isolated Linux/GitHub Actions run remains required after candidate review.
+- Tunnel setup: the official v0.0.15 client integrity was verified earlier. The private .env was absent at the latest metadata-only check; no credential value was read and no Tunnel connection was attempted.
+- Qualification-only state root: NOT CREATED. The default state path remains unqualified and must not be used for production qualification.
+- Basic live path, selector matrix, permission-escalation matrix, secret preflight, prompt injection, filesystem isolation, replay/idempotency, and credential/log review: NOT RUN.
+- No live security gate passes on this snapshot. Task 1 stays blocked and Task 2 stays unauthorized.
+
+Independent review disposition: the candidate's path/ACL changes, PowerShell environment hardening, POSIX check preservation, and Windows-only backup descriptor scope were judged improved, but the two lock findings above are major blockers. The candidate identity remains frozen for reproduction; any remediation creates a new candidate and requires review and affected test reruns.
+
 ## Purpose and scope
 
 Evaluate menaje/codex-mcp-bridge-for-chatgpt as a future candidate to replace C2C in the SAW filter impedance optimization project. This is an evaluation, not an adoption decision.

@@ -1,0 +1,1073 @@
+diff --git a/package.json b/package.json
+index 10f7ed9..25057f0 100644
+--- a/package.json
++++ b/package.json
+@@ -16,6 +16,7 @@
+     "scripts/build-fingerprint.mjs",
+     "scripts/child-shutdown.mjs",
+     "scripts/launcher-options.mjs",
++    "scripts/verify-private-state-acl.ps1",
+     "scripts/managed-file.mjs",
+     "scripts/managed-file.d.mts",
+     "scripts/runtime-env.mjs",
+diff --git a/scripts/verify-private-state-acl.ps1 b/scripts/verify-private-state-acl.ps1
+new file mode 100644
+index 0000000..2b0407b
+--- /dev/null
++++ b/scripts/verify-private-state-acl.ps1
+@@ -0,0 +1,148 @@
++Set-StrictMode -Version Latest
++$ErrorActionPreference = "Stop"
++$Path = $env:MENAJE_PRIVATE_STATE_PATH
++$Kind = $env:MENAJE_PRIVATE_STATE_KIND
++$AllowMissingTail = $env:MENAJE_PRIVATE_STATE_ALLOW_MISSING_TAIL -eq "1"
++if ([string]::IsNullOrWhiteSpace($Path) -or $Kind -notin @("File", "Directory")) {
++  throw "Private state ACL helper received invalid parameters."
++}
++$windowsPowerShellExe = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
++$securityModule = "C:\Windows\System32\WindowsPowerShell\v1.0\Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1"
++Import-Module -Name $securityModule -ErrorAction Stop
++
++$systemSid = "S-1-5-18"
++$administratorsSid = "S-1-5-32-544"
++$trustedInstallerSid = "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464"
++$currentUserSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
++$trustedSids = @($systemSid, $administratorsSid, $trustedInstallerSid, $currentUserSid)
++$trustedSystemOwners = @($systemSid, $administratorsSid, $trustedInstallerSid)
++$traverseAndSynchronize = [uint32]0x00100020
++$mutationMask = [uint32](0x00000002 -bor 0x00000004 -bor 0x00000010 -bor 0x00000040 -bor
++  0x00000100 -bor 0x00010000 -bor 0x00040000 -bor 0x00080000 -bor 0x10000000 -bor 0x40000000)
++
++function Get-AccessMask([System.Security.AccessControl.FileSystemRights]$Rights) {
++  return [BitConverter]::ToUInt32([BitConverter]::GetBytes([int]$Rights), 0)
++}
++
++function Assert-TrustedOwnerAndAcl([string]$Candidate, [bool]$IsDirectory, [bool]$IsPrivateRoot) {
++  $acl = Get-Acl -LiteralPath $Candidate -ErrorAction Stop
++  $ownerSid = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
++  if ($ownerSid -notin $trustedSids) {
++    throw "Private state path has an untrusted owner SID."
++  }
++  $sddl = $acl.GetSecurityDescriptorSddlForm([System.Security.AccessControl.AccessControlSections]::Access)
++  if ($sddl -match "NO_ACCESS_CONTROL" -or @($acl.Access).Count -eq 0) {
++    throw "Private state path has a missing or null DACL."
++  }
++
++  foreach ($rule in $acl.Access) {
++    if ($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow) { continue }
++    $sid = $rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
++    if ($sid -in $trustedSids) { continue }
++    $mask = Get-AccessMask $rule.FileSystemRights
++    if ($IsPrivateRoot -and $IsDirectory -and
++        ($rule.InheritanceFlags -ne [System.Security.AccessControl.InheritanceFlags]::None -or
++         $rule.PropagationFlags -ne [System.Security.AccessControl.PropagationFlags]::None)) {
++      throw "Private state root has an untrusted inheritable allow ACE: $Candidate; $sid; $mask."
++    }
++    if ($IsPrivateRoot -and $IsDirectory -and
++        ($mask -band $traverseAndSynchronize) -eq $mask -and
++        $rule.InheritanceFlags -eq [System.Security.AccessControl.InheritanceFlags]::None -and
++        $rule.PropagationFlags -eq [System.Security.AccessControl.PropagationFlags]::None) {
++      continue
++    }
++    if (-not $IsPrivateRoot -and $IsDirectory -and ($mask -band $mutationMask) -eq 0) {
++      continue
++    }
++    throw "Private state path has an allow ACE outside the trusted SID boundary: $Candidate; $sid; $mask."
++  }
++}
++
++function Assert-TrustedSystemFile([string]$Candidate) {
++  $attributes = [System.IO.File]::GetAttributes($Candidate)
++  if (($attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 -or
++      ($attributes -band [System.IO.FileAttributes]::Directory) -ne 0) {
++    throw "Windows ACL verifier executable or module is not a regular file."
++  }
++  $acl = Get-Acl -LiteralPath $Candidate -ErrorAction Stop
++  $ownerSid = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
++  if ($ownerSid -notin $trustedSystemOwners) {
++    throw "Windows ACL verifier file has an untrusted owner SID."
++  }
++  $sddl = $acl.GetSecurityDescriptorSddlForm([System.Security.AccessControl.AccessControlSections]::Access)
++  if ($sddl -match "NO_ACCESS_CONTROL" -or @($acl.Access).Count -eq 0) {
++    throw "Windows ACL verifier file has a missing or null DACL."
++  }
++  foreach ($rule in $acl.Access) {
++    if ($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow) { continue }
++    $mask = Get-AccessMask $rule.FileSystemRights
++    $sid = $rule.IdentityReference.Value
++    try {
++      $sid = $rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
++    } catch {
++      # Unresolved read-only application principals are harmless here; write rights fail below.
++    }
++    if ($sid -in $trustedSystemOwners) { continue }
++    if (($mask -band $mutationMask) -ne 0) {
++      throw "Windows ACL verifier file is writable outside the trusted OS boundary."
++    }
++  }
++  $signature = Get-AuthenticodeSignature -LiteralPath $Candidate -ErrorAction Stop
++  if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
++      $signature.SignerCertificate.Subject -notlike "CN=Microsoft Windows,*") {
++    throw "Windows ACL verifier executable or module lacks a valid Microsoft Windows signature."
++  }
++}
++
++Assert-TrustedSystemFile $windowsPowerShellExe
++Assert-TrustedSystemFile $securityModule
++$fullPath = [System.IO.Path]::GetFullPath($Path)
++$volumeRoot = [System.IO.Path]::GetPathRoot($fullPath)
++if ([string]::IsNullOrWhiteSpace($volumeRoot)) {
++  throw "Private state path is not rooted."
++}
++$isFileTarget = $Kind -eq "File"
++$privateRootPath = if ($isFileTarget) { [System.IO.Path]::GetDirectoryName($fullPath) } else { $fullPath }
++$relative = $fullPath.Substring($volumeRoot.Length).Trim([char[]]@([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar))
++$parts = @($relative.Split([char[]]@([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar), [System.StringSplitOptions]::RemoveEmptyEntries))
++$current = $volumeRoot
++$checked = [System.Collections.Generic.List[string]]::new()
++
++if ([System.IO.Directory]::Exists($volumeRoot)) {
++  Assert-TrustedOwnerAndAcl $volumeRoot $true $false
++  $checked.Add($volumeRoot)
++}
++
++for ($index = 0; $index -lt $parts.Count; $index++) {
++  $current = [System.IO.Path]::Combine($current, $parts[$index])
++  $isTarget = $index -eq ($parts.Count - 1)
++  $isPrivateRoot = [string]::Equals($current, $privateRootPath, [System.StringComparison]::OrdinalIgnoreCase)
++  $attributes = $null
++  try {
++    $attributes = [System.IO.File]::GetAttributes($current)
++  } catch [System.IO.FileNotFoundException] {
++    if ($AllowMissingTail) { break }
++    throw "Private state path component is missing."
++  } catch [System.IO.DirectoryNotFoundException] {
++    if ($AllowMissingTail) { break }
++    throw "Private state path component is missing."
++  }
++  if (($attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
++    throw "Private state path contains a reparse point."
++  }
++  $isDirectory = ($attributes -band [System.IO.FileAttributes]::Directory) -ne 0
++  if ($isTarget -and (($Kind -eq "Directory") -ne $isDirectory)) {
++    throw "Private state path has the wrong object type."
++  }
++  if (-not $isTarget -and -not $isDirectory) {
++    throw "Private state path has a non-directory ancestor."
++  }
++  Assert-TrustedOwnerAndAcl $current $isDirectory $isPrivateRoot
++  $checked.Add($current)
++}
++
++[pscustomobject]@{
++  ok = $true
++  currentUserSid = $currentUserSid
++  checkedPaths = @($checked)
++} | ConvertTo-Json -Compress -Depth 4
+diff --git a/src/stateBackup.ts b/src/stateBackup.ts
+index 0f8d569..2da8a65 100644
+--- a/src/stateBackup.ts
++++ b/src/stateBackup.ts
+@@ -322,7 +322,8 @@ function syncSnapshotFile(file: string): void {
+   const noFollow = "O_NOFOLLOW" in fsConstants
+     ? (fsConstants as typeof fsConstants & { O_NOFOLLOW: number }).O_NOFOLLOW
+     : 0;
+-  const descriptor = openSync(file, fsConstants.O_RDONLY | noFollow);
++  const access = process.platform === "win32" ? fsConstants.O_RDWR : fsConstants.O_RDONLY;
++  const descriptor = openSync(file, access | noFollow);
+   try {
+     const stat = fstatSync(descriptor);
+     if (!stat.isFile()) throw new Error("Migration recovery snapshot is not a regular file.");
+diff --git a/src/stateDatabaseLifecycle.ts b/src/stateDatabaseLifecycle.ts
+index cefee4a..6a0d486 100644
+--- a/src/stateDatabaseLifecycle.ts
++++ b/src/stateDatabaseLifecycle.ts
+@@ -1,4 +1,5 @@
+ import { createHash, randomUUID } from "node:crypto";
++import { spawnSync } from "node:child_process";
+ import {
+   accessSync,
+   chmodSync,
+@@ -19,6 +20,7 @@ import {
+   constants as fsConstants
+ } from "node:fs";
+ import path from "node:path";
++import { fileURLToPath } from "node:url";
+ import Database from "better-sqlite3";
+ import { BRIDGE_BUILD_INFO } from "./buildInfo.js";
+ import { PRODUCT_INFO } from "./productInfo.js";
+@@ -31,6 +33,24 @@ import {
+ 
+ const UPGRADE_HEADROOM_BYTES = 16 * 1024 * 1024;
+ const MAX_PRIVATE_JSON_BYTES = 1024 * 1024;
++const WINDOWS_PRIVATE_STATE_ACL_HELPER = fileURLToPath(
++  new URL("../scripts/verify-private-state-acl.ps1", import.meta.url)
++);
++const WINDOWS_PRIVATE_STATE_SYSTEM_ROOT = "C:\\Windows";
++const WINDOWS_PRIVATE_STATE_ACL_SCRIPT = path.join(
++  WINDOWS_PRIVATE_STATE_SYSTEM_ROOT,
++  "System32",
++  "WindowsPowerShell",
++  "v1.0",
++  "powershell.exe"
++);
++const WINDOWS_PRIVATE_STATE_MODULE_PATH = path.join(
++  WINDOWS_PRIVATE_STATE_SYSTEM_ROOT,
++  "System32",
++  "WindowsPowerShell",
++  "v1.0",
++  "Modules"
++);
+ export const STATE_MIGRATION_PROGRESS_FRESH_MS = 30_000;
+ 
+ export type StateDatabaseInspection = {
+@@ -120,6 +140,9 @@ export function inspectStateDatabase(
+       migrationSourceSchema: null
+     };
+   }
++  if (process.platform === "win32") {
++    assertWindowsPrivateStatePath(file, "File", true);
++  }
+   if (!existsSync(file)) {
+     return {
+       file: canonicalMissingFile(file),
+@@ -548,17 +571,26 @@ export function stateMigrationExtendsStartupDeadline(
+ }
+ 
+ export function writePrivateJson(file: string, value: unknown): void {
++  if (process.platform === "win32") {
++    assertWindowsPrivateStatePath(path.dirname(file), "Directory", true);
++  }
+   mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
++  if (process.platform === "win32") {
++    assertWindowsPrivateStatePath(path.dirname(file), "Directory");
++    if (pathEntryExists(file)) assertWindowsPrivateStatePath(file, "File");
++  }
+   const temporary = `${file}.tmp-${process.pid}-${randomUUID()}`;
+   let descriptor: number | undefined;
+   try {
+     descriptor = openSync(temporary, "wx", 0o600);
++    if (process.platform === "win32") assertWindowsPrivateStatePath(temporary, "File");
+     writeFileSync(descriptor, `${JSON.stringify(value, null, 2)}\n`);
+     fsyncSync(descriptor);
+     closeSync(descriptor);
+     descriptor = undefined;
+     renameSync(temporary, file);
+-    chmodSync(file, 0o600);
++    if (process.platform === "win32") assertWindowsPrivateStatePath(file, "File");
++    if (process.platform !== "win32") chmodSync(file, 0o600);
+     syncDirectory(path.dirname(file));
+   } catch (error) {
+     if (descriptor !== undefined) closeSync(descriptor);
+@@ -568,6 +600,7 @@ export function writePrivateJson(file: string, value: unknown): void {
+ }
+ 
+ export function readPrivateJson(file: string): unknown {
++  if (process.platform === "win32") assertWindowsPrivateStatePath(file, "File");
+   const noFollow = "O_NOFOLLOW" in fsConstants
+     ? (fsConstants as typeof fsConstants & { O_NOFOLLOW: number }).O_NOFOLLOW
+     : 0;
+@@ -577,10 +610,10 @@ export function readPrivateJson(file: string): unknown {
+     if (!stat.isFile() || stat.size > MAX_PRIVATE_JSON_BYTES) {
+       throw new Error(`Private state metadata is not a bounded regular file: ${file}.`);
+     }
+-    if ((stat.mode & 0o077) !== 0) {
++    if (process.platform !== "win32" && (stat.mode & 0o077) !== 0) {
+       throw new Error(`Private state metadata permissions are broader than 0600: ${file}.`);
+     }
+-    if (typeof process.getuid === "function" && stat.uid !== process.getuid()) {
++    if (process.platform !== "win32" && typeof process.getuid === "function" && stat.uid !== process.getuid()) {
+       throw new Error(`Private state metadata is owned by another user: ${file}.`);
+     }
+     return JSON.parse(readFileSync(descriptor, "utf8"));
+@@ -590,6 +623,9 @@ export function readPrivateJson(file: string): unknown {
+ }
+ 
+ export function databaseIdentity(file: string): string {
++  if (process.platform === "win32") {
++    assertWindowsPrivateStatePath(file, "File", true);
++  }
+   const canonical = existsSync(file) ? realpathSync.native(file) : canonicalMissingFile(file);
+   const stat = existsSync(canonical) ? statSync(canonical) : null;
+   return createHash("sha256")
+@@ -598,15 +634,19 @@ export function databaseIdentity(file: string): string {
+ }
+ 
+ function acquireMigrationLock(file: string, value: unknown): void {
++  if (process.platform === "win32") {
++    assertWindowsPrivateStatePath(path.dirname(file), "Directory", true);
++  }
+   for (let attempt = 0; attempt < 2; attempt += 1) {
+     let descriptor: number | undefined;
+     try {
+       descriptor = openSync(file, "wx", 0o600);
++      if (process.platform === "win32") assertWindowsPrivateStatePath(file, "File");
+       writeFileSync(descriptor, `${JSON.stringify(value)}\n`);
+       fsyncSync(descriptor);
+       closeSync(descriptor);
+       descriptor = undefined;
+-      chmodSync(file, 0o600);
++      if (process.platform !== "win32") chmodSync(file, 0o600);
+       syncDirectory(path.dirname(file));
+       return;
+     } catch (error) {
+@@ -638,6 +678,67 @@ function assertRegularDatabaseFile(file: string): void {
+   if (!stat.isFile()) throw new Error("Bridge state database path is not a regular file.");
+ }
+ 
++function pathEntryExists(file: string): boolean {
++  try {
++    lstatSync(file);
++    return true;
++  } catch (error) {
++    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
++    throw error;
++  }
++}
++
++function assertWindowsPrivateStatePath(
++  file: string,
++  kind: "File" | "Directory",
++  allowMissingTail = false
++): void {
++  const absolutePath = path.resolve(file);
++  if (!existsSync(WINDOWS_PRIVATE_STATE_ACL_SCRIPT)) {
++    throw new Error("Windows private-state ACL helper is unavailable; state access is blocked.");
++  }
++  const helperSource = readFileSync(WINDOWS_PRIVATE_STATE_ACL_HELPER, "utf8");
++  const encodedCommand = Buffer.from(helperSource, "utf16le").toString("base64");
++  const result = spawnSync(WINDOWS_PRIVATE_STATE_ACL_SCRIPT, [
++    "-NoLogo",
++    "-NoProfile",
++    "-NonInteractive",
++    "-EncodedCommand",
++    encodedCommand
++  ], {
++    encoding: "utf8",
++    timeout: 10_000,
++    windowsHide: true,
++    cwd: path.join(WINDOWS_PRIVATE_STATE_SYSTEM_ROOT, "System32", "WindowsPowerShell", "v1.0"),
++    env: {
++      SystemRoot: WINDOWS_PRIVATE_STATE_SYSTEM_ROOT,
++      WINDIR: WINDOWS_PRIVATE_STATE_SYSTEM_ROOT,
++      PATH: path.join(WINDOWS_PRIVATE_STATE_SYSTEM_ROOT, "System32"),
++      PSModulePath: WINDOWS_PRIVATE_STATE_MODULE_PATH,
++      MENAJE_PRIVATE_STATE_PATH: absolutePath,
++      MENAJE_PRIVATE_STATE_KIND: kind,
++      MENAJE_PRIVATE_STATE_ALLOW_MISSING_TAIL: allowMissingTail ? "1" : "0"
++    }
++  });
++  if (result.error || result.status !== 0) {
++    const detail = result.error?.message || result.stderr || `exit ${result.status}`;
++    throw new Error(
++      `Windows private-state ACL preflight failed for ${file}: ${String(detail).trim().slice(0, 500)}`
++    );
++  }
++  let report: { ok?: unknown; checkedPaths?: unknown };
++  try {
++    const jsonLine = String(result.stdout).split(/\r?\n/).find((line) => line.trimStart().startsWith("{"));
++    report = JSON.parse(jsonLine || "") as { ok?: unknown; checkedPaths?: unknown };
++  } catch {
++    throw new Error(`Windows private-state ACL helper returned invalid evidence for ${file}.`);
++  }
++  if (report.ok !== true || !Array.isArray(report.checkedPaths) ||
++      report.checkedPaths.some((entry) => typeof entry !== "string")) {
++    throw new Error(`Windows private-state ACL helper returned incomplete evidence for ${file}.`);
++  }
++}
++
+ function assertUpgradeWritable(file: string, writableOverride?: boolean): void {
+   if (writableOverride === false) {
+     throw new Error("State migration permission preflight reported a read-only database or directory.");
+diff --git a/test/stateDatabaseLifecycle.test.ts b/test/stateDatabaseLifecycle.test.ts
+index 4eeb1ec..455770a 100644
+--- a/test/stateDatabaseLifecycle.test.ts
++++ b/test/stateDatabaseLifecycle.test.ts
+@@ -1,6 +1,8 @@
+-import { existsSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+-import { tmpdir } from "node:os";
++import { spawnSync } from "node:child_process";
++import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
++import { homedir, tmpdir } from "node:os";
+ import path from "node:path";
++import { pathToFileURL } from "node:url";
+ import Database from "better-sqlite3";
+ import { describe, expect, it } from "vitest";
+ import {
+@@ -8,8 +10,10 @@ import {
+   inspectStateDatabase,
+   prepareStateDatabaseOpen,
+   prepareStateDatabaseUpgrade,
++  readPrivateJson,
+   readStateMigrationStatus,
+-  stateMigrationExtendsStartupDeadline
++  stateMigrationExtendsStartupDeadline,
++  writePrivateJson
+ } from "../src/stateDatabaseLifecycle.js";
+ import { BridgeStateStore } from "../src/stateStore.js";
+ import {
+@@ -19,8 +23,281 @@ import {
+ } from "./helpers/stateSchemaFixtures.js";
+ 
+ describe("state database lifecycle", () => {
++  it("releases the first-open migration lock so the state can reopen", () => {
++    const root = stateTempRoot("bridge-state-open-reopen-");
++    const file = path.join(root, "state.sqlite");
++    const lock = `${file}.migration-lock.json`;
++    try {
++      const first = prepareStateDatabaseOpen(file);
++      expect(first).not.toBeNull();
++      first?.complete();
++      expect(existsSync(lock)).toBe(false);
++
++      const second = prepareStateDatabaseOpen(file);
++      expect(second).not.toBeNull();
++      second?.complete();
++      expect(existsSync(lock)).toBe(false);
++    } finally {
++      rmSync(root, { recursive: true, force: true });
++    }
++  }, 30_000);
++
++  it("reopens state in a separate process after clean lock release", () => {
++    const root = stateTempRoot("bridge-state-process-reopen-");
++    const file = path.join(root, "state.sqlite");
++    const moduleUrl = pathToFileURL(path.resolve("src/stateDatabaseLifecycle.ts")).href;
++    const childSource = [
++      "const moduleUrl = process.env.MENAJE_STATE_LIFECYCLE_MODULE;",
++      "const stateFile = process.env.MENAJE_STATE_LIFECYCLE_FILE;",
++      "const { prepareStateDatabaseOpen } = await import(moduleUrl);",
++      "const lease = prepareStateDatabaseOpen(stateFile);",
++      "if (!lease) throw new Error('expected a state lease');",
++      "lease.complete();"
++    ].join("\n");
++    const runChild = () => spawnSync(process.execPath, [
++      "--import",
++      "tsx",
++      "--input-type=module",
++      "-e",
++      childSource
++    ], {
++      encoding: "utf8",
++      cwd: path.resolve("."),
++      env: {
++        ...process.env,
++        MENAJE_STATE_LIFECYCLE_FILE: file,
++        MENAJE_STATE_LIFECYCLE_MODULE: moduleUrl
++      },
++      timeout: 30_000,
++      windowsHide: true
++    });
++    try {
++      const first = runChild();
++      expect(first.status, first.stderr).toBe(0);
++      expect(existsSync(`${file}.migration-lock.json`)).toBe(false);
++      const second = runChild();
++      expect(second.status, second.stderr).toBe(0);
++      expect(existsSync(`${file}.migration-lock.json`)).toBe(false);
++    } finally {
++      rmSync(root, { recursive: true, force: true });
++    }
++  });
++
++  it("keeps a migration lock exclusive against a competing process", () => {
++    const root = stateTempRoot("bridge-state-process-contention-");
++    const file = path.join(root, "state.sqlite");
++    const lock = `${file}.migration-lock.json`;
++    const moduleUrl = pathToFileURL(path.resolve("src/stateDatabaseLifecycle.ts")).href;
++    const childSource = [
++      "const moduleUrl = process.env.MENAJE_STATE_LIFECYCLE_MODULE;",
++      "const stateFile = process.env.MENAJE_STATE_LIFECYCLE_FILE;",
++      "const { prepareStateDatabaseOpen } = await import(moduleUrl);",
++      "try {",
++      "  prepareStateDatabaseOpen(stateFile);",
++      "  throw new Error('competing process unexpectedly acquired the migration lock');",
++      "} catch (error) {",
++      "  if (/already owned by live process/.test(String(error))) { console.log('blocked-by-live-owner'); }",
++      "  else throw error;",
++      "}"
++    ].join("\n");
++    const lease = prepareStateDatabaseOpen(file)!;
++    let lockReleased = false;
++    try {
++      const lockBefore = readFileSync(lock, "utf8");
++      const competing = spawnSync(process.execPath, [
++        "--import",
++        "tsx",
++        "--input-type=module",
++        "-e",
++        childSource
++      ], {
++        encoding: "utf8",
++        cwd: path.resolve("."),
++        env: {
++          ...process.env,
++          MENAJE_STATE_LIFECYCLE_FILE: file,
++          MENAJE_STATE_LIFECYCLE_MODULE: moduleUrl
++        },
++        timeout: 30_000,
++        windowsHide: true
++      });
++      expect(competing.status, competing.stderr).toBe(0);
++      expect(competing.stdout).toContain("blocked-by-live-owner");
++      expect(readFileSync(lock, "utf8")).toBe(lockBefore);
++    } finally {
++      lease.complete();
++      lockReleased = !existsSync(lock);
++      rmSync(root, { recursive: true, force: true });
++    }
++    expect(lockReleased).toBe(true);
++  }, 30_000);
++
++  it("preserves lock token, owner, malformed, oversized, directory, and reparse checks", () => {
++    const root = stateTempRoot("bridge-state-lock-invariants-");
++    const tokenFile = path.join(root, "token.sqlite");
++    const tokenLock = `${tokenFile}.migration-lock.json`;
++    const tokenLease = prepareStateDatabaseOpen(tokenFile)!;
++    writePrivateJson(tokenLock, { token: "replacement-token", processId: process.pid });
++    tokenLease.complete();
++    expect(existsSync(tokenLock)).toBe(true);
++    rmSync(tokenLock, { force: true });
++
++    const liveFile = path.join(root, "live.sqlite");
++    writePrivateJson(`${liveFile}.migration-lock.json`, {
++      token: "live-owner",
++      processId: process.pid
++    });
++    expect(() => prepareStateDatabaseOpen(liveFile)).toThrow(/already owned by live process/);
++    rmSync(`${liveFile}.migration-lock.json`, { force: true });
++
++    const staleFile = path.join(root, "stale.sqlite");
++    writePrivateJson(`${staleFile}.migration-lock.json`, {
++      token: "stale-owner",
++      processId: 2_147_000_000
++    });
++    const staleLease = prepareStateDatabaseOpen(staleFile)!;
++    staleLease.complete();
++    expect(existsSync(`${staleFile}.migration-lock.json`)).toBe(false);
++
++    const malformedFile = path.join(root, "malformed.sqlite");
++    writeFileSync(`${malformedFile}.migration-lock.json`, "{");
++    expect(() => prepareStateDatabaseOpen(malformedFile)).toThrow(/State migration lock is unreadable/);
++
++    const oversizedFile = path.join(root, "oversized.sqlite");
++    writeFileSync(`${oversizedFile}.migration-lock.json`, "x".repeat(1024 * 1024 + 1));
++    expect(() => prepareStateDatabaseOpen(oversizedFile)).toThrow(/State migration lock is unreadable/);
++
++    const directoryFile = path.join(root, "directory.sqlite");
++    mkdirSync(`${directoryFile}.migration-lock.json`);
++    expect(() => prepareStateDatabaseOpen(directoryFile)).toThrow();
++
++    const reparseFile = path.join(root, "reparse.sqlite");
++    const targetDirectory = path.join(root, "lock-target");
++    mkdirSync(targetDirectory);
++    const reparseLock = `${reparseFile}.migration-lock.json`;
++    if (process.platform === "win32") symlinkSync(targetDirectory, reparseLock, "junction");
++    else symlinkSync(targetDirectory, reparseLock);
++    expect(() => prepareStateDatabaseOpen(reparseFile)).toThrow();
++    rmSync(root, { recursive: true, force: true });
++  });
++
++  it("releases failed migration and maintenance leases so recovery can reacquire", () => {
++    const root = stateTempRoot("bridge-state-recovery-lease-");
++    const file = path.join(root, "state.sqlite");
++    createSchema18Fixture(file);
++    try {
++      const first = prepareStateDatabaseUpgrade(file)!;
++      expect(first).not.toBeNull();
++      first.reportBackup();
++      first.reportMigration({ id: "bridge-state-18-to-19", toSchema: 19 });
++      first.fail(new Error("qualification-interruption"));
++      expect(existsSync(`${file}.migration-lock.json`)).toBe(false);
++      expect(readStateMigrationStatus(file)).toMatchObject({ phase: "failed" });
++
++      const recovery = prepareStateDatabaseUpgrade(file)!;
++      expect(recovery).not.toBeNull();
++      recovery.fail(new Error("qualification-recovery-stop"));
++      expect(existsSync(`${file}.migration-lock.json`)).toBe(false);
++
++      const maintenance = acquireStateMaintenanceLease(file, "recovery");
++      expect(existsSync(maintenance.lockFile)).toBe(true);
++      maintenance.release();
++      expect(existsSync(maintenance.lockFile)).toBe(false);
++    } finally {
++      rmSync(root, { recursive: true, force: true });
++    }
++  });
++
++  it.skipIf(process.platform !== "win32")("rejects inheritable untrusted allow ACEs before writing metadata", () => {
++    const root = stateTempRoot("bridge-state-acl-inherited-");
++    const privateDirectory = path.join(root, "private");
++    mkdirSync(privateDirectory);
++    addUntrustedAllowAce(
++      privateDirectory,
++      "Modify",
++      "ContainerInherit, ObjectInherit",
++      "InheritOnly"
++    );
++    const file = path.join(privateDirectory, "private.json");
++    try {
++      expect(() => writePrivateJson(file, { marker: "qualification-only" }))
++        .toThrow(/Windows private-state ACL preflight failed/);
++      expect(existsSync(file)).toBe(false);
++    } finally {
++      rmSync(root, { recursive: true, force: true });
++    }
++  });
++
++  it.skipIf(process.platform !== "win32")("detects CreateDirectories on an ancestor", () => {
++    const root = stateTempRoot("bridge-state-acl-create-directories-");
++    const ancestor = path.join(root, "ancestor");
++    const privateDirectory = path.join(ancestor, "private");
++    mkdirSync(privateDirectory, { recursive: true });
++    addUntrustedAllowAce(ancestor, "CreateDirectories");
++    const file = path.join(privateDirectory, "private.json");
++    try {
++      expect(() => writePrivateJson(file, { marker: "qualification-only" }))
++        .toThrow(/Windows private-state ACL preflight failed/);
++      expect(existsSync(file)).toBe(false);
++    } finally {
++      rmSync(root, { recursive: true, force: true });
++    }
++  });
++
++  it.skipIf(process.platform !== "win32")("rechecks ACL changes instead of reusing old verification", () => {
++    const root = stateTempRoot("bridge-state-acl-recheck-");
++    const file = path.join(root, "private.json");
++    writeFileSync(file, JSON.stringify({ marker: "qualification-only" }));
++    try {
++      expect(readPrivateJson(file)).toEqual({ marker: "qualification-only" });
++      addUntrustedAllowAce(file, "Modify");
++      expect(() => readPrivateJson(file)).toThrow(/Windows private-state ACL preflight failed/);
++    } finally {
++      rmSync(root, { recursive: true, force: true });
++    }
++  });
++
++  it.skipIf(process.platform !== "win32")("ignores poisoned inherited PowerShell path variables", () => {
++    const root = stateTempRoot("bridge-state-acl-environment-");
++    const file = path.join(root, "private.json");
++    writeFileSync(file, JSON.stringify({ marker: "qualification-only" }));
++    const moduleUrl = pathToFileURL(path.resolve("src/stateDatabaseLifecycle.ts")).href;
++    const childSource = [
++      "process.env.SystemRoot = process.cwd();",
++      "process.env.WINDIR = process.cwd();",
++      "process.env.ProgramFiles = process.cwd();",
++      "process.env.PSModulePath = process.cwd();",
++      "process.env.PATH = process.cwd();",
++      "const { readPrivateJson } = await import(process.env.MENAJE_STATE_LIFECYCLE_MODULE);",
++      "readPrivateJson(process.env.MENAJE_STATE_LIFECYCLE_FILE);",
++      "console.log('acl-preflight-ok');"
++    ].join("\n");
++    try {
++      const result = spawnSync(process.execPath, [
++        "--import",
++        "tsx",
++        "--input-type=module",
++        "-e",
++        childSource
++      ], {
++        encoding: "utf8",
++        cwd: path.resolve("."),
++        env: {
++          ...process.env,
++          MENAJE_STATE_LIFECYCLE_FILE: file,
++          MENAJE_STATE_LIFECYCLE_MODULE: moduleUrl
++        },
++        timeout: 30_000,
++        windowsHide: true
++      });
++      expect(result.status, result.stderr).toBe(0);
++      expect(result.stdout).toContain("acl-preflight-ok");
++    } finally {
++      rmSync(root, { recursive: true, force: true });
++    }
++  });
+   it("fails capacity preflight before changing the supported source database", () => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-state-capacity-"));
++    const root = stateTempRoot("bridge-state-capacity-");
+     const file = path.join(root, "state.sqlite");
+     createSchema18Fixture(file);
+     const before = readFileSync(file);
+@@ -38,7 +315,7 @@ describe("state database lifecycle", () => {
+   });
+ 
+   it("fails permission preflight before changing the supported source database", () => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-state-permission-"));
++    const root = stateTempRoot("bridge-state-permission-");
+     const file = path.join(root, "state.sqlite");
+     createSchema18Fixture(file);
+     const before = readFileSync(file);
+@@ -51,7 +328,7 @@ describe("state database lifecycle", () => {
+   });
+ 
+   it("rejects malformed and unsupported databases before creating lifecycle sidecars", () => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-state-readonly-reject-"));
++    const root = stateTempRoot("bridge-state-readonly-reject-");
+     const malformed = path.join(root, "malformed.sqlite");
+     writeFileSync(malformed, "not a sqlite database");
+     const malformedBefore = readFileSync(malformed);
+@@ -86,17 +363,20 @@ describe("state database lifecycle", () => {
+   });
+ 
+   it("uses the real database target for alias-safe maintenance ownership", () => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-state-alias-"));
++    const root = stateTempRoot("bridge-state-alias-");
+     const file = path.join(root, "state.sqlite");
+-    const alias = path.join(root, "state-alias.sqlite");
++    const alias = createDatabaseAlias(file, path.join(root, "state-alias"));
+     createSchema18Fixture(file);
+-    symlinkSync(file, alias);
+ 
+     const lease = acquireStateMaintenanceLease(file, "recovery");
+     try {
+-      expect(() => new BridgeStateStore({ file: alias })).toThrow(
+-        /migration is already owned by live process/
+-      );
++      if (process.platform === "win32") {
++        expect(() => new BridgeStateStore({ file: alias })).toThrow(/reparse point/);
++      } else {
++        expect(() => new BridgeStateStore({ file: alias })).toThrow(
++          /migration is already owned by live process/
++        );
++      }
+     } finally {
+       lease.release();
+     }
+@@ -104,24 +384,27 @@ describe("state database lifecycle", () => {
+   });
+ 
+   it("prevents a second current runtime from opening the same database through an alias", () => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-state-current-owner-"));
++    const root = stateTempRoot("bridge-state-current-owner-");
+     const file = path.join(root, "state.sqlite");
+     const first = new BridgeStateStore({ file });
+-    const alias = path.join(root, "current-alias.sqlite");
+-    symlinkSync(file, alias);
++    const alias = createDatabaseAlias(file, path.join(root, "current-alias"));
+     try {
+-      expect(() => new BridgeStateStore({ file: alias })).toThrow(
+-        /upgrade\/startup requires every database owner to stop/
+-      );
++      if (process.platform === "win32") {
++        expect(() => new BridgeStateStore({ file: alias })).toThrow(/reparse point/);
++      } else {
++        expect(() => new BridgeStateStore({ file: alias })).toThrow(
++          /upgrade\/startup requires every database owner to stop/
++        );
++      }
+     } finally {
+       first.close();
+     }
+-    const reopened = new BridgeStateStore({ file: alias });
++    const reopened = new BridgeStateStore({ file: process.platform === "win32" ? file : alias });
+     reopened.close();
+   });
+ 
+   it("rejects a migration while a live bridge instance owns the database", () => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-state-owner-"));
++    const root = stateTempRoot("bridge-state-owner-");
+     const file = path.join(root, "state.sqlite");
+     createSchema18Fixture(file);
+     const database = new Database(file);
+@@ -136,7 +419,7 @@ describe("state database lifecycle", () => {
+   });
+ 
+   it("derives every supported intermediate start from real committed checkpoints", () => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-state-checkpoints-"));
++    const root = stateTempRoot("bridge-state-checkpoints-");
+     for (let targetSchema = 4; targetSchema <= 18; targetSchema += 1) {
+       const file = path.join(root, `schema-${targetSchema}.sqlite`);
+       if (targetSchema === 16) {
+@@ -167,7 +450,7 @@ describe("state database lifecycle", () => {
+   }, 30_000);
+ 
+   it("records a completed progress status for the exact committed path", () => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-state-progress-"));
++    const root = stateTempRoot("bridge-state-progress-");
+     const file = path.join(root, "state.sqlite");
+     createSchema18Fixture(file);
+     const checkpoints: number[] = [];
+@@ -187,7 +470,7 @@ describe("state database lifecycle", () => {
+   });
+ 
+   it("reconciles a crash after schema commit without inventing a provenance gap", () => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-state-provenance-crash-"));
++    const root = stateTempRoot("bridge-state-provenance-crash-");
+     const file = path.join(root, "state.sqlite");
+     createSchema18Fixture(file);
+ 
+@@ -221,7 +504,7 @@ describe("state database lifecycle", () => {
+   });
+ 
+   it("rejects a changed applied-migration checksum on a later startup", () => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-state-provenance-tamper-"));
++    const root = stateTempRoot("bridge-state-provenance-tamper-");
+     const file = path.join(root, "state.sqlite");
+     createSchema18Fixture(file);
+     const store = new BridgeStateStore({ file });
+@@ -240,18 +523,18 @@ describe("state database lifecycle", () => {
+   });
+ 
+   it("extends helper readiness only for fresh, live, identity-bound migration progress", () => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-state-progress-freshness-"));
++    const root = stateTempRoot("bridge-state-progress-freshness-");
+     const file = path.join(root, "state.sqlite");
+-    const alias = path.join(root, "state-alias.sqlite");
++    const alias = createDatabaseAlias(file, path.join(root, "state-alias"));
+     const now = Date.parse("2026-09-12T00:00:00.000Z");
+     createSchema18Fixture(file);
+-    symlinkSync(file, alias);
+     const lease = prepareStateDatabaseUpgrade(file, { now: () => new Date(now) })!;
+     try {
+       lease.reportMigration({ id: "bridge-state-18-to-19", toSchema: 19 });
+       const status = readStateMigrationStatus(alias)!;
+       expect(stateMigrationExtendsStartupDeadline(file, status, now + 1_000)).toBe(true);
+-      expect(stateMigrationExtendsStartupDeadline(alias, status, now + 1_000)).toBe(true);
++      expect(stateMigrationExtendsStartupDeadline(alias, status, now + 1_000))
++        .toBe(process.platform !== "win32");
+       expect(stateMigrationExtendsStartupDeadline(file, {
+         ...status,
+         databaseIdentity: "0".repeat(64)
+@@ -267,6 +550,66 @@ describe("state database lifecycle", () => {
+   });
+ });
+ 
++function stateTempRoot(prefix: string): string {
++  const parent = process.platform === "win32" ? homedir() : tmpdir();
++  return mkdtempSync(path.join(parent, prefix));
++}
++
++function addUntrustedAllowAce(
++  target: string,
++  rights: string,
++  inheritance = "None",
++  propagation = "None"
++): void {
++  const powershell = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
++  const securityModule =
++    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules\\Microsoft.PowerShell.Security\\Microsoft.PowerShell.Security.psd1";
++  const script = [
++    "$ErrorActionPreference = 'Stop'",
++    "Import-Module -Name '" + securityModule + "' -ErrorAction Stop",
++    "$acl = Get-Acl -LiteralPath $env:MENAJE_TEST_ACL_PATH",
++    "$sid = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-545')",
++    "$rights = [System.Enum]::Parse([System.Security.AccessControl.FileSystemRights], $env:MENAJE_TEST_ACL_RIGHTS)",
++    "$inheritance = [System.Enum]::Parse([System.Security.AccessControl.InheritanceFlags], $env:MENAJE_TEST_ACL_INHERITANCE)",
++    "$propagation = [System.Enum]::Parse([System.Security.AccessControl.PropagationFlags], $env:MENAJE_TEST_ACL_PROPAGATION)",
++    "$rule = [System.Security.AccessControl.FileSystemAccessRule]::new($sid, $rights, $inheritance, $propagation, [System.Security.AccessControl.AccessControlType]::Allow)",
++    "$acl.AddAccessRule($rule) | Out-Null",
++    "Set-Acl -LiteralPath $env:MENAJE_TEST_ACL_PATH -AclObject $acl"
++  ].join("; ");
++  const result = spawnSync(powershell, [
++    "-NoLogo",
++    "-NoProfile",
++    "-NonInteractive",
++    "-Command",
++    script
++  ], {
++    encoding: "utf8",
++    env: {
++      SystemRoot: "C:\\Windows",
++      WINDIR: "C:\\Windows",
++      PATH: "C:\\Windows\\System32",
++      PSModulePath: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules",
++      MENAJE_TEST_ACL_PATH: target,
++      MENAJE_TEST_ACL_RIGHTS: rights,
++      MENAJE_TEST_ACL_INHERITANCE: inheritance,
++      MENAJE_TEST_ACL_PROPAGATION: propagation
++    },
++    timeout: 10_000,
++    windowsHide: true
++  });
++  if (result.error || result.status !== 0) {
++    throw new Error("Could not prepare disposable ACL fixture: " + (result.error?.message || result.stderr));
++  }
++}
++function createDatabaseAlias(file: string, aliasPath: string): string {
++  if (process.platform === "win32") {
++    symlinkSync(path.dirname(file), aliasPath, "junction");
++    return path.join(aliasPath, path.basename(file));
++  }
++  symlinkSync(file, aliasPath);
++  return aliasPath;
++}
++
+ function readSchema(database: Database.Database): number {
+   return Number((database.prepare(
+     "SELECT value FROM bridge_meta WHERE key='schema_version'"
+diff --git a/test/stateSchemaMigration.test.ts b/test/stateSchemaMigration.test.ts
+index ddabe85..36b0e13 100644
+--- a/test/stateSchemaMigration.test.ts
++++ b/test/stateSchemaMigration.test.ts
+@@ -4,13 +4,16 @@ import {
+   existsSync,
+   mkdirSync,
+   mkdtempSync,
++  readFileSync,
+   readdirSync,
++  rmSync,
+   statSync
+ } from "node:fs";
+-import { tmpdir } from "node:os";
++import { homedir, tmpdir } from "node:os";
+ import path from "node:path";
+ import Database from "better-sqlite3";
+ import { describe, expect, it } from "vitest";
++import { inspectStateDatabase } from "../src/stateDatabaseLifecycle.js";
+ import { BridgeStateStore } from "../src/stateStore.js";
+ import { createMigrationBackupMetadata } from "../src/stateBackup.js";
+ import {
+@@ -30,8 +33,40 @@ import {
+ } from "./helpers/stateSchemaFixtures.js";
+ 
+ describe("state schema 19 normalization", { timeout: 15_000 }, () => {
++  it("flushes a verified migration snapshot on Windows without changing its bytes", () => {
++    const root = mkdtempSync(path.join(
++      process.platform === "win32" ? homedir() : tmpdir(),
++      "bridge-schema-flush-snapshot-"
++    ));
++    const file = path.join(root, "source.sqlite");
++    const backup = path.join(root, "backup.sqlite");
++    const databaseId = "99999999-9999-4999-8999-999999999999";
++    try {
++      createSchema18Fixture(file);
++      const source = new Database(file);
++      source.prepare("INSERT INTO bridge_meta(key,value) VALUES ('state_database_id',?)")
++        .run(databaseId);
++      source.close();
++      copyFileSync(file, backup);
++      const before = readFileSync(backup);
++
++      const metadata = createMigrationBackupMetadata({
++        databaseFile: file,
++        backupFile: backup,
++        databaseId,
++        sourceSchema: 18,
++        targetSchema: 19
++      });
++
++      expect(metadata.snapshotSha256).toMatch(/^[0-9a-f]{64}$/);
++      expect(readFileSync(backup)).toEqual(before);
++    } finally {
++      rmSync(root, { recursive: true, force: true });
++    }
++  });
++
+   it("creates the current schema directly and matches an authentic schema 18 upgrade", () => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-schema-v19-"));
++    const root = stateSchemaTempRoot("bridge-schema-v19-");
+     const originalCwd = path.join(root, "original-project");
+     const relocatedCwd = path.join(root, "relocated-project");
+     const legacyCwd = path.join(root, "legacy-project");
+@@ -55,7 +90,11 @@ describe("state schema 19 normalization", { timeout: 15_000 }, () => {
+ 
+     const backup = `${upgradedFile}.pre-v18-to-v19.sqlite`;
+     expect(existsSync(backup)).toBe(true);
+-    expect(statSync(backup).mode & 0o777).toBe(0o600);
++    if (process.platform === "win32") {
++      expect(inspectStateDatabase(backup)).toMatchObject({ exists: true, schemaVersion: 18 });
++    } else {
++      expect(statSync(backup).mode & 0o777).toBe(0o600);
++    }
+     expect(readSchemaVersion(backup)).toBe(18);
+     expect(readdirSync(root).filter((name) => name.includes("pre-v18-to-v19"))).toHaveLength(1);
+ 
+@@ -209,7 +248,7 @@ describe("state schema 19 normalization", { timeout: 15_000 }, () => {
+   });
+ 
+   it("upgrades the published schema 3 fixture through every supported checkpoint", () => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-schema-v3-"));
++    const root = stateSchemaTempRoot("bridge-schema-v3-");
+     const file = path.join(root, "state.sqlite");
+     createSeededSchema3Fixture(file);
+ 
+@@ -299,7 +338,7 @@ describe("state schema 19 normalization", { timeout: 15_000 }, () => {
+     relationRetained,
+     lifecycle
+   }) => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-schema-context-mismatch-"));
++    const root = stateSchemaTempRoot("bridge-schema-context-mismatch-");
+     const file = path.join(root, "state.sqlite");
+     createSchema18Fixture(file);
+     const legacy = new Database(file);
+@@ -322,7 +361,7 @@ describe("state schema 19 normalization", { timeout: 15_000 }, () => {
+   });
+ 
+   it("rolls back an interrupted rebuild and reuses one recovery backup on retry", () => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-schema-retry-"));
++    const root = stateSchemaTempRoot("bridge-schema-retry-");
+     const file = path.join(root, "state.sqlite");
+     createSchema18Fixture(file, { malformedJobPayload: true });
+ 
+@@ -346,7 +385,7 @@ describe("state schema 19 normalization", { timeout: 15_000 }, () => {
+   });
+ 
+   it("replaces a stale same-version backup before beginning a new upgrade", () => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-schema-stale-backup-"));
++    const root = stateSchemaTempRoot("bridge-schema-stale-backup-");
+     const file = path.join(root, "state.sqlite");
+     const stale = path.join(root, "stale.sqlite");
+     const backup = `${file}.pre-v18-to-v19.sqlite`;
+@@ -369,7 +408,7 @@ describe("state schema 19 normalization", { timeout: 15_000 }, () => {
+   });
+ 
+   it("keeps the original recovery point when a multi-checkpoint upgrade resumes", () => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-schema-multistep-retry-"));
++    const root = stateSchemaTempRoot("bridge-schema-multistep-retry-");
+     const file = path.join(root, "state.sqlite");
+     const original = path.join(root, "original-v3.sqlite");
+     const originalBackup = `${file}.pre-v3-to-v19.sqlite`;
+@@ -416,7 +455,7 @@ describe("state schema 19 normalization", { timeout: 15_000 }, () => {
+   });
+ 
+   it("refuses to resume when the recorded original recovery point is missing", () => {
+-    const root = mkdtempSync(path.join(tmpdir(), "bridge-schema-missing-backup-"));
++    const root = stateSchemaTempRoot("bridge-schema-missing-backup-");
+     const file = path.join(root, "state.sqlite");
+     createSchema18Fixture(file);
+     const partial = new Database(file);
+@@ -432,7 +471,7 @@ describe("state schema 19 normalization", { timeout: 15_000 }, () => {
+   });
+ 
+   it.each(["1", "2"])("rejects unsupported schema %s without changing it", (version) => {
+-    const root = mkdtempSync(path.join(tmpdir(), `bridge-schema-v${version}-`));
++    const root = stateSchemaTempRoot(`bridge-schema-v${version}-`);
+     const file = path.join(root, "state.sqlite");
+     const db = new Database(file);
+     db.exec("CREATE TABLE bridge_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL) STRICT;");
+@@ -444,6 +483,11 @@ describe("state schema 19 normalization", { timeout: 15_000 }, () => {
+   });
+ });
+ 
++function stateSchemaTempRoot(prefix: string): string {
++  const parent = process.platform === "win32" ? homedir() : tmpdir();
++  return mkdtempSync(path.join(parent, prefix));
++}
++
+ function schemaInventory(file: string): unknown[] {
+   const db = new Database(file, { readonly: true });
+   const rows = db.prepare(`SELECT type,name,tbl_name,sql FROM sqlite_master
+diff --git a/test/userSettings.test.ts b/test/userSettings.test.ts
+index 066c2d3..b50e305 100644
+--- a/test/userSettings.test.ts
++++ b/test/userSettings.test.ts
+@@ -3,7 +3,7 @@ import {
+   realpathSync,
+   statSync
+ } from "node:fs";
+-import { tmpdir } from "node:os";
++import { homedir, tmpdir } from "node:os";
+ import path from "node:path";
+ import { describe, expect, it } from "vitest";
+ import { loadConfig } from "../src/config.js";
+@@ -743,7 +743,8 @@ function configFor(extra: NodeJS.ProcessEnv = {}) {
+ }
+ 
+ function temporaryDirectory(prefix: string): string {
+-  return realpathSync(mkdtempSync(path.join(tmpdir(), prefix)));
++  const parent = process.platform === "win32" ? homedir() : tmpdir();
++  return realpathSync(mkdtempSync(path.join(parent, prefix)));
+ }
+ 
+ function persistentSettings(

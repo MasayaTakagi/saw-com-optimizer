@@ -1837,3 +1837,22 @@ confirmation or a separately approved FEM extraction is required.
   source-code change, Tunnel test, Task 2 test, or upstream push was made.
 - Packet: `reports/escalation_packets/menaje_task1f_windows_acl_design_20261006.md`.
 - Follow-up packet: `reports/escalation_packets/menaje_task1f_backup_fsync_scope_20261006.md`.
+
+### Task 1G menaje candidate ACL policy — 2026-10-06
+
+- Requested bounded gpt-6-sol judgments before allowing non-root Windows ACL exceptions in candidate v3. Strictly rejecting every untrusted mutation bit blocked even existing protected qualification paths because the Windows volume root grants a narrow CreateDirectories bit and carries an untrusted InheritOnly ACE.
+- Judgment #1 permits CreateDirectories only when it is the sole mutation bit, the ACE is non-inheritable, the current directory is outside the private root, and the next child already exists and will be fully validated. Missing children, a private-root ACE, inherited rights, and combinations with other mutation rights remain denied.
+- Judgment #2 conditionally permits an untrusted InheritOnly ACE only on a non-private ancestor when the next child exists and every remaining path component is validated before use. Missing descendants fail closed; the private root rejects untrusted inheritable allow ACEs. Candidate v3 implements these rules and adds disposable Windows ACL fixtures.
+- Validation: focused Windows ACL/lock/environment checks passed (14); the untrusted-owner negative fixture skipped because this token cannot assign the Users SID as owner. Full Windows schema-migration suite passed (12), including unchanged backup bytes. TypeScript and diff checks passed. POSIX regression and live gates remain pending.
+- The earlier independent review and Sol judgment identified a separate stale-lock deletion race. No lock behavior was changed; the user decision between manual fail-closed recovery and Windows coordination is pending. Candidate v3 is frozen as a replayable patch but is not ready for acceptance or live qualification.
+- Candidate identity: base 8bb81b1b27745532b7bc2113bb00e66c43df3bbb, patch SHA-256 2CCFEBAEA2CE6744E959A65A34BE779D5D1070C1F05470DCFBE7B22DA6B5765C.
+- Packets: reports/escalation_packets/menaje_task1g_createdirectories_policy_20261006.md and reports/escalation_packets/menaje_task1g_inheritonly_ancestor_20261006.md.
+
+### Task 1G post-create ACL failure cleanup — 2026-10-06
+
+- The independent reviewer rejected candidate v3 because an ACL probe failure after `openSync("wx")` leaves an empty lock. A later startup fails closed on the unreadable file. Path-based deletion after closing the descriptor could remove a replacement lock, so cleanup must be identity-bound or deliberately fail closed.
+- Requested bounded gpt-6-sol design judgment; no implementation requested. Candidate base is `8bb81b1b27745532b7bc2113bb00e66c43df3bbb`, patch SHA-256 `2CCFEBAEA2CE6744E959A65A34BE779D5D1070C1F05470DCFBE7B22DA6B5765C`.
+- Packet: `reports/escalation_packets/menaje_task1g_postcreate_acl_failure_cleanup_20261006.md`.
+- The separate stale-lock replacement race is also a major review blocker. No behavior changed; user policy choice remains pending. Candidate remains rejected and all POSIX/live qualification gates are blocked.
+- Outcome: Sol judged that current Node path APIs cannot safely delete the newly created lock by identity; path unlink and stat-then-unlink retain a replacement race. Leave the incomplete lock and fail closed. It must not be auto-reclaimed based only on being empty/malformed/a marker; manual removal requires exclusive maintenance, confirming no live owner or competing creator, and inspecting the exact object and private parent. ACL preflight reduces risk but does not replace post-create verification. Native handle-based deletion requires a separate design and Windows validation. Required tests are recorded in the packet. No implementation or stale-lock behavior change was made.
+- The independent reviewer confirmed candidate v3's LF-normalized exact SHA-256 and verified that restoring the prior CRLF line endings reproduces the reviewed artifact hash; the source diff is unchanged and the REJECT disposition still applies.
