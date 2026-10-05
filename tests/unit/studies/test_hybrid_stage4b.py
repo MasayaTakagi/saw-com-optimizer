@@ -22,6 +22,7 @@ from sawopt.studies.hybrid_stage4b import (
     SHAKEDOWN_SEED,
     TOPOLOGIES,
     _cell_paths,
+    _cell_failure_payload,
     _expected_matrix,
     _run_cell,
     authorization_claim_id,
@@ -73,6 +74,50 @@ def test_stage4b_config_and_population_contract():
     assert context["fingerprint"]["fingerprint_schema_version"] == 2
     assert len(context["search_frequencies"]) == 1001
     assert len(context["common_frequencies"]) == 9113
+
+
+def test_memoryerror_cell_failure_keeps_traceback_and_last_durable_budget():
+    identity = {"topology": "P_D", "seed": 20261007}
+    try:
+        raise MemoryError()
+    except MemoryError as exc:
+        record = _cell_failure_payload(
+            identity, exc, phase="search_advance",
+            backend=SimpleNamespace(unique_evaluations=80000),
+            last_durable_budget=64000,
+            checkpoint_reference={"checkpoint_stream": "cells/P_D/seed/checkpoints"},
+            elapsed_wall_time_s=12.0,
+        )
+    assert record["error_type"] == "MemoryError"
+    assert record["error_message"] == ""
+    assert record["error_repr"] == "MemoryError()"
+    assert "MemoryError" in record["traceback"]
+    assert record["failing_stage"] == "search_advance"
+    assert record["failing_cell"] == identity
+    assert record["last_durable_checkpoint_budget"] == 64000
+    assert record["checkpoint_reference"]["checkpoint_stream"].endswith("checkpoints")
+
+
+def test_memoryerror_cell_failure_keeps_traceback_and_last_durable_budget():
+    identity = {"topology": "P_D", "seed": 20261007}
+    try:
+        raise MemoryError()
+    except MemoryError as exc:
+        record = _cell_failure_payload(
+            identity, exc, phase="search_advance",
+            backend=SimpleNamespace(unique_evaluations=80000),
+            last_durable_budget=64000,
+            checkpoint_reference={"checkpoint_stream": "cells/P_D/seed/checkpoints"},
+            elapsed_wall_time_s=12.0,
+        )
+    assert record["error_type"] == "MemoryError"
+    assert record["error_message"] == ""
+    assert record["error_repr"] == "MemoryError()"
+    assert "MemoryError" in record["traceback"]
+    assert record["failing_stage"] == "search_advance"
+    assert record["failing_cell"] == identity
+    assert record["last_durable_checkpoint_budget"] == 64000
+    assert record["checkpoint_reference"]["checkpoint_stream"].endswith("checkpoints")
 
 
 def test_exact_20_cell_matrix_seed_mapping_and_checkpoint_policy():

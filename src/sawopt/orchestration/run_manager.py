@@ -261,6 +261,8 @@ def transition(run_dir: Path, new_state: str, **updates: Any) -> dict[str, Any]:
             value["finished_at"] = value.get("finished_at") or now
             if new_state in {"COMPLETED", "FAILED"}:
                 value["optimizer_state"] = new_state
+            elif new_state == "ORPHANED":
+                value["optimizer_state"] = "UNKNOWN"
         if new_state == "CALLBACK_RUNNING" and value.get("callback_started_at") is None:
             value["callback_started_at"] = now
         if new_state in {"REVIEWED", "CALLBACK_FAILED"}:

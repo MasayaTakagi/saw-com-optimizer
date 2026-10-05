@@ -78,6 +78,35 @@ class WorkerTests(unittest.TestCase):
             self.assertEqual(status["exit_code"], 3)
             self.assertEqual(status["optimizer_state"], "FAILED")
 
+    def test_nonzero_optimizer_persists_cell_memoryerror_diagnostics_and_exit_code(self):
+        with TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "run"
+            _create_manifest(run_dir, 3)
+            cell = run_dir / "optimizer" / "cells" / "P_D" / "seed20261007"
+            cell.mkdir(parents=True)
+            failure = {
+                "status": "INCOMPLETE",
+                "error_type": "MemoryError",
+                "error_message": "",
+                "error_repr": "MemoryError()",
+                "traceback": "Traceback (most recent call last):\\nMemoryError\\n",
+                "failing_cell": {"topology": "P_D", "seed": 20261007},
+                "last_durable_checkpoint_budget": 64000,
+            }
+            (cell / "cell_status.json").write_text(json.dumps(failure), encoding="utf-8")
+
+            status = execute_run(run_dir)
+
+            self.assertEqual(status["state"], "FAILED")
+            self.assertEqual(status["optimizer_state"], "FAILED")
+            self.assertEqual(status["exit_code"], 3)
+            self.assertEqual(status["error_type"], "MemoryError")
+            self.assertEqual(status["error_message"], "")
+            self.assertEqual(status["error_repr"], "MemoryError()")
+            self.assertEqual(status["failing_cell"], failure["failing_cell"])
+            self.assertEqual(status["last_durable_checkpoint_budget"], 64000)
+            self.assertEqual(Path(status["error_traceback_path"]).name, "cell_status.json")
+
     def test_failed_optimizer_preserves_runtime_checkpoint_generations(self):
         with TemporaryDirectory() as temporary:
             run_dir = Path(temporary) / "failed"

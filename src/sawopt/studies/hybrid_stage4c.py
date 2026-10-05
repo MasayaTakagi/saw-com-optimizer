@@ -651,7 +651,7 @@ def run_stage4c_production(
             budget=BUDGET, checkpoints=CHECKPOINTS, terminal_budget=BUDGET,
             finalist_count=FINALIST_COUNT, mode="production",
             source_commit_sha=str(raw["source_commit_sha"]),
-        resume=resume,
+            resume=resume, compact_history_cache=True,
         ))
     from ..reporting.hybrid_stage4c import write_stage4c_reports
     report = write_stage4c_reports(run, context, results)
@@ -715,6 +715,7 @@ def run_stage4c_shakedown(
             budget=SHAKEDOWN_BUDGET, checkpoints=SHAKEDOWN_CHECKPOINTS,
             terminal_budget=SHAKEDOWN_BUDGET, finalist_count=FINALIST_COUNT,
             mode="shakedown", source_commit_sha=source["head"], resume=resume,
+            compact_history_cache=True,
         ))
     from ..reporting.hybrid_stage4c import write_stage4c_shakedown_reports
 

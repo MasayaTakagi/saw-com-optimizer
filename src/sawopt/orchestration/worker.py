@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import json
 import subprocess
 import traceback
 from pathlib import Path
@@ -28,6 +29,27 @@ def _append_exception(run_dir: Path, exc: BaseException) -> None:
     with (Path(run_dir) / "stderr.log").open("a", encoding="utf-8") as stream:
         stream.write("\n[orchestration worker exception]\n")
         traceback.print_exception(exc, file=stream)
+
+
+def durable_cell_failure(optimizer_run_dir: str | Path) -> dict | None:
+    """Read the newest durable cell failure without opening optimizer payloads."""
+    root = Path(optimizer_run_dir)
+    failures = []
+    if not root.is_dir():
+        return None
+    for path in root.rglob("cell_status.json"):
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            continue
+        if value.get("status") == "INCOMPLETE" and value.get("error_type"):
+            failures.append((str(value.get("updated_at", "")), path, value))
+    if not failures:
+        return None
+    _updated_at, path, value = max(failures, key=lambda item: (item[0], str(item[1])))
+    result = dict(value)
+    result["error_traceback_path"] = str(path)
+    return result
 
 
 def _run_optimizer(manifest, run_dir: Path, *, resume: bool = False) -> int:
@@ -77,7 +99,13 @@ def execute_run(run_dir: Path, *, callback_runner: Callable[..., int] | None = N
         exit_code = _run_optimizer(manifest, run_dir, resume=resume)
     except BaseException as exc:
         _append_exception(run_dir, exc)
-        transition(run_dir, "FAILED", exit_code=None, error=str(exc))
+        message = str(exc)
+        error = f"{type(exc).__name__}: {message}" if message else f"{type(exc).__name__}: (no message)"
+        transition(
+            run_dir, "FAILED", exit_code=None, error=error,
+            error_type=type(exc).__name__, error_message=message, error_repr=repr(exc),
+            error_traceback_path="stderr.log",
+        )
         complete_study_run(
             Path(manifest.effective_optimizer_run_dir),
             disposition=RunDisposition.FAILED,
@@ -89,15 +117,42 @@ def execute_run(run_dir: Path, *, callback_runner: Callable[..., int] | None = N
         exit_code = None
     else:
         optimizer_run_dir = Path(manifest.effective_optimizer_run_dir)
+        cell_failure = durable_cell_failure(optimizer_run_dir) if exit_code != 0 else None
         if manifest.schema_version >= 4:
             disposition = RunDisposition.COMPLETED if exit_code == 0 else RunDisposition.FAILED
         else:
             disposition = legacy_process_disposition(optimizer_run_dir, return_code=exit_code)
+        if exit_code == 0:
+            failure_fields = {}
+            error = None
+        elif cell_failure is not None:
+            error_type = str(cell_failure.get("error_type") or "OptimizerChildFailed")
+            message = str(cell_failure.get("error_message") or "")
+            error = f"{error_type}: {message}" if message else f"{error_type}: (no message)"
+            failure_fields = {
+                "error_type": error_type,
+                "error_message": message,
+                "error_repr": str(cell_failure.get("error_repr", "")),
+                "error_traceback_path": cell_failure.get("error_traceback_path"),
+                "failing_cell": cell_failure.get("failing_cell"),
+                "last_durable_checkpoint_budget": cell_failure.get(
+                    "last_durable_checkpoint_budget"),
+            }
+        else:
+            error_type = "OptimizerChildExit"
+            error = f"optimizer exited with code {exit_code}"
+            failure_fields = {
+                "error_type": error_type,
+                "error_message": error,
+                "error_repr": repr(error),
+                "error_traceback_path": "stderr.log",
+            }
         transition(
             run_dir,
             disposition.value,
             exit_code=exit_code,
-            error=None if exit_code == 0 else f"optimizer exited with code {exit_code}",
+            error=error,
+            **failure_fields,
         )
         complete_study_run(optimizer_run_dir, disposition=disposition)
         if disposition is RunDisposition.COMPLETED:
@@ -117,7 +172,7 @@ def execute_run(run_dir: Path, *, callback_runner: Callable[..., int] | None = N
                 run_dir,
                 disposition="COMPLETED" if disposition is RunDisposition.COMPLETED else "FAILED",
                 exit_code=exit_code,
-                error=None if exit_code == 0 else f"optimizer exited with code {exit_code}",
+                error=error,
             )
 
     if manifest.schema_version == 4 and manifest.continuation_mode == "queue":

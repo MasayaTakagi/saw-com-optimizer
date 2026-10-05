@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 import numpy as np
@@ -45,6 +47,20 @@ def _from_jsonable(value: Any) -> Any:
     if isinstance(value, list):
         return [_from_jsonable(item) for item in value]
     return value
+
+
+def validate_lshade_checkpoint_header(path: str | Path) -> None:
+    """Reject unsupported L-SHADE state versions before parsing the payload."""
+    with Path(path).open("rb") as stream:
+        prefix = stream.read(512)
+    match = re.search(rb'"state_version"\s*:\s*(\d+)', prefix)
+    if match is None:
+        raise ValueError("L-SHADE checkpoint state version header is missing")
+    version = int(match.group(1))
+    if version != 4:
+        raise ValueError(
+            f"L-SHADE checkpoint state version {version} is unsupported; expected 4"
+        )
 
 
 @dataclass
@@ -178,6 +194,10 @@ class LShadeBackend(OptimizerBackend):
             for low, high in self.bounds:
                 cardinality *= int(np.floor(high + .5) - np.ceil(low - .5) + 1)
             self.canonical_space_size = max(1, cardinality)
+        self.compact_history_cache = bool(self.config.get("compact_history_cache", False))
+        self.historical_finalist_count = int(self.config.get("historical_finalist_count", 16))
+        if self.historical_finalist_count <= 0:
+            raise ValueError("historical_finalist_count must be positive")
         self.exhaustion_duplicate_streak = self.config.get("exhaustion_duplicate_streak")
         if self.exhaustion_duplicate_streak is not None:
             self.exhaustion_duplicate_streak = int(self.exhaustion_duplicate_streak)
@@ -198,6 +218,9 @@ class LShadeBackend(OptimizerBackend):
         # but its physics result is grid-versioned.  This prevents a result
         # from the pre-exchange grid being reused after an adaptive refresh.
         self._cache_frequency_versions: dict[tuple, int] = {}
+        self._history_rank_index: dict[tuple, tuple[tuple[float, ...], tuple[float, ...], int]] = {}
+        self._history_next_order = 0
+        self._historical_finalist_keys: list[tuple] = []
         self._incumbent: Mapping[str, Any] | None = None
         self._incumbent_key = None
         self.m_f = np.full(self.history_size, .5, dtype=float)
@@ -263,12 +286,12 @@ class LShadeBackend(OptimizerBackend):
     def _evaluate(self, x: np.ndarray):
         self.proposals_total += 1
         canonical, key = self._canonical(x)
-        is_new_design = key not in self._cache
+        is_new_design = key not in self._cache_frequency_versions
         if not is_new_design:
             cached_version = self._cache_frequency_versions.get(key)
             if cached_version == int(self.frequency_grid_version):
                 self.cache_hits += 1
-                return canonical, key, self._cache[key], True
+                return canonical, key, self._cache.get(key), True
             # The design remains a known unique design, but its result is
             # stale for the active frequency grid.  Refresh it without
             # charging the unique-design budget a second time.
@@ -278,8 +301,11 @@ class LShadeBackend(OptimizerBackend):
         if not isinstance(result, Mapping):
             raise TypeError("evaluator must return a mapping")
         result = copy.deepcopy(dict(result))
-        self._cache[key] = result
         self._cache_frequency_versions[key] = int(self.frequency_grid_version)
+        if self.compact_history_cache:
+            self._update_compact_history(key, canonical, result)
+        else:
+            self._cache[key] = result
         if is_new_design:
             self.unique_evaluations += 1
         return canonical, key, result, False
@@ -298,6 +324,10 @@ class LShadeBackend(OptimizerBackend):
         seen = set()
         for row in raw:
             member = self._make_member(np.clip(row, 0.0, 1.0))
+            if member is None:
+                self.duplicate_count += 1
+                self.duplicate_streak += 1
+                continue
             if member.key in seen:
                 self.duplicate_count += 1
                 self.duplicate_streak += 1
@@ -319,8 +349,64 @@ class LShadeBackend(OptimizerBackend):
         self.evaluator = evaluator
 
     def _make_member(self, x):
-        canonical, key, result, _cached = self._evaluate(x)
+        return self._make_member_result(x, allow_cached=True)
+
+    def _make_member_result(self, x, *, allow_cached: bool):
+        canonical, key, result, cached = self._evaluate(x)
+        if cached and (not allow_cached or result is None):
+            return None
         return _PopulationMember(np.asarray(x, dtype=float).copy(), canonical, key, result)
+
+    def _update_compact_history(self, key, canonical, result):
+        """Update the small all-design rank/vector index and bounded payload cache."""
+        previous = self._history_rank_index.get(key)
+        order = previous[2] if previous is not None else self._history_next_order
+        if previous is None:
+            self._history_next_order += 1
+        try:
+            vector = np.asarray(result.get("candidate_vector", canonical), dtype=float)
+            if vector.ndim != 1 or not np.isfinite(vector).all():
+                vector = np.asarray(canonical, dtype=float)
+        except (TypeError, ValueError):
+            vector = np.asarray(canonical, dtype=float)
+        rank_key = tuple(float(value) for value in self.comparator.rank_key(result))
+        self._history_rank_index[key] = (rank_key, tuple(float(v) for v in vector), order)
+
+        was_finalist = key in self._historical_finalist_keys
+        if was_finalist:
+            candidates = self._history_rank_index.keys()
+        else:
+            candidates = [*self._historical_finalist_keys, key]
+        ranked = sorted(
+            candidates,
+            key=lambda item: (self._history_rank_index[item][0], self._history_rank_index[item][2]),
+        )
+        self._historical_finalist_keys = list(ranked[:self.historical_finalist_count])
+
+        # Keep full records only for the bounded shortlist. Population and
+        # incumbent records have their own owners in optimizer state.
+        finalists = set(self._historical_finalist_keys)
+        for cached_key in tuple(self._cache):
+            if cached_key not in finalists:
+                del self._cache[cached_key]
+        if key in finalists:
+            self._cache[key] = result
+
+    def historical_finalists(self, count: int | None = None) -> list[dict[str, Any]]:
+        """Return exact stable-order best historical candidates for this grid state."""
+        limit = self.historical_finalist_count if count is None else max(0, int(count))
+        if not self.compact_history_cache:
+            return [dict(value) for value in sorted(
+                self._cache.values(), key=self.comparator.rank_key,
+            )[:limit]]
+        keys = self._historical_finalist_keys[:limit]
+        return [
+            {
+                "candidate_vector": list(self._history_rank_index[key][1]),
+                "history_rank_key": list(self._history_rank_index[key][0]),
+            }
+            for key in keys
+        ]
 
     def _update_incumbent(self):
         if not self._population:
@@ -446,7 +532,7 @@ class LShadeBackend(OptimizerBackend):
         fallback prevents canonical quantization from starving the exact
         budget without changing the normal L-SHADE trajectory in large spaces.
         """
-        seen = set(self._cache)
+        seen = set(self._cache_frequency_versions)
         if (self.canonical_space_size is not None
                 and set(self.integer_indices) >= set(range(self.dimension))
                 and self.canonical_space_size <= 100_000):
@@ -607,8 +693,11 @@ class LShadeBackend(OptimizerBackend):
             if not isinstance(result, Mapping):
                 raise TypeError("evaluator must return a mapping")
             result = copy.deepcopy(dict(result))
-            self._cache[member.key] = result
             self._cache_frequency_versions[member.key] = int(self.frequency_grid_version)
+            if self.compact_history_cache:
+                self._update_compact_history(member.key, member.physical, result)
+            else:
+                self._cache[member.key] = result
             self._population[index] = _PopulationMember(member.x, member.physical, member.key, result)
         # An incumbent from the old frequency grid is not a valid candidate
         # on the new grid.  Always rebuild it from the refreshed population.
@@ -633,19 +722,29 @@ class LShadeBackend(OptimizerBackend):
                 or np.any(new_bounds[:, 0] > old_bounds[:, 0])
                 or np.any(new_bounds[:, 1] < old_bounds[:, 1])):
             raise ValueError("invalid expanded bounds")
-        physical = [item.physical.copy() for item in self._population]
+        survivors = list(self._population)
         self.bounds = new_bounds
         self.active_bounds = new_bounds.tolist()
         self._population = []
-        for value in physical:
-            normalized = self._normalize(value)
-            self._population.append(self._make_member(normalized))
+        for survivor in survivors:
+            normalized = self._normalize(survivor.physical)
+            canonical, key, result, cached = self._evaluate(normalized)
+            if cached and result is None:
+                result = survivor.result
+            self._population.append(_PopulationMember(
+                normalized, canonical, key, result,
+            ))
         count = max(0, int(np.ceil(len(self._population) * float(inject_fraction))))
         generator = rng or self.rng
         occupied = {item.key for item in self._population}
         for index in range(count):
             for _attempt in range(100):
-                candidate = self._make_member(generator.uniform(0.0, 1.0, self.dimension))
+                candidate = self._make_member_result(
+                    generator.uniform(0.0, 1.0, self.dimension),
+                    allow_cached=not self.compact_history_cache,
+                )
+                if candidate is None:
+                    continue
                 if candidate.key not in occupied:
                     occupied.add(candidate.key)
                     self._population[-1 - index] = candidate
@@ -706,19 +805,31 @@ class LShadeBackend(OptimizerBackend):
 
     def state_dict(self) -> dict[str, Any]:
         return {
-            "state_version": 3,
+            "state_version": 4,
             "backend": self.name,
+            "compact_history_cache": bool(self.compact_history_cache),
+            "historical_finalist_count": int(self.historical_finalist_count),
             "bounds": self.bounds.tolist(),
             "hard_bounds": self.hard_bounds.tolist(),
             "active_bounds": copy.deepcopy(self.active_bounds),
             "population": [{"x": item.x.tolist(), "physical": item.physical.tolist(),
                             "key": list(item.key), "result": _jsonable(item.result)} for item in self._population],
             "archive": [item.tolist() for item in self._archive],
-            "cache": [[list(key), _jsonable(value)] for key, value in self._cache.items()],
-            "cache_frequency_versions": [
+            "cache": ([] if self.compact_history_cache else [
+                [list(key), _jsonable(value)] for key, value in self._cache.items()
+            ]),
+            "retained_results": ([
+                [list(key), _jsonable(value)] for key, value in self._cache.items()
+            ] if self.compact_history_cache else []),
+            "cache_frequency_versions": ([] if self.compact_history_cache else [
                 [list(key), int(version)]
                 for key, version in self._cache_frequency_versions.items()
-            ],
+            ]),
+            "compact_history_index": ([
+                [list(key), int(self._cache_frequency_versions[key]), _jsonable(rank_key),
+                 list(candidate_vector), int(order)]
+                for key, (rank_key, candidate_vector, order) in self._history_rank_index.items()
+            ] if self.compact_history_cache else []),
             "m_f": self.m_f.tolist(), "m_cr": self.m_cr.tolist(),
             "history_index": int(self.history_index),
             "current_population_size": len(self._population),
@@ -757,8 +868,19 @@ class LShadeBackend(OptimizerBackend):
         }
 
     def load_state_dict(self, state: Mapping[str, Any]) -> None:
+        state_version = int(state.get("state_version", -1))
+        if state_version != 4:
+            raise ValueError(
+                f"L-SHADE checkpoint state version {state_version} is unsupported; expected 4"
+            )
         if state.get("backend") not in (None, self.name):
             raise ValueError("checkpoint backend mismatch")
+        saved_compact = bool(state.get("compact_history_cache", False))
+        if saved_compact != self.compact_history_cache:
+            raise ValueError("checkpoint compact-history mode mismatch")
+        saved_finalist_count = int(state.get("historical_finalist_count", 16))
+        if saved_finalist_count != self.historical_finalist_count:
+            raise ValueError("checkpoint historical finalist count mismatch")
         saved_terminal = state.get(
             "terminal_budget", state.get("population_schedule_terminal_budget")
         )
@@ -781,13 +903,38 @@ class LShadeBackend(OptimizerBackend):
                 np.asarray(item["x"], dtype=float), np.asarray(item["physical"], dtype=float),
                 tuple(item["key"]), _from_jsonable(item["result"])))
         self._archive = [np.asarray(item, dtype=float) for item in state.get("archive", [])]
-        self._cache = {tuple(key): _from_jsonable(value) for key, value in state.get("cache", [])}
-        self._cache_frequency_versions = {
-            tuple(key): int(version)
-            for key, version in state.get("cache_frequency_versions", [])
-        }
-        # Checkpoints written before grid-versioned cache entries are treated
-        # as stale and will be refreshed on first use.
+        if self.compact_history_cache:
+            self._cache = {
+                tuple(key): _from_jsonable(value)
+                for key, value in state.get("retained_results", [])
+            }
+            self._cache_frequency_versions = {}
+            self._history_rank_index = {}
+            for key, version, rank_key, candidate_vector, order in state.get(
+                    "compact_history_index", []):
+                self._cache_frequency_versions[tuple(key)] = int(version)
+                self._history_rank_index[tuple(key)] = (
+                    tuple(float("inf") if value is None else float(value)
+                          for value in rank_key),
+                    tuple(float(value) for value in candidate_vector),
+                    int(order),
+                )
+            self._history_next_order = max(
+                (entry[2] for entry in self._history_rank_index.values()), default=-1,
+            ) + 1
+            self._historical_finalist_keys = sorted(
+                self._history_rank_index,
+                key=lambda key: (
+                    self._history_rank_index[key][0],
+                    self._history_rank_index[key][2],
+                ),
+            )[:self.historical_finalist_count]
+        else:
+            self._cache = {tuple(key): _from_jsonable(value) for key, value in state.get("cache", [])}
+            self._cache_frequency_versions = {
+                tuple(key): int(version)
+                for key, version in state.get("cache_frequency_versions", [])
+            }
         self.m_f = np.asarray(state["m_f"], dtype=float)
         self.m_cr = np.asarray(state["m_cr"], dtype=float)
         self.history_index = int(state["history_index"])
@@ -800,7 +947,8 @@ class LShadeBackend(OptimizerBackend):
         self._successful_f = [float(value) for value in _from_jsonable(state.get("successful_f", []))]
         self._successful_cr = [float(value) for value in _from_jsonable(state.get("successful_cr", []))]
         self._successful_weights = [float(value) for value in _from_jsonable(state.get("successful_weights", []))]
-        self.unique_evaluations = int(state.get("unique_evaluations", len(self._cache)))
+        self.unique_evaluations = int(state.get(
+            "unique_evaluations", len(self._cache_frequency_versions)))
         self.initial_requested_budget = int(state.get(
             "requested_unique_budget", state.get("total_budget", self.total_budget)))
         self.proposals_total = int(state.get(
@@ -851,6 +999,7 @@ class LShadeBackend(OptimizerBackend):
             json.dump(self.state_dict(), stream, indent=2, ensure_ascii=False, allow_nan=False)
 
     def load_checkpoint(self, path):
+        validate_lshade_checkpoint_header(path)
         with open(path, encoding="utf-8") as stream:
             self.load_state_dict(json.load(stream))
 

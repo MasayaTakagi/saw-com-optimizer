@@ -78,6 +78,15 @@ class GeometryGateCounters:
     def solved_frequency_points(self) -> int:
         return self.search_frequency_points + self.validation_solved_frequency_points
 
+    def snapshot(self) -> dict[str, Any]:
+        return asdict(self)
+
+    def restore_snapshot(self, snapshot: Mapping[str, Any]) -> None:
+        for name in self.snapshot():
+            if name in snapshot:
+                value = snapshot[name]
+                setattr(self, name, dict(value) if name == "initial_sampling" else int(value))
+
     def observe_search(self, record: Mapping[str, Any], frequency_count: int) -> None:
         status = evaluation_status(record)
         if status == "GEOMETRY_REJECTED":

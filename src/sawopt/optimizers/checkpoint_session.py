@@ -8,6 +8,7 @@ from typing import Any, Callable, Mapping
 
 from sawopt.io.checkpoints import CheckpointStore, LoadedCheckpoint
 from sawopt.io.lifecycle import RunDisposition
+from .lshade import validate_lshade_checkpoint_header
 
 
 class LShadeCheckpointSession:
@@ -133,18 +134,26 @@ class LShadeCheckpointSession:
                     include_final = False
         loaded = self.store.load_state(
             validator=lambda state: self._validate(backend, state),
+            preflight_validator=validate_lshade_checkpoint_header,
             include_final=include_final,
         )
         backend.load_state_dict(loaded.state)
         self.last_load = loaded
         return loaded
 
-    def save(self, backend: Any) -> Path:
+    def save(self, backend: Any, *, extra_state: Mapping[str, Any] | None = None) -> Path:
+        def writer(path: Path) -> None:
+            state = backend.state_dict()
+            if extra_state is not None:
+                state["extra_state"] = copy.deepcopy(dict(extra_state))
+            with Path(path).open("w", encoding="utf-8") as stream:
+                json.dump(state, stream, indent=2, ensure_ascii=False, allow_nan=False)
+
         if self.legacy_mode:
-            backend.save_checkpoint(self.legacy_path)
+            writer(self.legacy_path)
             return self.legacy_path
         validator = lambda state: self._validate(backend, state)
-        return self.store.write(backend.save_checkpoint, validator=validator)
+        return self.store.write(writer, validator=validator)
 
 
 __all__ = ["LShadeCheckpointSession"]

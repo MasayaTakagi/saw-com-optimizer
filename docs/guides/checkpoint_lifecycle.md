@@ -45,9 +45,36 @@ legacy path; no migration is performed. A legacy run whose `manifest.json`
 uses the historical v1 `run_store.initialize` fingerprint still requires its
 matching source checkout: that contract hashes every Python file and rejects a
 changed source tree. The checkpoint adapter does not bypass that manifest check
-or migrate old runs. Legacy checkpoint format loading remains supported
-independently. This does not promise that a legacy run can resume under a
-changed source tree.
+or migrate old runs. Legacy file-path selection remains available for state
+versions accepted by the owning optimizer; it does not bypass the current
+state-version check. In particular, L-SHADE v3 payloads are rejected by the
+v4 loader rather than migrated. This does not promise that a legacy run can
+resume under a changed source tree.
+
+### Compact L-SHADE historical cache
+
+L-SHADE checkpoints use state version 4. Cache identity stores each canonical
+design key and its last frequency-grid version. A separate compact rank index
+stores only the comparator key, finalist vector, and original insertion order
+needed to reproduce the exact cumulative shortlist. Full evaluator mappings
+remain with the active population/incumbent and bounded retained finalist
+records (16 for Stage 4C). The shortlist ranks all evaluated designs, including
+rejected proposals, and preserves the original stable insertion order for ties;
+it does not substitute the live population for historical finalists.
+
+A same-grid hit remains a cache hit and duplicate proposal: it does not invoke
+the evaluator or enter the active population. A design last evaluated on an
+older frequency-grid version is reevaluated when proposed, without incrementing
+the unique-design count. Grid exchange, RNG, proposal counters, population,
+archive, incumbent, schedule, bounds, and ranking behavior remain checkpointed
+independently of the compact historical index.
+
+Study accounting counters are stored atomically with the optimizer state.
+They must not be reconstructed by scanning historical evaluator results because
+those payloads are intentionally no longer present. State version 3 checkpoints
+are not migrated or resumed by this format. The loader checks the small state
+header before materializing a checkpoint JSON document and rejects version 3;
+the retained legacy file path does not bypass this compatibility boundary.
 
 Failed or incomplete runs keep their runtime generations. Historical run
 directories are read-only unless a user explicitly asks for a separate,

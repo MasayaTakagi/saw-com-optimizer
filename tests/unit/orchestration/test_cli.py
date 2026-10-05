@@ -294,7 +294,9 @@ class CliTests(unittest.TestCase):
             transition(run_dir, "STARTING", worker_pid=999999)
             with mock.patch.object(cli, "pid_exists", return_value=False):
                 self.assertEqual(cli.recover(Namespace(run_id=str(run_dir))), 0)
-            self.assertEqual(load_status(run_dir)["state"], "ORPHANED")
+            status = load_status(run_dir)
+            self.assertEqual(status["state"], "ORPHANED")
+            self.assertEqual(status["optimizer_state"], "UNKNOWN")
 
     def test_recover_detects_live_optimizer_with_dead_worker(self):
         with TemporaryDirectory() as temporary:

@@ -161,7 +161,9 @@ class CheckpointStore:
                     policy.pop("finalized_at_utc", None)
                     _atomic_write_json(policy_path, policy)
 
-    def _validated_state(self, path: Path, validator=None) -> dict[str, Any]:
+    def _validated_state(self, path: Path, validator=None, preflight_validator=None) -> dict[str, Any]:
+        if preflight_validator is not None:
+            preflight_validator(path)
         return _read_json(path, validator)
 
     def write(
@@ -210,6 +212,7 @@ class CheckpointStore:
         self,
         *,
         validator: Callable[[Mapping[str, Any]], Any] | None = None,
+        preflight_validator: Callable[[Path], Any] | None = None,
         include_final: bool = True,
     ) -> LoadedCheckpoint:
         """Load latest, then previous (and optionally final) after validation.
@@ -225,7 +228,7 @@ class CheckpointStore:
             if not path.is_file():
                 continue
             try:
-                state = self._validated_state(path, validator)
+                state = self._validated_state(path, validator, preflight_validator)
             except Exception as exc:
                 failures.append(f"{path.name}: {type(exc).__name__}: {exc}")
                 continue

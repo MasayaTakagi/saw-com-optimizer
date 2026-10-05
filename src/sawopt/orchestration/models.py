@@ -289,6 +289,12 @@ class RunStatus:
     callback_enabled: bool = False
     optimizer_state: str | None = None
     error: str | None = None
+    error_type: str | None = None
+    error_message: str | None = None
+    error_repr: str | None = None
+    error_traceback_path: str | None = None
+    failing_cell: dict[str, Any] | None = None
+    last_durable_checkpoint_budget: int | None = None
     started_at: str | None = None
     finished_at: str | None = None
     callback_started_at: str | None = None
@@ -331,6 +337,8 @@ class RunStatus:
             "state", "updated_at", "worker_pid", "optimizer_pid", "exit_code",
             "callback_attempts", "callback_completed", "callback_exit_code",
             "callback_enabled", "optimizer_state", "error", "started_at",
+            "error_type", "error_message", "error_repr", "error_traceback_path",
+            "failing_cell", "last_durable_checkpoint_budget",
             "finished_at", "callback_started_at", "callback_finished_at",
             "resume_count", "last_attached_at", "session_checkpoint_path",
             "continuation_mode", "continuation_state", "continuation_attempt_count",

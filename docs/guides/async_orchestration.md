@@ -73,6 +73,22 @@ identityや設定が指定と異なる場合は、そのlaunchを有効なproduc
 
 one-shot queue deliveryが曖昧になった場合はfail closedとし、証拠なしに同じmessageを再送しません。
 
+Optimizer child が非zeroで終了した場合、detached worker はそのexit code
+を記録し、orchestration state と optimizer state の両方を `FAILED` にします。
+セルの失敗記録には例外型、message、repr、tracebackまたはそのrun-local参照、
+失敗セル、最後に保存済みのcheckpoint/budgetを残します。`MemoryError` は
+空messageになり得るため、`str(exc)` だけを診断情報として使いません。
+
+worker が先に終了し optimizer child がまだ動作中なら、`recover` は
+`ORPHANED_CHILD` とし、二重起動やactive-run registryの解除をしません。
+両プロセスが停止していてもworkerがexit codeを保存できていない場合、`recover`
+は `ORPHANED` と `optimizer_state: UNKNOWN` を記録し、既存checkpoint/run
+completion evidenceを書き換えません。現在のCLIにはdurable cell errorを
+`FAILED`へcloseする管理コマンドがありません。workerがchild exit codeを受け取る
+通常経路では `FAILED` と診断情報を保存します。active-run registryはFAILEDだけを
+理由に解除せず、失敗evidenceのpublicationを含む既存のpublication finalizerが
+`REVIEW_WAITING` をdurableに確定した後に解除します。
+
 ## Post-run continuation
 
 標準flowは次の通りです。
