@@ -39,7 +39,13 @@ checkpoint amplification as the root cause class.
 - A same-grid historical hit does not call the evaluator and cannot enter the
   population; a stale-grid hit refreshes without charging unique evaluations.
 - RNG, proposal/duplicate/cache-hit counters, population, archive, incumbent,
-  bounds, schedule, grid version, and traces remain trajectory-identical.
+  schedule, grid version, and traces remain trajectory-identical for the frozen
+  Stage 4C path, which does not perform bounds expansion.
+- In compact mode, `update_bounds()` does not re-introduce an unretained
+  historical design whose full evaluator payload was intentionally discarded.
+  A historical collision during injection is skipped and another proposal is
+  drawn. This is a compact-mode bounds-expansion policy, not a claim of
+  full-cache trajectory parity for `update_bounds()`.
 - Study counters are checkpointed atomically with optimizer state rather than
   reconstructed from discarded evaluator payloads.
 - Bump the state version and reject v3 before parsing the full checkpoint; do
@@ -56,13 +62,13 @@ checkpoint amplification as the root cause class.
 ## Required proof
 
 Duplicate-heavy deterministic trajectory parity; checkpoint/resume parity;
-frequency-grid exchange parity; bounds-update parity; exact stable top-16
-finalist parity; persistence of counters; compact checkpoint sizing with large
-synthetic evaluator payloads; and a 96k synthetic smoke. Orchestration tests
-must cover nonzero optimizer exit, worker/child liveness, durable failure
-diagnostics, and registry lifecycle. The frozen scientific contract is
-unchanged. Any production continuation or new production run requires separate
-user authorization.
+frequency-grid exchange parity; explicit compact-mode bounds-update collision
+safety; exact stable top-16 finalist parity; persistence of counters; compact
+checkpoint sizing with large synthetic evaluator payloads; and a 96k synthetic
+smoke. Orchestration tests must cover nonzero optimizer exit, worker/child
+liveness, durable failure diagnostics, and registry lifecycle. The frozen
+scientific contract is unchanged. Any production continuation or new production
+run requires separate user authorization.
 
 ## Sol judgment — approved with safeguards
 
@@ -77,10 +83,12 @@ run is authorized.
 
 ## Implementation validation
 
-- TDD regression coverage verifies duplicate-heavy trajectory parity,
-  checkpoint/resume parity, frequency-grid exchange, expanded-bounds behavior,
-  stable finalist ties, counter state persistence, non-finite rank serialization,
-  large-payload compaction, and pre-parse v3 rejection.
+- TDD regression coverage verifies duplicate-heavy Stage 4C-path trajectory
+  parity, checkpoint/resume parity, frequency-grid exchange, compact-mode
+  expanded-bounds safety, stable finalist ties, counter state persistence,
+  non-finite rank serialization, large-payload compaction, and pre-parse v3
+  rejection. General full-cache trajectory parity across an `update_bounds()`
+  historical-key collision is intentionally not claimed.
 - The relevant optimizer, study, and orchestration suites pass: 44 tests.
 - The full repository suite passes: 350 tests and 20 subtests.
 - A synthetic 96,000-entry history-storage smoke completed in 17.248 seconds.
