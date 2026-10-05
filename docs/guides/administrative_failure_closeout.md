@@ -30,14 +30,14 @@ The record is an allowlist authorization for one exact run and must contain at l
 - a bounded failure classification/reason;
 - a statement that the record does not authorize resume or relaunch.
 
-The record must be present byte-for-byte in the current clean Git `HEAD`. A working-tree-only file is not sufficient.
+The authoritative record is the blob committed in the current clean Git `HEAD`. A working-tree-only file is not sufficient.
 
 ## Finalizer contract
 
 The finalizer is invoked explicitly:
 
 ```powershell
-.\.venv\Scripts\python.exe -m sawopt.orchestration.cli close-orphaned-failure `
+.\.venv\Scripts\python.exe -m sawopt.orchestration.administrative_closeout `
   --run-dir <ABSOLUTE_RUN_DIR> `
   --evidence reports/administrative_run_closeouts/<RUN_ID>.json `
   --confirm-abandon
@@ -45,21 +45,21 @@ The finalizer is invoked explicitly:
 
 Before mutating the run it verifies:
 
-1. the evidence path is under `reports/administrative_run_closeouts/` and tracked in current `HEAD`;
+1. the evidence path is under `reports/administrative_run_closeouts/` and exists in current `HEAD`;
 2. the repository worktree is clean;
 3. evidence `run_id`, source SHA and absolute run directory match the immutable run manifest;
-4. the current orchestration state is explicitly allowed by the evidence record;
+4. the current orchestration state is explicitly allowed by the evidence record and is a normal `STARTING`/`RUNNING` state that can transition to `FAILED`;
 5. the recorded worker and optimizer PIDs match the evidence record;
 6. both PIDs are currently dead;
 7. the run uses external persistent storage;
-8. the matching active-run registry record, when present, has the same run directory and source SHA.
+8. the matching active-run registry record exists and has the same run directory and source SHA for the first closeout.
 
 If any check fails, the command makes no state transition and does not release the registry entry.
 
 On success it performs the following durable sequence:
 
 1. write `administrative_failure_closeout.json` into the external run directory, including the reviewed evidence path, evidence SHA-256, current Git `HEAD`, prior status snapshot and closeout timestamp;
-2. write `optimizer_completion.json` with disposition `FAILED` and unknown exit code, without inventing a process exit code;
+2. write `optimizer_completion.json` with disposition `FAILED`, preserving a recorded exit code if one exists and otherwise leaving it unknown;
 3. transition orchestration state to `FAILED` while retaining existing diagnostic fields and checkpoints;
 4. release the exact active-run registry entry.
 
