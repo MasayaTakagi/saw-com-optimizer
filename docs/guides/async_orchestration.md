@@ -83,11 +83,22 @@ worker が先に終了し optimizer child がまだ動作中なら、`recover` �
 `ORPHANED_CHILD` とし、二重起動やactive-run registryの解除をしません。
 両プロセスが停止していてもworkerがexit codeを保存できていない場合、`recover`
 は `ORPHANED` と `optimizer_state: UNKNOWN` を記録し、既存checkpoint/run
-completion evidenceを書き換えません。現在のCLIにはdurable cell errorを
-`FAILED`へcloseする管理コマンドがありません。workerがchild exit codeを受け取る
-通常経路では `FAILED` と診断情報を保存します。active-run registryはFAILEDだけを
-理由に解除せず、失敗evidenceのpublicationを含む既存のpublication finalizerが
-`REVIEW_WAITING` をdurableに確定した後に解除します。
+completion evidenceを書き換えません。
+
+通常の科学review exporterは完走したterminal cell matrixを要求するため、
+不完全なorphaned runを科学review済みとして扱ってactive markerを解除してはいけません。
+再開しないことを明示的に決めたproduction failureは、GitHubでreview/merge済みの
+`reports/administrative_run_closeouts/<run_id>.json` によるrun-scoped authorizationを
+用意した後、`close-orphaned-failure --confirm-abandon` で管理上closeします。
+詳細は [`administrative_failure_closeout.md`](administrative_failure_closeout.md) を参照してください。
+
+このfinalizerはrun ID、production source SHA、absolute run directory、記録PID、
+Git HEADに含まれるcloseout record、clean worktree、両processのdead状態、active-run
+registry identityをすべて再検証します。成功時のみrun-localの
+`administrative_failure_closeout.json`と`optimizer_completion.json`をdurableに保存し、
+orchestration stateを`FAILED`へ遷移した後、exact active-run markerを解除します。
+checkpoint、cell artifact、log、authorization claimは削除・改変せず、queue continuationも
+送信しません。この管理closeoutはscientific reviewやreplacement productionのauthorizationを意味しません。
 
 ## Post-run continuation
 
@@ -179,7 +190,8 @@ historical runには `codex_session_id`、legacy callback state、`callback.log`
 5. one-shot delivery / completeness / redaction / size gate;
 6. external persistent raw storage;
 7. initialized active-run registry;
-8. fail-closed worktree safety.
+8. fail-closed worktree safety;
+9. reviewed administrative closeout path for dead orphaned production runs.
 
 これらのいずれかが壊れている、未初期化、または再検証不能な場合は新しい長時間productionを開始せず、そのinfrastructure blockerを先に解消します。
 
