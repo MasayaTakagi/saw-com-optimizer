@@ -51,6 +51,12 @@ class CompactBoundsPolicyTests(unittest.TestCase):
         }
         calls = []
 
+        def canonicalizer(vector):
+            # Keep the test focused on compact-history collision policy rather
+            # than float round-trip noise introduced by changing active bounds.
+            value = np.round(np.asarray(vector, dtype=float), 12)
+            return value, tuple(float(item) for item in value)
+
         def evaluator(vector):
             calls.append(tuple(np.asarray(vector, dtype=float)))
             return _record(vector)
@@ -60,6 +66,7 @@ class CompactBoundsPolicyTests(unittest.TestCase):
             seed=41,
             config=config,
             integer_indices=(),
+            canonicalizer=canonicalizer,
             comparator=GeometryFirstComparator(),
         )
         backend.initialize(evaluator)
