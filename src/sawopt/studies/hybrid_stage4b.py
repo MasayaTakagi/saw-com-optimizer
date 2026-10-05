@@ -11,6 +11,7 @@ import json
 import os
 import subprocess
 import time
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -463,11 +464,37 @@ def _summary_record(record: Mapping[str, Any], *, source_rank: int | None = None
     return result
 
 
+def _cell_failure_payload(identity: Mapping[str, Any], exc: BaseException, *,
+                          phase: str, backend: Any, last_durable_budget: int,
+                          checkpoint_reference: Mapping[str, Any] | None,
+                          elapsed_wall_time_s: float) -> dict[str, Any]:
+    trace = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    message = str(exc)
+    return {
+        **identity,
+        "status": "INCOMPLETE",
+        "error": (f"{type(exc).__name__}: {message}" if message
+                  else f"{type(exc).__name__}: (no message)"),
+        "error_type": type(exc).__name__,
+        "error_message": message,
+        "error_repr": repr(exc),
+        "traceback": trace,
+        "failing_stage": str(phase),
+        "failing_cell": {"topology": identity["topology"], "seed": int(identity["seed"])},
+        "unique_evaluations": int(backend.unique_evaluations),
+        "last_durable_checkpoint_budget": int(last_durable_budget),
+        "checkpoint_reference": (None if checkpoint_reference is None
+                                  else dict(checkpoint_reference)),
+        "elapsed_wall_time_s": float(elapsed_wall_time_s),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 def _run_cell(
     context: Mapping[str, Any], run: Path, *, topology: str, seed: int,
     budget: int, checkpoints: Sequence[int], terminal_budget: int,
     finalist_count: int, mode: str, source_commit_sha: str,
-    resume: bool,
+    resume: bool, compact_history_cache: bool = False,
 ) -> dict[str, Any]:
     from ..core.hybrid import RESONATOR_BOUNDS
     from ..optimization.counters import GeometryGateCounters, evaluation_status
@@ -558,6 +585,8 @@ def _run_cell(
         "initial_population": int(expected_population),
         "min_population": 4,
         "hard_bounds": hybrid_hard_bounds.tolist(),
+        "compact_history_cache": bool(compact_history_cache),
+        "historical_finalist_count": int(finalist_count),
     })
 
     def evaluator(vector):
@@ -584,13 +613,18 @@ def _run_cell(
         resume=cell_manifest_exists,
     )
     has_checkpoint = checkpoint_session.has_checkpoint
+    phase = "checkpoint_restore" if has_checkpoint else "initialization"
+    last_durable_budget = 0
     if cell_manifest_exists and not has_checkpoint:
         raise RuntimeError(f"incomplete cell has no recoverable checkpoint: {topology}/seed{seed}")
     if has_checkpoint:
         try:
             checkpoint_session.load(backend)
             backend.set_evaluator(evaluator)
-            counters.restore_from_cache(list(backend._cache.values()), len(context["search_frequencies"]))
+            last_durable_budget = int(backend.unique_evaluations)
+            extra_state = (checkpoint_session.last_load.state.get("extra_state", {})
+                           if checkpoint_session.last_load is not None else {})
+            counters.restore_snapshot(extra_state.get("geometry_gate_counters", {}))
             existing_rows = []
             for point in checkpoints:
                 record_path = cell / f"B{int(point)}.json"
@@ -600,12 +634,12 @@ def _run_cell(
                 latest = max(existing_rows, key=lambda row: int(row["checkpoint_budget"]))
                 counters.restore_validation(latest.get("counters", {}))
         except BaseException as exc:
-            _atomic_json(cell / "cell_status.json", {
-                **identity, "status": "INCOMPLETE",
-                "error": f"{type(exc).__name__}: {exc}",
-                "elapsed_wall_time_s": prior_elapsed + time.perf_counter() - cell_started,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            })
+            _atomic_json(cell / "cell_status.json", _cell_failure_payload(
+                identity, exc, phase=phase, backend=backend,
+                last_durable_budget=last_durable_budget,
+                checkpoint_reference=checkpoint_session.reference_metadata,
+                elapsed_wall_time_s=prior_elapsed + time.perf_counter() - cell_started,
+            ))
             raise
     else:
         if cell_manifest_exists:
@@ -623,20 +657,23 @@ def _run_cell(
                 raise RuntimeError("initial population did not decode to the expected unique size")
             # Preserve a recoverable optimizer state before the first scheduled
             # checkpoint. The declared scientific checkpoints remain unchanged.
-            checkpoint_session.save(backend)
+            phase = "checkpoint_write"
+            checkpoint_session.save(backend, extra_state={
+                "geometry_gate_counters": counters.snapshot(),
+            })
+            last_durable_budget = int(backend.unique_evaluations)
             _atomic_json(cell / "initialization_checkpoint.json", {
                 **identity,
                 "unique_evaluations": int(backend.unique_evaluations),
                 "checkpoint_reference": checkpoint_session.reference_metadata,
             })
         except BaseException as exc:
-            _atomic_json(cell / "cell_status.json", {
-                **identity, "status": "INCOMPLETE",
-                "error": f"{type(exc).__name__}: {exc}",
-                "unique_evaluations": int(backend.unique_evaluations),
-                "elapsed_wall_time_s": prior_elapsed + time.perf_counter() - cell_started,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            })
+            _atomic_json(cell / "cell_status.json", _cell_failure_payload(
+                identity, exc, phase=phase, backend=backend,
+                last_durable_budget=last_durable_budget,
+                checkpoint_reference=checkpoint_session.reference_metadata,
+                elapsed_wall_time_s=prior_elapsed + time.perf_counter() - cell_started,
+            ))
             raise
 
     checkpoint_rows: list[dict[str, Any]] = []
@@ -652,6 +689,7 @@ def _run_cell(
                 checkpoint_rows.append(saved)
                 continue
             if backend.unique_evaluations < point:
+                phase = "search_advance"
                 started = time.perf_counter()
                 backend.advance_to_unique_budget(point, evaluator=evaluator)
                 optimizer_elapsed = time.perf_counter() - started
@@ -659,13 +697,16 @@ def _run_cell(
                 optimizer_elapsed = 0.0
             if backend.unique_evaluations != point:
                 raise RuntimeError(f"L-SHADE did not reach exact checkpoint {point}")
-            checkpoint_session.save(backend)
-            records = [dict(value) for value in backend._cache.values()]
-            records.sort(key=backend.comparator.rank_key)
-            finalists = records[:int(finalist_count)]
+            phase = "checkpoint_write"
+            checkpoint_session.save(backend, extra_state={
+                "geometry_gate_counters": counters.snapshot(),
+            })
+            last_durable_budget = int(backend.unique_evaluations)
+            finalists = backend.historical_finalists(int(finalist_count))
             if not finalists:
                 raise RuntimeError(f"no physics-evaluated candidates at checkpoint {point}")
             common_started = time.perf_counter()
+            phase = "finalist_validation"
             validated = []
             for source_rank, source in enumerate(finalists, start=1):
                 candidate = space.decode(
@@ -678,7 +719,9 @@ def _run_cell(
                     context["source_impedance_ohm"], context["load_impedance_ohm"],
                 )
                 result["search_source_rank"] = source_rank
-                result["search_source_rank_key"] = list(backend.comparator.rank_key(source))
+                result["search_source_rank_key"] = list(source.get(
+                    "history_rank_key", backend.comparator.rank_key(source),
+                ))
                 if evaluation_status(result) == "PHYSICS_EVALUATED":
                     counters.validation_solved_frequency_points += len(context["common_frequencies"])
                 else:
@@ -706,6 +749,7 @@ def _run_cell(
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
             _atomic_json(record_path, row)
+            phase = "checkpoint_summary_write"
             checkpoint_rows.append(row)
 
         if [int(row["checkpoint_budget"]) for row in checkpoint_rows] != list(checkpoints):
@@ -766,13 +810,12 @@ def _run_cell(
         })
         return result
     except BaseException as exc:
-        _atomic_json(cell / "cell_status.json", {
-            **identity, "status": "INCOMPLETE",
-            "error": f"{type(exc).__name__}: {exc}",
-            "unique_evaluations": int(backend.unique_evaluations),
-            "elapsed_wall_time_s": prior_elapsed + time.perf_counter() - cell_started,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        })
+        _atomic_json(cell / "cell_status.json", _cell_failure_payload(
+            identity, exc, phase=phase, backend=backend,
+            last_durable_budget=last_durable_budget,
+            checkpoint_reference=checkpoint_session.reference_metadata,
+            elapsed_wall_time_s=prior_elapsed + time.perf_counter() - cell_started,
+        ))
         raise
 
 

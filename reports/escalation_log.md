@@ -1765,3 +1765,18 @@ confirmation or a separately approved FEM extraction is required.
 - Finding: the Stage 4C authorization claim ID was run-ID-scoped and the optimizer child did not independently verify the durable claim. Claim creation also followed active-run registration, which could leave stale state when duplicate claims become fail-closed.
 - Fix: claim identity is now authorization-scope + computation-fingerprint + source-SHA scoped; run ID remains in the claim payload. Child verification requires the exact Git-common claim path and matching payload. Stage 4C consumes the claim before active-run registration/run-directory reservation.
 - Scientific protocol, optimizer, 96k budget, seeds, grids, maturity/materiality rules, and Stage 4B behavior are unchanged. Production remains unauthorized and was not launched by this fix.
+
+### Stage 4C MemoryError — compact L-SHADE checkpoint state — 2026-10-06
+
+- Escalation was required before changing optimizer checkpoint architecture and
+  orchestration failure semantics. Sol approved a canonical-key/grid-version
+  history index with bounded results, exact stable-order cumulative top-16
+  finalist retention, direct counter persistence, pre-parse rejection of v3
+  checkpoints, and durable traceback/exit diagnostics.
+- Preserve the frozen study conditions and all optimizer trajectory/accounting
+  invariants. The failed production run remains untouched; no production launch
+  or resume is authorized by this repair.
+- The existing registry policy requires retaining the active-run marker until
+  failure evidence is published and `REVIEW_WAITING` is durable. The fix follows
+  that policy and will not clear a marker merely because optimization failed.
+- Packet: `reports/escalation_packets/stage4c_memoryerror_compact_state_20261006.md`.
