@@ -1,4 +1,4 @@
-"""Capture the active Codex session for explicit asynchronous callbacks."""
+"""Capture Codex session metadata for historical recovery only."""
 from __future__ import annotations
 
 import json
@@ -30,7 +30,7 @@ def _project_root() -> Path:
 
 
 def capture_payload(payload: dict, destination: Path) -> dict:
-    """Persist only the stable session fields needed by the launcher."""
+    """Persist session metadata; this is not a new-production routing identity."""
     session_id = str(payload.get("session_id", "")).strip()
     if not session_id:
         raise ValueError("Hook payload contains an empty session_id")
@@ -74,17 +74,7 @@ def main() -> int:
         normalized = dict(payload)
         normalized["session_cwd"] = str(Path(payload.get("cwd") or os.getcwd()).resolve())
         normalized["project_root"] = str(root)
-        captured = capture_payload(normalized, root / ".codex" / "runtime" / "current_session.json")
-        print(json.dumps({
-            "hookSpecificOutput": {
-                "hookEventName": "SessionStart",
-                "additionalContext": (
-                    f"Current Codex session ID: {captured['session_id']}. "
-                    "For async production launch, pass this exact ID explicitly "
-                    "using --session-id."
-                ),
-            }
-        }, ensure_ascii=False))
+        capture_payload(normalized, root / ".codex" / "runtime" / "current_session.json")
     except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
         _record_hook_error(cwd, exc)
         print(f"capture_session hook failed: {exc}", file=sys.stderr)

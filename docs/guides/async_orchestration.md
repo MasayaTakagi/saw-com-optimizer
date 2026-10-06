@@ -11,7 +11,7 @@
 
 本番runでは、対象config、実装、budget、seed、checkpoint方針、外部raw出力先、review-evidence contract、preflightをGitHub上で確認できるbranch/commitに保存します。run自体はユーザーが明示的に承認した後に開始します。
 
-新規productionではdetach前に **exact original Codex thread ID** を取得しmanifestへ固定します。session IDとthread IDは別identityであり、queue targetへsession IDを代用しません。
+新規productionのrouting identityはruntimeの `CODEX_THREAD_ID` です。launcherへ `--thread-id` として渡してmanifestへ固定し、完了後は `codex queue --thread <original-thread-id> --message ...` で同じthreadへ通知します。SessionStart hookからproduction routing identityを注入しません。session IDとthread IDは別identityであり、queue targetへsession IDを代用しません。
 
 ```text
 continuation_mode = queue
@@ -28,7 +28,7 @@ active-run registryが未初期化・不正・unreconciledの場合もproduction
 
 新規manifestはschema v4です。continuationの既定値は`queue`で、明示的な`--no-callback`は`disabled`として記録します。`legacy_resume`は過去manifestの読み取り・復旧に限り、新規launchでは拒否されます。
 
-queue modeでは`CODEX_THREAD_ID`が必須で、任意の`--thread-id`はその値と一致しなければなりません。`--session-id`と`--session-file`はqueue routingに使用できません。
+queue modeでは`CODEX_THREAD_ID`が必須で、`--thread-id`はそのruntime値と一致しなければなりません。新規queue launchでは`--session-id`と`--session-file`を使いません。session IDはhistorical/legacy recovery metadataに限られ、新規production routingには使用しません。
 
 概念上のlaunchは次の形です。
 
