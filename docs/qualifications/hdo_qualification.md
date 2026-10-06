@@ -1,6 +1,6 @@
 # HDO qualification record
 
-**Interim status:** `HDO_REJECTED` at Gate B; downstream gates are not run.
+**Interim status:** `HDO_QUALIFICATION_BLOCKED` after Gate B2; the original Gate B rejection remains in the history and downstream gates are not run.
 **Last updated:** 2026-10-06 (JST)
 
 ## Scope and intended role
@@ -61,8 +61,10 @@ user did not need to repeat authentication.
 ## Gate tracker
 
 Phase 0 and Phase 1 are complete. Gate A's conditions were cleared during the
-Gate B resume. Gate B then failed a focused Windows command-line boundary test;
-later gates will not start after this Windows runtime finding.
+Gate B resume. Gate B initially failed a focused Windows command-line boundary
+test. Gate B2 assessed whether that edge failure affects the intended native
+Codex path, but its read-only CLI smoke could not complete under the current
+Codex execution context. Gate C and later gates remain stopped.
 
 ## Gate A — upstream pin and supply chain
 
@@ -157,21 +159,29 @@ selected test files: **241 passed, 1 failed**. The reproducible failure is
 exactly 8191 characters runs to completion”. It expects exit 0 but the actual
 `cmd.exe` process exits 255 with mojibake Japanese stderr; the test source
 documents this failure mode as `command line too long`. The same test failed
-when rerun alone. This is a Windows command-process boundary used by HDO's
-`.cmd` shim handling, so it is classified **A — real Windows runtime blocker**
-for this host, not an environment/network failure or an unrelated test.
+when rerun alone. At the time, this `.cmd` shim boundary failure was classified
+**A — real Windows runtime blocker**, and Gate B was rejected at commit
+`401fad702d4722f429410b9b5e29f1697957ae73`.
 
-**Gate B status: FAIL.** Stop qualification here; do not patch HDO to force a
-pass. The read-only `help`/`config`/`doctor` preflight was not completed after
-the Windows process-boundary failure. A preliminary `--help` invocation exited
-2 because this CLI exposes `help` as a subcommand, not an option; it is not
-counted as the CLI preflight. Gates C–M remain NOT_RUN. Codex runtime modified:
-NO. System PATH permanently modified: NO. HDO source patches: NONE.
+Gate B2 later confirmed that this exact test's behavior depends on the shim
+body near the limit and measured the intended Codex adapter route well below
+the boundary. It did not clear Gate B: the required read-only `doctor -DryRun`
+smoke stopped with `EPERM` while trying to spawn `node`, and a focused probe
+from the same Codex execution context received `EPERM` for every tested child
+executable (Node, Git, gh, Codex, and `cmd.exe`). This prevents distinguishing
+a host runtime failure from the current execution boundary. No credential or
+Codex implementation run was attempted.
+
+**Gate B2 status: BLOCKED / INCONCLUSIVE.** The original Gate B failure remains
+recorded; its materiality for the target path has not been established, so it
+cannot be reclassified as `PASS_WITH_CONDITIONS`. No HDO source patch was made.
+Gates C–M remain NOT_RUN. Codex runtime modified: NO. System PATH permanently
+modified: NO. HDO source patches: NONE.
 
 | Gate | Status | Notes |
 |---|---|---|
 | A — upstream pin / supply chain | PASS | Static review plus successful lockfile install and native dependency load closed the Gate A conditions. |
-| B — Windows host preflight | FAIL | Classification A: the real `cmd.exe` 8191-character boundary test fails reproducibly on the current Windows host. |
+| B — Windows host preflight | BLOCKED | Original FAIL/A is retained as history. Gate B2 could not complete its required CLI smoke because child-process creation returned `EPERM` for all tested executables in this Codex execution context. |
 | C — sandbox fixture setup | NOT_RUN | Only the Phase 0 minimal tree exists. |
 | D — current Codex CLI compatibility | NOT_RUN | |
 | E — local HDO Issue flow | NOT_RUN | |
@@ -184,17 +194,124 @@ NO. System PATH permanently modified: NO. HDO source patches: NONE.
 | L — automatic handoff | NOT_RUN | |
 | M — runner fault tests | NOT_RUN | |
 
+## Gate B2 — `cmd.exe` boundary materiality
+
+**History:** Gate B initially rejected HDO under the original stop policy.
+Gate B2 was added after independent review to determine whether the single
+exact-boundary failure was material to the actual Codex execution path. The
+original rejection at `401fad702d4722f429410b9b5e29f1697957ae73` is preserved.
+
+### Resolved executable and adapter route
+
+With the isolated Node directory prepended to this process's PATH only,
+`where.exe codex` and `Get-Command codex -All` each found one candidate:
+`C:\Users\sub\AppData\Local\OpenAI\Codex\bin\5ea220ae823df3d7\codex.exe`.
+HDO's own Windows `resolveExecutable("codex")` resolved to that same native
+`.exe` (type A); `codex --version` reported `codex-cli 0.160.1`. HDO routes
+only `.cmd` and `.bat` executables through `cmd.exe`; this Codex executable
+does not use that shim route.
+
+The HDO default profile is `claude-only`. For measuring its shipped Codex
+adapter, the pinned `config/examples/cloud-only.json` profile's
+`codex-cloud-implementer` was used (`codex`, model `gpt-5.6-terra`, reasoning
+`medium`, `workspace-write`). This is a measurement profile, not an enabled
+qualification workflow.
+
+The adapter data flow is:
+
+- Prompt text → stdin; argv ends with `-`.
+- JSON schema → `output.schema.json` → `--output-schema <path>`.
+- Final message → `final.json` → `--output-last-message <path>`.
+- Model and reasoning effort → argv (`--model`, `--config`).
+- Dedicated worktree → argv (`--cd <worktree path>`).
+- Invocation uses `codex exec --ephemeral --json --sandbox workspace-write`;
+  no `codex queue` dependency was found.
+
+An actual `runAgentStep` call with a fake process runner measured 1,000-,
+10,000-, and 50,000-character prompts. Each prompt was supplied through the
+stdin field; the 20 argv entries and their lengths stayed identical for all
+three sizes. No Codex process or API call was made by this prompt-size check.
+
+### Command-line measurements
+
+Lengths below were generated by the pinned HDO `getCodexArguments()` and
+`quoteMsvcrtArgument()` functions using the shipped implementer configuration.
+They estimate the CreateProcess command line for the resolved native `.exe`;
+the `cmd.exe` 8191-character limit does not apply to this primary route.
+
+| Measurement | Baseline HDO paths | Conservative SAW paths |
+|---|---:|---:|
+| Executable path length | 70 | 70 |
+| Argument count | 20 | 20 |
+| Quoted command-line length | 633 | 800 |
+| Margin to 8191 | 7558 | 7391 |
+
+The conservative simulation used a long `.codex\worktrees\hdo-qualification-saw-filter-impedance-optimization...` worktree and matching long HDO artifact root, including both schema and final-message paths. Ordered argv character lengths were:
+`4, 11, 20, 14, 6, 7, 5, 9, 15, 4, 133, 7, 13, 8, 31, 15, 195, 21, 187, 1`.
+The worktree, schema, and final-message path entries account for the longer
+lengths; prompt size does not.
+
+HDO's executable resolver found native `.exe` paths for Codex, Git, and gh.
+It found a `.cmd` for the isolated npm (`npm.cmd`, a representative 132-character
+HDO command line exited 0 and returned npm `11.19.0`); `pytest` was unresolved
+on the measured PATH. A SAW validation contract can select a native Python
+executable and pass `-m pytest`, avoiding a pytest shim by configuration. Keep
+future Codex runner configuration on the native `codex.exe` resolution and do
+not rely on near-limit `.cmd` invocations.
+
+### Boundary characterization
+
+The small temporary `.cmd` wrapper succeeded at outer command-line lengths
+8180, 8185, 8190, and 8191; HDO rejected 8192 before spawn. Repeating those
+five lengths with the exact wrapper body from the upstream failing test gave
+exit 255 at 8180, 8185, 8190, and 8191, while 8192 was rejected before spawn.
+The wrapper body therefore affects the nested command passed to Node near the
+limit; this is a reproducible upstream edge failure, not a safe general `.cmd`
+boundary contract. No large loop or fuzzing was run.
+
+### Read-only CLI smoke and materiality decision
+
+Correct HDO syntax was taken from `node src/cli/main.ts help`. `help` and
+`config -RepositoryPath . -Config config/examples/cloud-only.json -Json` both
+exited 0. `doctor -RepositoryPath . -Config config/examples/cloud-only.json
+-DryRun -Json` exited 2 with `Failed to start command: node. EPERM: spawn EPERM`.
+The error occurred at the optional `node --version` preflight check, before
+GitHub authentication or validation-gate checks. A minimal child-process probe
+from this same Codex execution context also got `EPERM` for Node, Git, gh,
+Codex, and `cmd.exe`, indicating an execution-boundary limitation but not
+identifying its source. The doctor smoke is therefore **FAIL / incomplete**;
+the qualification cannot label it a Windows-host HDO failure or a pass.
+
+| Required record | Result |
+|---|---|
+| Current Codex command / type | `C:\Users\sub\AppData\Local\OpenAI\Codex\bin\5ea220ae823df3d7\codex.exe` / native `.exe` |
+| Prompt / schema / output transport | stdin / file path / file path |
+| Current / conservative command line | 633 / 800 characters |
+| Conservative margin to 8191 | 7391 characters |
+| Long prompt effect on argv | NONE |
+| `.cmd` relevance to Codex | SECONDARY; native `.exe` is the primary route |
+| Boundary samples | minimal wrapper: 8180–8191 pass, 8192 pre-spawn reject; upstream wrapper: 8180–8191 fail, 8192 pre-spawn reject |
+| CLI smoke | FAIL / incomplete (`help` and `config` PASS; `doctor` blocked by `EPERM`) |
+| Source patches | NONE |
+| Materiality | INCONCLUSIVE — CLI smoke could not distinguish host behavior from execution-boundary restrictions |
+
+**Gate B2 result: `B2_INCONCLUSIVE`.** The measured Codex path is strongly
+below the boundary and prompt length does not affect argv, but the required
+read-only doctor smoke did not pass. Gate B remains blocked pending a smoke in
+an execution context that permits HDO child processes. Gate C was not run.
+
 ## Qualification decision
 
-**Final status:** `HDO_REJECTED` at Gate B.
+**Final status:** `HDO_QUALIFICATION_BLOCKED` after Gate B2; the original Gate B rejection remains historical.
 **SAW Pilot authorized:** NO.
 **Pinned HDO commit:** `f9b4b0923929223d218e8f69e8353a07155ce726` (`0.14.0`).
 **HDO source patches:** NONE.
 
-Local qualification: FAIL. GitHub Actions automatic handoff: NOT_RUN.
+Local qualification: BLOCKED. GitHub Actions automatic handoff: NOT_RUN.
 Self-hosted runner scope: sandbox-only runner not registered. Main blocker:
-the pinned HDO process runner cannot execute a command at the documented
-Windows `cmd.exe` 8191-character limit on this host. Gate C executed: NO.
-Current Codex CLI: `0.160.1`. Isolated Node/npm: `v24.21.0` / `11.19.0`.
-`npm ci`: PASS. Typecheck: PASS. Focused tests: FAIL (241/242). HDO CLI
-preflight: NOT_RUN after the STOP condition. HDO source patches: NONE.
+the materiality re-evaluation cannot complete because `doctor -DryRun` child
+process creation returned `EPERM` in this Codex execution context; the original
+`.cmd` boundary failure remains unclassified for the target native Codex path.
+Gate C executed: NO. Current Codex CLI: `0.160.1`. Isolated Node/npm:
+`v24.21.0` / `11.19.0`. `npm ci`: PASS. Typecheck: PASS. Focused tests: FAIL
+(241/242). CLI smoke: FAIL / incomplete. HDO source patches: NONE.
