@@ -1,6 +1,6 @@
 # HDO qualification record
 
-**Interim status:** `HDO_QUALIFICATION_BLOCKED` after Gate B2; the original Gate B rejection remains in the history and downstream gates are not run.
+**Interim status:** `READY_TO_CONTINUE_GATE_C` after Gate B2; Gate C and later gates are not run.
 **Last updated:** 2026-10-06 (JST)
 
 ## Scope and intended role
@@ -63,8 +63,9 @@ user did not need to repeat authentication.
 Phase 0 and Phase 1 are complete. Gate A's conditions were cleared during the
 Gate B resume. Gate B initially failed a focused Windows command-line boundary
 test. Gate B2 assessed whether that edge failure affects the intended native
-Codex path, but its read-only CLI smoke could not complete under the current
-Codex execution context. Gate C and later gates remain stopped.
+Codex path. The first smoke in the restricted Codex execution context was
+inconclusive; the approved host-side read-only smoke later passed. Gate C and
+later gates remain NOT_RUN.
 
 ## Gate A — upstream pin and supply chain
 
@@ -163,25 +164,24 @@ when rerun alone. At the time, this `.cmd` shim boundary failure was classified
 **A — real Windows runtime blocker**, and Gate B was rejected at commit
 `401fad702d4722f429410b9b5e29f1697957ae73`.
 
-Gate B2 later confirmed that this exact test's behavior depends on the shim
-body near the limit and measured the intended Codex adapter route well below
-the boundary. It did not clear Gate B: the required read-only `doctor -DryRun`
-smoke stopped with `EPERM` while trying to spawn `node`, and a focused probe
-from the same Codex execution context received `EPERM` for every tested child
-executable (Node, Git, gh, Codex, and `cmd.exe`). This prevents distinguishing
-a host runtime failure from the current execution boundary. No credential or
-Codex implementation run was attempted.
+Gate B2 confirmed that this exact test's behavior depends on the shim body near
+the limit and measured the intended Codex adapter route well below the
+boundary. The first doctor attempt from the restricted Codex execution context
+was inconclusive because child-process creation returned `EPERM`; the host-side
+finalization below resolved that limitation. No credential or Codex
+implementation run was attempted.
 
-**Gate B2 status: BLOCKED / INCONCLUSIVE.** The original Gate B failure remains
-recorded; its materiality for the target path has not been established, so it
-cannot be reclassified as `PASS_WITH_CONDITIONS`. No HDO source patch was made.
-Gates C–M remain NOT_RUN. Codex runtime modified: NO. System PATH permanently
-modified: NO. HDO source patches: NONE.
+**Gate B2 final status: B2_NON_MATERIAL_EDGE_FAILURE.** The original Gate B
+failure remains recorded, with the operational condition that future Codex
+configuration resolves to native `codex.exe` and does not rely on near-limit
+`.cmd`/`.bat` invocations. No HDO source patch was made. Gates C–M remain
+NOT_RUN. Codex runtime modified: NO. System PATH permanently modified: NO.
+HDO source patches: NONE.
 
 | Gate | Status | Notes |
 |---|---|---|
 | A — upstream pin / supply chain | PASS | Static review plus successful lockfile install and native dependency load closed the Gate A conditions. |
-| B — Windows host preflight | BLOCKED | Original FAIL/A is retained as history. Gate B2 could not complete its required CLI smoke because child-process creation returned `EPERM` for all tested executables in this Codex execution context. |
+| B — Windows host preflight | PASS_WITH_CONDITIONS | Host-side doctor and child-process probes passed. Retain the reproduced near-limit `.cmd` edge condition; use native Codex and validation executables. |
 | C — sandbox fixture setup | NOT_RUN | Only the Phase 0 minimal tree exists. |
 | D — current Codex CLI compatibility | NOT_RUN | |
 | E — local HDO Issue flow | NOT_RUN | |
@@ -269,7 +269,7 @@ The wrapper body therefore affects the nested command passed to Node near the
 limit; this is a reproducible upstream edge failure, not a safe general `.cmd`
 boundary contract. No large loop or fuzzing was run.
 
-### Read-only CLI smoke and materiality decision
+### Initial restricted-context smoke (historical)
 
 Correct HDO syntax was taken from `node src/cli/main.ts help`. `help` and
 `config -RepositoryPath . -Config config/examples/cloud-only.json -Json` both
@@ -279,8 +279,9 @@ The error occurred at the optional `node --version` preflight check, before
 GitHub authentication or validation-gate checks. A minimal child-process probe
 from this same Codex execution context also got `EPERM` for Node, Git, gh,
 Codex, and `cmd.exe`, indicating an execution-boundary limitation but not
-identifying its source. The doctor smoke is therefore **FAIL / incomplete**;
-the qualification cannot label it a Windows-host HDO failure or a pass.
+identifying its source. That restricted-context doctor attempt was **FAIL /
+incomplete**, not a host-side HDO result. It was superseded by the approved
+host-side finalization below.
 
 | Required record | Result |
 |---|---|
@@ -293,25 +294,69 @@ the qualification cannot label it a Windows-host HDO failure or a pass.
 | Boundary samples | minimal wrapper: 8180–8191 pass, 8192 pre-spawn reject; upstream wrapper: 8180–8191 fail, 8192 pre-spawn reject |
 | CLI smoke | FAIL / incomplete (`help` and `config` PASS; `doctor` blocked by `EPERM`) |
 | Source patches | NONE |
-| Materiality | INCONCLUSIVE — CLI smoke could not distinguish host behavior from execution-boundary restrictions |
+| Materiality at this point | INCONCLUSIVE — restricted-context smoke could not distinguish host behavior from execution-boundary restrictions |
 
-**Gate B2 result: `B2_INCONCLUSIVE`.** The measured Codex path is strongly
-below the boundary and prompt length does not affect argv, but the required
-read-only doctor smoke did not pass. Gate B remains blocked pending a smoke in
-an execution context that permits HDO child processes. Gate C was not run.
+At this point the Gate B2 result was `B2_INCONCLUSIVE`; the later host-side
+smoke finalized the result as recorded below. Gate C was not run.
+
+## Gate B2 host-side finalization
+
+The finalization used the approved host-side execution context with the
+qualification Node directory prepended to this process's PATH only. No system
+PATH change was made. Effective host tool paths and versions were:
+
+| Tool | Effective path / version |
+|---|---|
+| Node | `C:\Users\sub\AppData\Local\hdo-qualification\node-v24.21.0-win-x64\node.exe` — `v24.21.0` |
+| npm | `11.19.0` |
+| Git | `C:\Program Files\Git\cmd\git.exe` — `2.55.0.windows.5` |
+| gh | `C:\Users\sub\AppData\Local\Programs\GitHub CLI\bin\gh.exe` — `2.101.0` |
+| Codex | `C:\Users\sub\AppData\Local\OpenAI\Codex\bin\5ea220ae823df3d7\codex.exe` — `0.160.1` |
+
+The Node child-process probe passed for `node --version`, `git --version`,
+`gh --version`, `codex --version`, and `cmd.exe /d /c exit 0`. `where.exe`
+also found the Codex-bundled Node as a secondary candidate and three alternate
+Git executables; the effective first Git resolution was the path above. No
+credential values were read or displayed. GitHub authentication was not
+repeated.
+
+The pinned HDO checkout remained at
+`f9b4b0923929223d218e8f69e8353a07155ce726` with a clean working tree before
+and after the smoke. Using that checkout as the read-only `RepositoryPath`,
+the CLI results were:
+
+| Check | Result |
+|---|---|
+| HDO `help` | PASS, exit 0 |
+| HDO `config -RepositoryPath <pinned checkout> -Config config/examples/cloud-only.json -Json` | PASS, exit 0; profile `cloud-only`, no warnings, repository config not loaded |
+| HDO `doctor -RepositoryPath <pinned checkout> -Config config/examples/cloud-only.json -DryRun -Json` | PASS, exit 0; `ok=true`, `readOnly=true` |
+
+Doctor checks passed for Node version, Git, gh, GitHub authentication, Git
+repository, project contract, both validation-gate command resolutions, and
+all four Codex runner command resolutions. Ollama and writable-path checks
+were skipped as expected for this cloud-only read-only preflight. No Codex
+implementation ran, no Issue was claimed, and no worktree was created.
+
+**Failure class: NONE for the host-side smoke. Gate B2 final:
+`B2_NON_MATERIAL_EDGE_FAILURE`.** The reproducible upstream `.cmd` near-limit
+edge remains a condition, but the intended native Codex route measured 800
+characters under the conservative SAW path simulation (7391 characters of
+margin to 8191), with prompts sent on stdin. Keep Codex on native `codex.exe`,
+avoid near-limit `.cmd`/`.bat` calls, and prefer native executables for SAW
+validation commands. **Gate B: `PASS_WITH_CONDITIONS`. Gate C: NOT_RUN.**
 
 ## Qualification decision
 
-**Final status:** `HDO_QUALIFICATION_BLOCKED` after Gate B2; the original Gate B rejection remains historical.
+**Final status:** `READY_TO_CONTINUE_GATE_C`.
 **SAW Pilot authorized:** NO.
 **Pinned HDO commit:** `f9b4b0923929223d218e8f69e8353a07155ce726` (`0.14.0`).
 **HDO source patches:** NONE.
 
-Local qualification: BLOCKED. GitHub Actions automatic handoff: NOT_RUN.
-Self-hosted runner scope: sandbox-only runner not registered. Main blocker:
-the materiality re-evaluation cannot complete because `doctor -DryRun` child
-process creation returned `EPERM` in this Codex execution context; the original
-`.cmd` boundary failure remains unclassified for the target native Codex path.
-Gate C executed: NO. Current Codex CLI: `0.160.1`. Isolated Node/npm:
-`v24.21.0` / `11.19.0`. `npm ci`: PASS. Typecheck: PASS. Focused tests: FAIL
-(241/242). CLI smoke: FAIL / incomplete. HDO source patches: NONE.
+Local qualification through Gate B: PASS_WITH_CONDITIONS. GitHub Actions
+automatic handoff: NOT_RUN. Self-hosted runner scope: sandbox-only runner not
+registered. Residual condition: the pinned HDO `.cmd` shim has a reproduced
+near-limit edge failure; the measured SAW Codex route uses native `codex.exe`
+and remains far below that boundary. Gate C executed: NO. Current Codex CLI:
+`0.160.1`. Isolated Node/npm: `v24.21.0` / `11.19.0`. `npm ci`: PASS.
+Typecheck: PASS. Focused tests: FAIL (241/242; boundary edge). Host-side HDO
+CLI smoke: PASS. HDO source patches: NONE. SAW Pilot authorized: NO.
