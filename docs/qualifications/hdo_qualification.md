@@ -58,12 +58,74 @@ use the approved out-of-sandbox path when necessary.
 
 ## Gate tracker
 
-Phase 0 and Phase 1 are complete. Gates A–M remain in their required order;
-later gates will not start before their preceding gates pass.
+Phase 0 and Phase 1 are complete. Gate A passed with conditions after static
+inspection of the pinned source. Later gates will not start before their
+preceding gates pass.
+
+## Gate A — upstream pin and supply chain
+
+| Item | Finding |
+|---|---|
+| Upstream repository | `https://github.com/kkb-hub/hybrid-dev-orchestrator` (public) |
+| Exact source pin | `f9b4b0923929223d218e8f69e8353a07155ce726` |
+| Retrieval date | 2026-10-06 |
+| Version at pin | `0.14.0` |
+| Release / tag | No GitHub release or tag was present; pin is the signed `main` commit. |
+| License | MIT |
+| Node requirement | `>=24`; README names Windows 11 and Node.js 24 LTS. |
+| Lockfile | `package-lock.json`, lockfileVersion 3; 28 locked package entries. |
+| Runtime dependencies | `ajv`, `ajv-formats`, `koffi`; dev dependencies are TypeScript and Node types. |
+| Root lifecycle scripts | None declared in `package.json`. |
+
+The package lock's root version is `0.1.0` while `package.json` says `0.14.0`.
+This metadata inconsistency is retained as a Gate B `npm ci` check; the lockfile
+still pins the root dependencies. The project declares no `build` script and
+`tsconfig.json` has `noEmit: true`, so a separate build step is not defined.
+
+The only locked dependency marked with an install lifecycle is `koffi@3.2.1`,
+the Windows Job Object FFI dependency. Its npm tarball SHA-512 matched the exact
+lockfile integrity value. Its install script runs the package's bundled CNoke
+prebuild check; it loads the platform binary if available and otherwise invokes
+CMake to compile from the included source. Static inspection found no network
+download in that lifecycle script. The Windows x64 optional binary is separately
+version- and integrity-pinned. No lifecycle script was executed during Gate A.
+
+Source review findings:
+
+- The built-in Codex adapter invokes `codex exec --ephemeral`, reads its prompt
+  from stdin, requests JSON/schema output, and writes `--output-last-message`.
+  No `codex queue` invocation or queue dependency was found.
+- Built-in sandbox values are limited to `read-only` and `workspace-write`;
+  plan/review require read-only and implement/fix require workspace-write.
+  Adapter-controlled CLI flags cannot be overridden with `extraArgs`. The
+  built-in path does not select `danger-full-access` or a dangerous approval
+  bypass.
+- Runner child environments are built with a denylist before spawning Codex.
+  `GH_TOKEN` and `GITHUB_TOKEN` are blocked explicitly; names ending in
+  `_TOKEN`, `_SECRET`, `_PASSWORD`, or `_KEY` are blocked by default. The
+  repository `.hdo/config.json` schema does not let an Issue author configure
+  `passEnvironment`; repository-supplied GitHub control-plane credentials are
+  rejected by config validation.
+- GitHub operations use the `gh` CLI. Executables are spawned as argv arrays;
+  `.cmd` handling uses a dedicated quoting layer instead of `shell: true`.
+  Issue bodies are parsed as task fields and known validation gate IDs; the
+  trusted `.hdo/project.json` is the only source of executable validation
+  commands.
+- Worktrees are created under the configured worktree root and integrity checks
+  pin their root and base commit. Run artifacts include `run.json` and event
+  records under the configured artifact root. Cleanup checks the configured
+  root and refuses dirty worktrees unless `-Force` is explicit.
+- Claiming uses managed GitHub issue comments with a lease and a best-effort
+  winner check. Duplicate exclusion and stale-claim behavior remain unproven
+  until Gate H.
+
+**Gate A status: PASS_WITH_CONDITIONS.** Conditions: Gate B must confirm that
+`npm ci` accepts the lockfile metadata and that the pinned native dependency
+prebuild works on this host. **HDO source patches: NONE.**
 
 | Gate | Status | Notes |
 |---|---|---|
-| A — upstream pin / supply chain | NOT_RUN | |
+| A — upstream pin / supply chain | PASS_WITH_CONDITIONS | Pinned commit and static supply-chain review recorded above; conditions carry to Gate B. |
 | B — Windows host preflight | NOT_RUN | Initial host observations above do not constitute the build/test preflight. |
 | C — sandbox fixture setup | NOT_RUN | Only the Phase 0 minimal tree exists. |
 | D — current Codex CLI compatibility | NOT_RUN | |
