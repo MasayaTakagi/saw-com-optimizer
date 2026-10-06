@@ -1,6 +1,6 @@
 # HDO qualification record
 
-**Interim status:** `HDO_REJECTED` at Gate D; Gate E and later gates are not run.
+**Interim status:** `HDO_QUALIFICATION_BLOCKED_BY_CODEX_WINDOWS`; Gate D remains FAIL, and Gate E and later gates are not run.
 **Last updated:** 2026-10-06 (JST)
 
 ## Scope and intended role
@@ -62,9 +62,10 @@ user did not need to repeat authentication.
 
 Phase 0 and Phase 1 are complete. Gate B2 finalization passed with conditions.
 Gate C passed using the dedicated sandbox fixture. The one-shot Gate D run
-started native Codex but failed to modify the isolated worktree because the
-Codex agent reported a read-only environment and a policy rejected its
-inspection command. Gates E–M remain NOT_RUN.
+started native Codex but failed to modify the isolated worktree. Direct Gate D2
+controls reproduced the Windows sandbox write restriction with and without
+the existing `[windows].sandbox` value as a CLI override. Gate D remains FAIL;
+Gates E–M remain NOT_RUN.
 
 ## Gate A — upstream pin and supply chain
 
@@ -443,17 +444,48 @@ the fixture change under the current HDO → Codex host path. The flags and
 structured output path were accepted, but this does not satisfy execution
 correctness. Qualification stops here; Gate E was not run.
 
+## Gate D2 — Codex Windows sandbox compatibility isolation
+
+The direct controls used the same pinned sandbox base commit
+`749b1e46295fc5b2d324e4bf8cafc64fdc90af3e`, the retained Gate D worker prompt
+and worker-result schema, and a fresh detached worktree for each execution.
+The prompt was supplied on stdin. Both runs used native Codex CLI `0.160.1`,
+`--ignore-user-config --ignore-rules --sandbox workspace-write`, structured
+JSON output, and `--output-last-message`; neither used a model override or
+`codex queue`. The existing `[windows].sandbox` setting was read without
+printing the rest of the user config and was `unelevated`.
+
+| Control | Worktree | Difference from Gate D command | Result |
+|---|---|---|---|
+| A | `C:\Users\sub\AppData\Local\hdo-qualification\gate-d2\direct-a` | None; user config ignored, no Windows sandbox override | Codex exit 0 and structured result produced, but `src/example.txt` remained `before`; no diff. Result reported a read-only session and command execution rejected by policy. |
+| B | `C:\Users\sub\AppData\Local\hdo-qualification\gate-d2\direct-b` | Added only `-c windows.sandbox="unelevated"` using the existing configured value | Codex exit 0 and structured result produced, but `src/example.txt` remained `before`; no diff. Result reported that the Windows restricted-token sandbox could not enforce split writable root sets, and that the configured writable root differed from the current worktree path. |
+
+Both worktrees were fresh and based on the same sandbox commit; the original
+sandbox checkout and the retained Gate D worktree were not used for these
+controls. No files changed in either direct-control worktree. Logs, prompt,
+schema, and final messages are retained outside the repositories under
+`C:\Users\sub\AppData\Local\hdo-qualification\gate-d2\artifacts\`.
+
+**Gate D2: BLOCKED — `D2_CODEX_WINDOWS_BLOCKER`.** The prescribed existing-value
+override did not restore writes. Per the stop condition, HDO config schema or
+`extraArgs` support was not inspected, no HDO dry-run was repeated, no Issue
+`#2` was created, and no additional HDO run was started. The HDO-specific
+config interaction therefore remains untested. Gate D's original FAIL is
+preserved; Gate E and all later gates remain NOT_RUN. No HDO source or sandbox
+configuration was patched.
+
 ## Qualification decision
 
-**Final status:** `HDO_REJECTED` at Gate D.
+**Final status:** `HDO_QUALIFICATION_BLOCKED_BY_CODEX_WINDOWS`.
 **SAW Pilot authorized:** NO.
 **Pinned HDO commit:** `f9b4b0923929223d218e8f69e8353a07155ce726` (`0.14.0`).
 **HDO source patches:** NONE.
 
-Gate C: PASS. Gate D: FAIL. Local qualification: FAIL. GitHub Actions
-automatic handoff: NOT_RUN. Self-hosted runner scope: sandbox-only runner not
-registered. The current native Codex process reported a read-only environment
-and could not perform the one-file `workspace-write`; HDO validation then
-failed on the unchanged baseline. The earlier `.cmd` near-limit condition also
-remains. Gate E executed: NO. Current Codex CLI: `0.160.1`. HDO source patches:
-NONE. SAW Pilot authorized: NO.
+Gate C: PASS. Gate D: FAIL. Gate D2: BLOCKED. Local qualification: BLOCKED
+before Gate E. GitHub Actions automatic handoff: NOT_RUN. Self-hosted runner
+scope: sandbox-only runner not registered. The existing `unelevated` setting
+as a CLI override did not enable direct Codex writes in a fresh worktree; the
+native Windows restricted-token sandbox reported a writable-root mismatch.
+The earlier `.cmd` near-limit condition also remains. Gate E executed: NO.
+Current Codex CLI: `0.160.1`. HDO source patches: NONE. SAW Pilot authorized:
+NO.
