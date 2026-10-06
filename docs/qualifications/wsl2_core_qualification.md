@@ -27,9 +27,9 @@ the registry product/build fields are the preflight's Windows identity.
   `artifacts/wsl-qualification/preflight.json`.
 - `tools/wsl/install-wsl.ps1` classifies the host and contains the user-gated
   install path. Its default run refreshes preflight and stops if virtualization
-  cannot be affirmatively verified. It never self-elevates, restarts Windows,
-  or launches Ubuntu. `-PlanOnly` prints the proposed case without changing
-  Windows features.
+  cannot be affirmatively verified or WSL cannot enumerate registered
+  distributions. It never self-elevates, restarts Windows, or launches Ubuntu.
+  `-PlanOnly` prints the proposed case without changing Windows features.
 - `tools/wsl/bootstrap-wsl.sh` is run manually from the initialized Ubuntu
   account. It installs only missing base packages, makes a new clone of the
   qualification branch in Linux home, creates `.venv`, installs the project

@@ -49,6 +49,7 @@ $actions = switch ($case) {
     'B' { @('Set WSL 2 as the default for new distributions.', "Install $targetDistro without launching it.") }
     'C' { @('Reuse the detected Ubuntu distribution already running under WSL 2; make no installation changes.') }
     'D' { @('Export the existing WSL 1 Ubuntu distribution to a local backup, then convert it to WSL 2.') }
+    'UNKNOWN' { @('Stop: WSL distribution enumeration failed. Resolve the access error before installing or converting any distribution.') }
     default { throw "Unrecognized WSL install case in preflight: $case" }
 }
 
@@ -67,6 +68,9 @@ if ($case -eq 'C') {
         actions = $actions
     })
     return
+}
+if ($case -eq 'UNKNOWN') {
+    throw 'WSL is installed, but `wsl --list --verbose` did not succeed. Distribution state is unknown; no installation changes were started.'
 }
 if (-not (Test-Administrator)) {
     throw 'This installation case changes Windows WSL features. Open an elevated PowerShell and rerun this script; it does not request elevation.'

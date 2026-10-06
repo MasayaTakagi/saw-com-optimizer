@@ -89,6 +89,7 @@ if ($wslList.exitCode -eq 0) {
 }
 $ubuntu = @($distros | Where-Object { $_.name -match '(?i)^Ubuntu(?:[-_].*)?$' })
 $case = if (-not $runtimeInstalled) { 'A' }
+        elseif ($wslList.exitCode -ne 0) { 'UNKNOWN' }
         elseif ($ubuntu.Count -eq 0) { 'B' }
         elseif (@($ubuntu | Where-Object { $_.wslVersion -eq 2 }).Count -gt 0) { 'C' }
         else { 'D' }
