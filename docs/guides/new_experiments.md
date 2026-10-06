@@ -43,6 +43,19 @@ COM/network dependencies, topology, optimizer selection, counters, initializer,
 and the exact input configuration. Enumerate reporting code, plots, templates,
 and review-spec/export schema only in the reporting dependency set.
 
+The schema-v2 `computation_fingerprint` identifies the scientific and
+computational inputs to the same numerical calculation. Scientific
+configuration values and the complete computation dependency set and contents
+must affect it. Repository-local absolute paths in configuration are represented
+as repository-relative POSIX paths in the fingerprint; their actual absolute
+values may remain in diagnostic provenance. Absolute paths outside the
+repository are preserved because they may identify distinct inputs. Text
+dependencies normalize only CRLF/CR line endings to LF before hashing; binary
+dependencies retain their original bytes. Worktree location, path separators,
+checkout line endings, reporting-only source changes, and environment-only
+provenance must not change the computation fingerprint. Do not normalize other
+text content or omit scientific inputs.
+
 > Reporting-only changes do not invalidate computation fingerprints.
 
 New computation gates should call
