@@ -1,6 +1,6 @@
 # HDO qualification record
 
-**Interim status:** BLOCKED at Gate B; downstream gates are not run.
+**Interim status:** `HDO_REJECTED` at Gate B; downstream gates are not run.
 **Last updated:** 2026-10-06 (JST)
 
 ## Scope and intended role
@@ -41,7 +41,7 @@ These are initial observations, not a completed Gate B result.
 | npm | Not found on PATH; no npm executable was found beside the resolved Node binary or at the checked standard Node.js install paths |
 | Git | `git version 2.55.0.windows.5` |
 | GitHub CLI | `gh version 2.101.0 (2026-09-15)` |
-| Codex CLI | `codex-cli 0.160.0` |
+| Codex CLI before Gate B resume | `codex-cli 0.160.0` |
 
 ### Authentication environment finding
 
@@ -60,9 +60,9 @@ user did not need to repeat authentication.
 
 ## Gate tracker
 
-Phase 0 and Phase 1 are complete. Gate A passed with conditions after static
-inspection of the pinned source. Gate B is blocked by environment setup; later
-gates will not start before their preceding gates pass.
+Phase 0 and Phase 1 are complete. Gate A's conditions were cleared during the
+Gate B resume. Gate B then failed a focused Windows command-line boundary test;
+later gates will not start after this Windows runtime finding.
 
 ## Gate A — upstream pin and supply chain
 
@@ -121,31 +121,57 @@ Source review findings:
   winner check. Duplicate exclusion and stale-claim behavior remain unproven
   until Gate H.
 
-**Gate A status: PASS_WITH_CONDITIONS.** Conditions: Gate B must confirm that
-`npm ci` accepts the lockfile metadata and that the pinned native dependency
-prebuild works on this host. **HDO source patches: NONE.**
+**Gate A status: PASS.** The Gate B resume confirmed that `npm ci` accepts the
+lockfile metadata and the pinned native dependency loads on this host. **HDO
+source patches: NONE.**
 
 ## Gate B — Windows host preflight
 
-The Windows 10 host was not rejected based on its OS name. Both the restricted
-execution context and the approved host-side context resolve the same Node
-`v24.19.0` executable from the Codex-bundled runtime. That Node directory has no
-`npm` executable, `npm` is absent from PATH in both contexts, and no canonical
-npm accompanying this resolved Node installation was found. This is not a
-PATH-only case that can be repaired by pointing at an existing npm binary.
+The host registry reports Windows 10 Pro 25H2, build 26200.9550. The earlier
+snapshot found that the Codex-bundled Node `v24.19.0` has no npm. Codex's runtime
+was left untouched. For this resume, the official Node.js `v24.21.0` Windows
+x64 ZIP was downloaded over HTTPS from
+`https://nodejs.org/dist/v24.21.0/node-v24.21.0-win-x64.zip`; its SHA-256
+matched the official `SHASUMS256.txt` entry:
+`158f7685b44de51f6c0df1d153526cbcd3e1bc739a8dfc607721cef75de9e541`.
+The portable archive, which includes npm, was extracted to
+`C:\Users\sub\AppData\Local\hdo-qualification\node-v24.21.0-win-x64`.
+System PATH was not changed; each validation process prepended this directory
+only to its own PATH. Node resolved to `v24.21.0`, npm to `11.19.0`, while
+Codex continued to resolve to its installed executable and reported
+`codex-cli 0.160.1`. The original bundled Node still reports `v24.19.0`.
 
-**Gate B status: BLOCKED (classification C — environment/setup).** `npm ci`,
-typecheck, focused upstream tests, and native prebuild were not run. There is no
-separate upstream `build` script. HDO CLI readiness on this Windows host is
-therefore unverified; Windows API/filesystem compatibility is not classified as
-a failure. Stop here until a supported Node 24 installation that includes npm
-is available in the host environment. No alternate runtime was installed and
-no HDO source was changed.
+The pinned HDO checkout remained clean at
+`f9b4b0923929223d218e8f69e8353a07155ce726`. Its package scripts are `typecheck`,
+`test`, and `cli`; no separate build script exists. The first `npm ci` installed
+the lockfile dependencies but npm 11 withheld the unreviewed `koffi@3.2.1`
+install script. After Gate A's static review, a temporary external npm config
+allowed only `koffi@3.2.1`; the second lockfile-based `npm ci` exited 0. That
+temporary config was removed. `require('koffi')` loaded successfully and
+`npm run typecheck` passed. No package/lockfile edits, HDO source patches, or
+global installs were made.
+
+Focused Windows/config/process/Codex-adapter/worktree tests were run from 15
+selected test files: **241 passed, 1 failed**. The reproducible failure is
+`src/process/runner.test.ts`, “an argument landing the REAL command line at
+exactly 8191 characters runs to completion”. It expects exit 0 but the actual
+`cmd.exe` process exits 255 with mojibake Japanese stderr; the test source
+documents this failure mode as `command line too long`. The same test failed
+when rerun alone. This is a Windows command-process boundary used by HDO's
+`.cmd` shim handling, so it is classified **A — real Windows runtime blocker**
+for this host, not an environment/network failure or an unrelated test.
+
+**Gate B status: FAIL.** Stop qualification here; do not patch HDO to force a
+pass. The read-only `help`/`config`/`doctor` preflight was not completed after
+the Windows process-boundary failure. A preliminary `--help` invocation exited
+2 because this CLI exposes `help` as a subcommand, not an option; it is not
+counted as the CLI preflight. Gates C–M remain NOT_RUN. Codex runtime modified:
+NO. System PATH permanently modified: NO. HDO source patches: NONE.
 
 | Gate | Status | Notes |
 |---|---|---|
-| A — upstream pin / supply chain | PASS_WITH_CONDITIONS | Pinned commit and static supply-chain review recorded above; conditions carry to Gate B. |
-| B — Windows host preflight | BLOCKED | Classification C: current Node is Codex-bundled and has no accompanying npm; `npm ci`, typecheck, focused tests, and native prebuild could not run. |
+| A — upstream pin / supply chain | PASS | Static review plus successful lockfile install and native dependency load closed the Gate A conditions. |
+| B — Windows host preflight | FAIL | Classification A: the real `cmd.exe` 8191-character boundary test fails reproducibly on the current Windows host. |
 | C — sandbox fixture setup | NOT_RUN | Only the Phase 0 minimal tree exists. |
 | D — current Codex CLI compatibility | NOT_RUN | |
 | E — local HDO Issue flow | NOT_RUN | |
@@ -160,12 +186,15 @@ no HDO source was changed.
 
 ## Qualification decision
 
-**Final status:** `HDO_QUALIFICATION_BLOCKED` at Gate B.
+**Final status:** `HDO_REJECTED` at Gate B.
 **SAW Pilot authorized:** NO.
 **Pinned HDO commit:** `f9b4b0923929223d218e8f69e8353a07155ce726` (`0.14.0`).
 **HDO source patches:** NONE.
 
-Local qualification: BLOCKED. GitHub Actions automatic handoff: NOT_RUN.
+Local qualification: FAIL. GitHub Actions automatic handoff: NOT_RUN.
 Self-hosted runner scope: sandbox-only runner not registered. Main blocker:
-provide a supported Node 24 installation with its matching npm so Gate B can
-complete; all Gates C–M remain NOT_RUN.
+the pinned HDO process runner cannot execute a command at the documented
+Windows `cmd.exe` 8191-character limit on this host. Gate C executed: NO.
+Current Codex CLI: `0.160.1`. Isolated Node/npm: `v24.21.0` / `11.19.0`.
+`npm ci`: PASS. Typecheck: PASS. Focused tests: FAIL (241/242). HDO CLI
+preflight: NOT_RUN after the STOP condition. HDO source patches: NONE.
