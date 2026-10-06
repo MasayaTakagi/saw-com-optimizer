@@ -1,8 +1,12 @@
 import importlib.util
+import io
 import json
+import sys
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -31,6 +35,26 @@ class CaptureSessionTests(unittest.TestCase):
             self.assertEqual(stored["session_cwd"], str(Path(temporary).resolve()))
             self.assertEqual(stored["project_root"], str(capture_session._project_root()))
             self.assertFalse(list(destination.parent.glob("*.tmp")))
+
+    def test_manual_capture_stores_metadata_without_routing_context(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            payload = json.dumps({"session_id": "session-historical", "cwd": temporary})
+            with (
+                mock.patch.object(capture_session, "_project_root", return_value=root),
+                mock.patch.object(sys, "stdin", io.StringIO(payload)),
+                redirect_stdout(stdout),
+                redirect_stderr(stderr),
+            ):
+                result = capture_session.main()
+
+            stored = json.loads((root / ".codex" / "runtime" / "current_session.json").read_text())
+            self.assertEqual(result, 0)
+            self.assertEqual(stored["session_id"], "session-historical")
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertEqual(stderr.getvalue(), "")
 
 
 if __name__ == "__main__":

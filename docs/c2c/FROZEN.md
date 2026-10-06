@@ -22,6 +22,13 @@ Do not start the C2C runtime, run Doctor, send a queue request, call
 `workspace_info`, resume a session, qualify a checkpoint, rebuild the runtime,
 recreate a connector, or upgrade C2C as part of ordinary project work.
 
+SAW production continuation does not use C2C or captured-session callbacks.
+The active contract for new production is queue-native exact-thread routing:
+the runtime supplies `CODEX_THREAD_ID`, orchestration binds it as
+`--thread-id`, and delivery uses `codex queue --thread`. Captured session IDs
+and related metadata remain only for historical recovery/compatibility; they
+are not new-production routing identities.
+
 ## Last recorded baseline and diagnosis
 
 The retained approved C2C source baseline is version `0.1.3` at reviewed
@@ -104,6 +111,7 @@ checks.
 - `baseline.json`, historical reports, previous experiment review provenance,
   handoff records, `.c2cignore`, and C2C runtime/tests are retained. Runtime
   code and tests are not removed as part of this dependency change.
-- The async orchestration guide documents the supported captured-session
-  callback flow independently of C2C. Historical C2C-specific continuation
-  evidence remains in the engineering decision register.
+- The async orchestration guide documents the active queue-native exact-thread
+  flow independently of C2C. Historical captured-session and C2C continuation
+  evidence remains preserved in old run records and the engineering decision
+  register.
