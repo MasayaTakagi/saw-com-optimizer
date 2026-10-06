@@ -1,6 +1,6 @@
 # HDO qualification record
 
-**Interim status:** IN_PROGRESS; no final qualification decision has been made.  
+**Interim status:** BLOCKED at Gate B; downstream gates are not run.
 **Last updated:** 2026-10-06 (JST)
 
 ## Scope and intended role
@@ -54,13 +54,15 @@ GitHub API calls also failed because the configured proxy at `127.0.0.1:9` was
 unreachable. The cause is the execution boundary's restricted access to the
 host keyring/network, not a failed user authentication. Do not record or print
 token values. GitHub CLI operations requiring host credentials or network must
-use the approved out-of-sandbox path when necessary.
+use the approved out-of-sandbox path when necessary. A host-side
+`gh auth status` confirmed the `MasayaTakagi` account is authenticated; the
+user did not need to repeat authentication.
 
 ## Gate tracker
 
 Phase 0 and Phase 1 are complete. Gate A passed with conditions after static
-inspection of the pinned source. Later gates will not start before their
-preceding gates pass.
+inspection of the pinned source. Gate B is blocked by environment setup; later
+gates will not start before their preceding gates pass.
 
 ## Gate A — upstream pin and supply chain
 
@@ -123,10 +125,27 @@ Source review findings:
 `npm ci` accepts the lockfile metadata and that the pinned native dependency
 prebuild works on this host. **HDO source patches: NONE.**
 
+## Gate B — Windows host preflight
+
+The Windows 10 host was not rejected based on its OS name. Both the restricted
+execution context and the approved host-side context resolve the same Node
+`v24.19.0` executable from the Codex-bundled runtime. That Node directory has no
+`npm` executable, `npm` is absent from PATH in both contexts, and no canonical
+npm accompanying this resolved Node installation was found. This is not a
+PATH-only case that can be repaired by pointing at an existing npm binary.
+
+**Gate B status: BLOCKED (classification C — environment/setup).** `npm ci`,
+typecheck, focused upstream tests, and native prebuild were not run. There is no
+separate upstream `build` script. HDO CLI readiness on this Windows host is
+therefore unverified; Windows API/filesystem compatibility is not classified as
+a failure. Stop here until a supported Node 24 installation that includes npm
+is available in the host environment. No alternate runtime was installed and
+no HDO source was changed.
+
 | Gate | Status | Notes |
 |---|---|---|
 | A — upstream pin / supply chain | PASS_WITH_CONDITIONS | Pinned commit and static supply-chain review recorded above; conditions carry to Gate B. |
-| B — Windows host preflight | NOT_RUN | Initial host observations above do not constitute the build/test preflight. |
+| B — Windows host preflight | BLOCKED | Classification C: current Node is Codex-bundled and has no accompanying npm; `npm ci`, typecheck, focused tests, and native prebuild could not run. |
 | C — sandbox fixture setup | NOT_RUN | Only the Phase 0 minimal tree exists. |
 | D — current Codex CLI compatibility | NOT_RUN | |
 | E — local HDO Issue flow | NOT_RUN | |
@@ -141,7 +160,12 @@ prebuild works on this host. **HDO source patches: NONE.**
 
 ## Qualification decision
 
-**Final status:** Pending completion of Gates A–M.  
-**SAW Pilot authorized:** NO.  
-**Pinned HDO commit:** Not yet selected.  
+**Final status:** `HDO_QUALIFICATION_BLOCKED` at Gate B.
+**SAW Pilot authorized:** NO.
+**Pinned HDO commit:** `f9b4b0923929223d218e8f69e8353a07155ce726` (`0.14.0`).
 **HDO source patches:** NONE.
+
+Local qualification: BLOCKED. GitHub Actions automatic handoff: NOT_RUN.
+Self-hosted runner scope: sandbox-only runner not registered. Main blocker:
+provide a supported Node 24 installation with its matching npm so Gate B can
+complete; all Gates C–M remain NOT_RUN.
