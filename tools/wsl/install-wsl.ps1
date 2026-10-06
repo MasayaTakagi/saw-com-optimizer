@@ -43,15 +43,19 @@ if (-not $preflightWasProvided) {
 }
 $preflight = Get-Content -LiteralPath $PreflightPath -Raw | ConvertFrom-Json
 $case = [string]$preflight.wsl.case
+$diagnosticCase = [string]$preflight.wsl.diagnosticCase
+$unknownDiagnostic = ($case -eq 'UNKNOWN' -or $case.StartsWith('UNKNOWN_', [StringComparison]::OrdinalIgnoreCase) -or $diagnosticCase.StartsWith('UNKNOWN_', [StringComparison]::OrdinalIgnoreCase))
+if ($unknownDiagnostic) { $case = 'UNKNOWN' }
 $ubuntu = @($preflight.wsl.ubuntuDistributions)
-$actions = switch ($case) {
+$actions = if ($unknownDiagnostic) {
+    @('Stop: WSL state is unknown or has a diagnostic-only subtype. Resolve the recorded blocker before installing or converting any distribution.')
+} else { switch ($case) {
     'A' { @("Install stable WSL and $targetDistro with WSL 2 as the default; keep Ubuntu unopened.") }
     'B' { @('Set WSL 2 as the default for new distributions.', "Install $targetDistro without launching it.") }
     'C' { @('Reuse the detected Ubuntu distribution already running under WSL 2; make no installation changes.') }
     'D' { @('Export the existing WSL 1 Ubuntu distribution to a local backup, then convert it to WSL 2.') }
-    'UNKNOWN' { @('Stop: WSL distribution enumeration failed. Resolve the access error before installing or converting any distribution.') }
     default { throw "Unrecognized WSL install case in preflight: $case" }
-}
+} }
 
 if ($PlanOnly) {
     Write-Output ([ordered]@{ status = 'PLAN_ONLY'; case = $case; targetDistribution = $targetDistro; actions = $actions; preflight = $PreflightPath } | ConvertTo-Json -Depth 6)
@@ -69,8 +73,8 @@ if ($case -eq 'C') {
     })
     return
 }
-if ($case -eq 'UNKNOWN') {
-    throw 'WSL is installed, but `wsl --list --verbose` did not succeed. Distribution state is unknown; no installation changes were started.'
+if ($unknownDiagnostic) {
+    throw "WSL state is not installable ($diagnosticCase). No installation changes were started."
 }
 if (-not (Test-Administrator)) {
     throw 'This installation case changes Windows WSL features. Open an elevated PowerShell and rerun this script; it does not request elevation.'
