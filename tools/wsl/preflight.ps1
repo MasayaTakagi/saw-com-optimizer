@@ -26,9 +26,9 @@ function Invoke-CapturedCommand([string]$File, [string[]]$CommandArgs) {
 function Get-OptionalFeatureState([string]$FeatureName) {
     $result = Invoke-CapturedCommand 'dism.exe' @('/Online', '/Get-FeatureInfo', "/FeatureName:$FeatureName")
     $text = [string]$result.output
-    if ($text -match '(?im)^\s*(?:State|状態)\s*:\s*(?:Enabled|有効)\s*$') { $state = 'ENABLED' }
-    elseif ($text -match '(?im)^\s*(?:State|状態)\s*:\s*(?:Disabled|無効)\s*$') { $state = 'DISABLED' }
-    elseif ($result.exitCode -eq 740 -or $text -match '(?i)administrator|elevation|required|管理者|昇格') { $state = 'ADMIN_REQUIRED' }
+    if ($text -match '(?im)^\s*(?:State|\u72B6\u614B)\s*:\s*(?:Enabled|\u6709\u52B9)\s*$') { $state = 'ENABLED' }
+    elseif ($text -match '(?im)^\s*(?:State|\u72B6\u614B)\s*:\s*(?:Disabled|\u7121\u52B9)\s*$') { $state = 'DISABLED' }
+    elseif ($result.exitCode -eq 740 -or $text -match '(?i)administrator|elevation|required|\u7BA1\u7406\u8005|\u6607\u683C') { $state = 'ADMIN_REQUIRED' }
     else { $state = 'UNKNOWN' }
     return [ordered]@{ state = $state; exitCode = $result.exitCode; diagnostic = $text }
 }
@@ -96,7 +96,7 @@ $case = if (-not $runtimeInstalled) { 'A' }
 
 $statusText = [string]$wslStatus.output
 $defaultVersion = $null
-if ($statusText -match '(?im)^.*(?:Default Version|既定のバージョン).*?(?<version>[12])\s*$') {
+if ($statusText -match '(?im)^.*(?:Default Version|\u65E2\u5B9A\u306E\u30D0\u30FC\u30B8\u30E7\u30F3).*?(?<version>[12])\s*$') {
     $defaultVersion = [int]$Matches.version
 }
 
