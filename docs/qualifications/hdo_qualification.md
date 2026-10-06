@@ -1,6 +1,6 @@
 # HDO qualification record
 
-**Interim status:** `READY_TO_CONTINUE_GATE_C` after Gate B2; Gate C and later gates are not run.
+**Interim status:** `HDO_REJECTED` at Gate D; Gate E and later gates are not run.
 **Last updated:** 2026-10-06 (JST)
 
 ## Scope and intended role
@@ -60,12 +60,11 @@ user did not need to repeat authentication.
 
 ## Gate tracker
 
-Phase 0 and Phase 1 are complete. Gate A's conditions were cleared during the
-Gate B resume. Gate B initially failed a focused Windows command-line boundary
-test. Gate B2 assessed whether that edge failure affects the intended native
-Codex path. The first smoke in the restricted Codex execution context was
-inconclusive; the approved host-side read-only smoke later passed. Gate C and
-later gates remain NOT_RUN.
+Phase 0 and Phase 1 are complete. Gate B2 finalization passed with conditions.
+Gate C passed using the dedicated sandbox fixture. The one-shot Gate D run
+started native Codex but failed to modify the isolated worktree because the
+Codex agent reported a read-only environment and a policy rejected its
+inspection command. Gates E–M remain NOT_RUN.
 
 ## Gate A — upstream pin and supply chain
 
@@ -182,8 +181,8 @@ HDO source patches: NONE.
 |---|---|---|
 | A — upstream pin / supply chain | PASS | Static review plus successful lockfile install and native dependency load closed the Gate A conditions. |
 | B — Windows host preflight | PASS_WITH_CONDITIONS | Host-side doctor and child-process probes passed. Retain the reproduced near-limit `.cmd` edge condition; use native Codex and validation executables. |
-| C — sandbox fixture setup | NOT_RUN | Only the Phase 0 minimal tree exists. |
-| D — current Codex CLI compatibility | NOT_RUN | |
+| C — sandbox fixture setup | PASS | Minimal fixture commit `749b1e46295fc5b2d324e4bf8cafc64fdc90af3e`; pinned HDO config/doctor pass. |
+| D — current Codex CLI compatibility | FAIL | Native Codex started and returned structured output, but workspace-write did not permit the fixture change; trusted validation failed and HDO ended FAILED. |
 | E — local HDO Issue flow | NOT_RUN | |
 | F — SAW workflow fit | NOT_RUN | |
 | G — long-running / state semantics | NOT_RUN | |
@@ -334,8 +333,9 @@ the CLI results were:
 Doctor checks passed for Node version, Git, gh, GitHub authentication, Git
 repository, project contract, both validation-gate command resolutions, and
 all four Codex runner command resolutions. Ollama and writable-path checks
-were skipped as expected for this cloud-only read-only preflight. No Codex
-implementation ran, no Issue was claimed, and no worktree was created.
+were skipped as expected for this cloud-only read-only preflight. At the time
+of this B2 check, no Codex implementation had run, no Issue had been claimed,
+and no worktree had been created; Gate C/D activity is recorded below.
 
 **Failure class: NONE for the host-side smoke. Gate B2 final:
 `B2_NON_MATERIAL_EDGE_FAILURE`.** The reproducible upstream `.cmd` near-limit
@@ -343,20 +343,117 @@ edge remains a condition, but the intended native Codex route measured 800
 characters under the conservative SAW path simulation (7391 characters of
 margin to 8191), with prompts sent on stdin. Keep Codex on native `codex.exe`,
 avoid near-limit `.cmd`/`.bat` calls, and prefer native executables for SAW
-validation commands. **Gate B: `PASS_WITH_CONDITIONS`. Gate C: NOT_RUN.**
+validation commands. **Gate B: `PASS_WITH_CONDITIONS`.** Gate C was NOT_RUN at
+this point; it was completed in the following section.
+
+## Gate C — Sandbox fixture setup
+
+The private sandbox was cloned outside the SAW worktree at
+`C:\Users\sub\AppData\Local\hdo-qualification\sandbox`. Its default branch
+was `main` at the Phase 0 baseline `849da6bb17dd78b5712d97143cb28ce428d63cf9`.
+The fixture was committed and pushed as
+`749b1e46295fc5b2d324e4bf8cafc64fdc90af3e`; the original `src/example.txt`
+remained `before` and was not included in that commit.
+
+The commit adds only the minimal fixture records: the pinned HDO canonical
+Issue Form, `.hdo/project.json`, constrained `.hdo/config.json`, a native Node
+`tests/verify.mjs`, and short README guidance. The Issue Form is byte-identical
+to the template at pinned HDO commit `f9b4b0923929223d218e8f69e8353a07155ce726`.
+The validator checks the one-line value in `src/example.txt` and uses no
+external dependency. Its syntax and both JSON files parsed successfully. On
+the initial `before` fixture, the validator returned the expected nonzero exit
+1. HDO's doctor later resolved the trusted gate command `node` to
+`C:\Users\sub\AppData\Local\hdo-qualification\node-v24.21.0-win-x64\node.exe`.
+
+The committed repository routing overlay disables plan, binds implementation
+and fix to Codex `workspace-write`, and binds review to Codex `read-only`. The
+trusted operator config is outside the sandbox and pins the sandbox repository,
+sets `writeBack: none`, disables assignment, uses the qualification-only
+worktree/artifact roots, omits the model to use the installed Codex default,
+and sets `maxFixAttempts: 0` with `implicitFallback: false`.
+
+After the fixture commit, HDO `config -RepositoryPath <sandbox> -Config
+<operator config> -Json` exited 0 with profile `qualification`, no warnings,
+and repository config loaded from fixture commit `749b1e46295fc5b2d324e4bf8cafc64fdc90af3e`.
+HDO `doctor -RepositoryPath <sandbox> -Config <operator config> -DryRun -Json`
+exited 0 with `ok=true`, `readOnly=true`; project contract, native Node gate,
+Git/gh/authentication, and all three configured Codex runners passed resolution.
+The sandbox `main` working tree was clean before the Gate D run. No Actions
+workflow, status label, runner, or HDO source patch was added.
+
+**Gate C: PASS.**
+
+## Gate D — Real Codex one-shot
+
+The qualification Issue is [#1](https://github.com/MasayaTakagi/hdo-qualification-sandbox/issues/1),
+with the required canonical fields and validation gate ID `verify-example`.
+It was opened with only the `hdo:ready` eligibility label. No shell command
+was included in its body.
+
+### Dry-run
+
+`run -Issue 1 -RepositoryPath <sandbox> -Config <operator config> -NoWriteBack
+-DryRun -Json` exited 0 and returned `kind=execution-plan`, selected Issue #1,
+`contractValid=true`, `readyAuthorized=true`, `implicitFallback=false`,
+`preflight.ok=true`, and zero planned mutations. The `qualification` profile
+had plan disabled, a Codex `workspace-write` implementer, Codex
+`read-only` reviewer, and bounded fix routing (`maxFixAttempts=0`). The trusted
+`verify-example` gate and all selected runner commands resolved. Configured
+roots were `C:\Users\sub\AppData\Local\hdo-qualification\gate-cd\worktrees`
+and `C:\Users\sub\AppData\Local\hdo-qualification\gate-cd\runs`.
+
+**DryRun: PASS.**
+
+### Single real run
+
+Exactly one real `run -Issue 1 -RepositoryPath <sandbox> -Config <operator
+config> -NoWriteBack -Json` was started. HDO resolved the previously verified
+native executable
+`C:\Users\sub\AppData\Local\OpenAI\Codex\bin\5ea220ae823df3d7\codex.exe`
+(`codex-cli 0.160.1`). The Codex adapter used `codex exec --ephemeral
+--ignore-user-config --ignore-rules --json --color never --sandbox
+workspace-write --cd <worktree> --output-schema <file>
+--output-last-message <file> -`; no model override and no `codex queue` were
+used.
+
+| Observation | Result |
+|---|---|
+| HDO run ID / state / exit | `issue-1-20261006T134350Z-8354d253` / `FAILED` / 5 |
+| Start / end (UTC) | `2026-10-06T13:43:50.711Z` / `2026-10-06T13:44:08.344Z` |
+| Base commit | `749b1e46295fc5b2d324e4bf8cafc64fdc90af3e` |
+| Worktree / branch | `C:\Users\sub\AppData\Local\hdo-qualification\gate-cd\worktrees\issue-1-20261006T134350Z-8354d253` / `hdo/issue-1-issue-1-20261006t134350z-8354d253` |
+| Artifact root | `C:\Users\sub\AppData\Local\hdo-qualification\gate-cd\runs\issue-1-20261006T134350Z-8354d253` |
+| Codex result / transport | `final.json` produced and parsed; normal structured-result path, no JSON recovery |
+| Trusted validation | `verify-example` ran with Node and exited 1 because the file remained `before` |
+| Changed worktree files | None |
+| Original checkout | Clean `main`; `src/example.txt` still `before` |
+| GitHub write-back | Disabled; Issue remains open with only `hdo:ready`, no assignee and zero comments |
+
+The Codex process started and returned a schema-shaped result. Its message
+reported that the environment was read-only; its attempted inspection command
+was rejected by policy. No file was modified. HDO then recorded
+`Implementation step completed without any worktree changes`; the trusted
+validation failed because the expected edit had not occurred. Review did not
+run, and no fix attempt or retry was made. Artifacts and the empty dedicated
+worktree are retained. No dangerous permission bypass or HDO source patch was
+used.
+
+**Gate D: FAIL.** The required safe `workspace-write` execution did not produce
+the fixture change under the current HDO → Codex host path. The flags and
+structured output path were accepted, but this does not satisfy execution
+correctness. Qualification stops here; Gate E was not run.
 
 ## Qualification decision
 
-**Final status:** `READY_TO_CONTINUE_GATE_C`.
+**Final status:** `HDO_REJECTED` at Gate D.
 **SAW Pilot authorized:** NO.
 **Pinned HDO commit:** `f9b4b0923929223d218e8f69e8353a07155ce726` (`0.14.0`).
 **HDO source patches:** NONE.
 
-Local qualification through Gate B: PASS_WITH_CONDITIONS. GitHub Actions
+Gate C: PASS. Gate D: FAIL. Local qualification: FAIL. GitHub Actions
 automatic handoff: NOT_RUN. Self-hosted runner scope: sandbox-only runner not
-registered. Residual condition: the pinned HDO `.cmd` shim has a reproduced
-near-limit edge failure; the measured SAW Codex route uses native `codex.exe`
-and remains far below that boundary. Gate C executed: NO. Current Codex CLI:
-`0.160.1`. Isolated Node/npm: `v24.21.0` / `11.19.0`. `npm ci`: PASS.
-Typecheck: PASS. Focused tests: FAIL (241/242; boundary edge). Host-side HDO
-CLI smoke: PASS. HDO source patches: NONE. SAW Pilot authorized: NO.
+registered. The current native Codex process reported a read-only environment
+and could not perform the one-file `workspace-write`; HDO validation then
+failed on the unchanged baseline. The earlier `.cmd` near-limit condition also
+remains. Gate E executed: NO. Current Codex CLI: `0.160.1`. HDO source patches:
+NONE. SAW Pilot authorized: NO.
