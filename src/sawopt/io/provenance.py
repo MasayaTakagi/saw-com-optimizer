@@ -13,6 +13,10 @@ from typing import Any, Mapping, Sequence
 
 
 FINGERPRINT_SCHEMA_VERSION = 2
+_TEXT_DEPENDENCY_SUFFIXES = {
+    ".cfg", ".csv", ".ini", ".json", ".md", ".py", ".toml", ".txt",
+    ".yaml", ".yml",
+}
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -23,6 +27,43 @@ def _canonical_json(value: Any) -> bytes:
         ).encode("utf-8")
     except (TypeError, ValueError) as exc:
         raise ValueError(f"Fingerprint input is not canonical JSON data: {exc}") from exc
+
+
+def _repository_relative_path(value: str, repository_root: Path) -> str | None:
+    """Return a canonical repository-relative path for an in-repository absolute path."""
+    # Treat either separator as a path separator, then let the host Path parse
+    # absolute paths native to this checkout. Foreign-root and relative strings
+    # remain untouched.
+    candidate = Path(value.replace("\\", "/"))
+    if not candidate.is_absolute():
+        return None
+    try:
+        relative = candidate.resolve().relative_to(repository_root)
+    except ValueError:
+        return None
+    return PurePosixPath(*relative.parts).as_posix() or "."
+
+
+def _canonicalize_configuration(value: Any, repository_root: Path) -> Any:
+    """Copy JSON-like configuration while normalizing only repo-local absolute paths."""
+    if isinstance(value, Mapping):
+        return {
+            key: _canonicalize_configuration(item, repository_root)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_canonicalize_configuration(item, repository_root) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_canonicalize_configuration(item, repository_root) for item in value)
+    if isinstance(value, str):
+        return _repository_relative_path(value, repository_root) or value
+    return value
+
+
+def _canonical_dependency_bytes(path: Path, data: bytes) -> bytes:
+    if path.suffix.lower() not in _TEXT_DEPENDENCY_SUFFIXES:
+        return data
+    return data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
 
 
 def _dependency_manifest(repository_root: Path, paths: Sequence[str]) -> list[dict[str, Any]]:
@@ -46,7 +87,7 @@ def _dependency_manifest(repository_root: Path, paths: Sequence[str]) -> list[di
             raise ValueError(f"Fingerprint dependency escapes repository root: {relative}")
         if not path.is_file():
             raise FileNotFoundError(f"Fingerprint dependency does not exist: {relative}")
-        data = path.read_bytes()
+        data = _canonical_dependency_bytes(path, path.read_bytes())
         manifest.append({
             "path": relative,
             "sha256": hashlib.sha256(data).hexdigest(),
@@ -80,7 +121,7 @@ def build_fingerprint_metadata(
 
     computation_payload = {
         "fingerprint_schema_version": FINGERPRINT_SCHEMA_VERSION,
-        "configuration": configuration,
+        "configuration": _canonicalize_configuration(configuration, root),
         "dependencies": computation_manifest,
     }
     reporting_payload = {
