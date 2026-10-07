@@ -75,6 +75,15 @@ if ! command -v codex >/dev/null 2>&1; then
 fi
 command -v codex >/dev/null 2>&1 || fail 'Codex Linux CLI installation completed without a codex executable on PATH.'
 
+profile_path="$HOME/.profile"
+profile_marker='# saw-com-optimizer WSL Codex PATH'
+if ! grep -Fq "$profile_marker" "$profile_path" 2>/dev/null; then
+  {
+    printf '\n%s\n' "$profile_marker"
+    printf 'export PATH="$HOME/.local/bin:$HOME/.codex/bin:$PATH"\n'
+  } >> "$profile_path"
+fi
+
 artifacts="$REPO_ROOT/artifacts/wsl-qualification"
 mkdir -p "$artifacts/bootstrap"
 export SYSTEMD_STATUS REPO_ROOT QUALIFICATION_REF REF mount_type
