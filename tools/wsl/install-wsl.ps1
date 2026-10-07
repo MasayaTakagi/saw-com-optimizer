@@ -18,19 +18,6 @@ function Test-Administrator {
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-function Test-PendingRestart {
-    $keys = @(
-        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending',
-        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired'
-    )
-    foreach ($key in $keys) { if (Test-Path $key) { return $true } }
-    try {
-        $sessionManager = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name PendingFileRenameOperations -ErrorAction Stop
-        if ($sessionManager.PendingFileRenameOperations) { return $true }
-    } catch { }
-    return $false
-}
-
 function Write-InstallState($Value) {
     New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
     $path = Join-Path $outputRoot 'install-state.json'
@@ -46,22 +33,59 @@ $case = [string]$preflight.wsl.case
 $diagnosticCase = [string]$preflight.wsl.diagnosticCase
 $unknownDiagnostic = ($case -eq 'UNKNOWN' -or $case.StartsWith('UNKNOWN_', [StringComparison]::OrdinalIgnoreCase) -or $diagnosticCase.StartsWith('UNKNOWN_', [StringComparison]::OrdinalIgnoreCase))
 if ($unknownDiagnostic) { $case = 'UNKNOWN' }
+$reboot = $preflight.windows.reboot
+$rebootHardBlocker = $null
+if ($null -ne $reboot -and $null -ne $reboot.PSObject.Properties['hardBlocker'] -and $null -ne $reboot.hardBlocker) {
+    $rebootHardBlocker = [bool]$reboot.hardBlocker
+}
+$rebootBlocked = ($rebootHardBlocker -ne $false)
+$rebootBlockReason = if ($rebootHardBlocker -eq $true) { [string]::Join(',', [string[]]$reboot.reasons) } else { 'REBOOT_STATE_UNKNOWN' }
+$planBlocked = ($unknownDiagnostic -or $rebootBlocked)
+$currentWslPackage = $preflight.wsl.appxPackages | Where-Object { $_.name -eq 'MicrosoftCorporationII.WindowsSubsystemForLinux' } | Select-Object -First 1
+$currentWslPackageVersion = if ($null -ne $currentWslPackage) { [string]$currentWslPackage.version } else { $null }
 $ubuntu = @($preflight.wsl.ubuntuDistributions)
+$setDefaultVersionRequired = ($case -eq 'B' -and [int]$preflight.wsl.defaultVersion -ne 2)
 $actions = if ($unknownDiagnostic) {
     @('Stop: WSL state is unknown or has a diagnostic-only subtype. Resolve the recorded blocker before installing or converting any distribution.')
+} elseif ($rebootBlocked) {
+    @("Stop: reboot gate is not clear ($rebootBlockReason). No WSL installation or conversion is allowed.")
 } else { switch ($case) {
     'A' { @("Install stable WSL and $targetDistro with WSL 2 as the default; keep Ubuntu unopened.") }
-    'B' { @('Set WSL 2 as the default for new distributions.', "Install $targetDistro without launching it.") }
+    'B' {
+        if ($setDefaultVersionRequired) { @('Set WSL 2 as the default for new distributions.', "Install $targetDistro without launching it.") }
+        else { @("Install $targetDistro only without launching it; WSL 2 is already the default.") }
+    }
     'C' { @('Reuse the detected Ubuntu distribution already running under WSL 2; make no installation changes.') }
     'D' { @('Export the existing WSL 1 Ubuntu distribution to a local backup, then convert it to WSL 2.') }
     default { throw "Unrecognized WSL install case in preflight: $case" }
 } }
 
 if ($PlanOnly) {
-    Write-Output ([ordered]@{ status = 'PLAN_ONLY'; case = $case; targetDistribution = $targetDistro; actions = $actions; preflight = $PreflightPath } | ConvertTo-Json -Depth 6)
+    $planStatus = if ($planBlocked) { 'PLAN_BLOCKED' } else { 'PLAN_ONLY' }
+    Write-Output ([ordered]@{
+        status = $planStatus
+        case = $case
+        reason = if ($planBlocked) { if ($unknownDiagnostic) { $diagnosticCase } else { $rebootBlockReason } } else { [string]$preflight.wsl.reason }
+        targetDistribution = $targetDistro
+        actions = [string[]]$actions
+        currentWslPackageVersion = $currentWslPackageVersion
+        defaultWslVersion = $preflight.wsl.defaultVersion
+        setDefaultWslVersion = $setDefaultVersionRequired
+        windowsFeatureChanges = @()
+        wslReinstall = $false
+        wslDowngrade = $false
+        enableHyperV = $false
+        rebootClassification = [string]$reboot.classification
+        pendingFileRenameRelevantToWsl = $reboot.pendingFileRenameRelevantToWsl
+        preflight = $PreflightPath
+    } | ConvertTo-Json -Depth 6)
     return
 }
 
+if ($planBlocked) {
+    $blockReason = if ($unknownDiagnostic) { $diagnosticCase } else { $rebootBlockReason }
+    throw "WSL install is blocked ($blockReason). No installation changes were started."
+}
 if ($case -eq 'C') {
     Write-InstallState ([ordered]@{
         status = 'READY_EXISTING_WSL2'
@@ -73,9 +97,6 @@ if ($case -eq 'C') {
     })
     return
 }
-if ($unknownDiagnostic) {
-    throw "WSL state is not installable ($diagnosticCase). No installation changes were started."
-}
 if (-not (Test-Administrator)) {
     throw 'This installation case changes Windows WSL features. Open an elevated PowerShell and rerun this script; it does not request elevation.'
 }
@@ -85,10 +106,6 @@ if ([string]$preflight.windows.virtualizationFirmwareEnabled -ne 'True') {
 if ($preflight.windows.virtualizationQuery -eq 'ACCESS_DENIED_OR_UNAVAILABLE') {
     throw 'Virtualization capability could not be read in the elevated preflight. No WSL changes were started.'
 }
-if (Test-PendingRestart) {
-    throw 'Windows already reports a pending restart. Restart Windows, then rerun this script; no WSL changes were started.'
-}
-
 $backupPath = $null
 $wslChanged = $false
 if ($case -eq 'A') {
@@ -98,8 +115,10 @@ if ($case -eq 'A') {
     if ($code -ne 0) { throw "Stable WSL installation failed with exit code $code. No automatic restart was requested." }
     $wslChanged = $true
 } elseif ($case -eq 'B') {
-    & wsl.exe --set-default-version 2
-    if ($LASTEXITCODE -ne 0) { throw "Setting WSL 2 as the default failed (exit $LASTEXITCODE)." }
+    if ($setDefaultVersionRequired) {
+        & wsl.exe --set-default-version 2
+        if ($LASTEXITCODE -ne 0) { throw "Setting WSL 2 as the default failed (exit $LASTEXITCODE)." }
+    }
     & wsl.exe --install --distribution $targetDistro --no-launch
     $code = $LASTEXITCODE
     if ($code -ne 0) { throw "Ubuntu installation failed with exit code $code. No automatic restart was requested." }
@@ -123,12 +142,11 @@ if ($case -eq 'A') {
     $wslChanged = $true
 }
 
-$restartRequired = Test-PendingRestart
-$afterList = ''
-if (-not $restartRequired) {
-    $afterList = (& wsl.exe --list --verbose 2>&1 | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0) { $restartRequired = $true }
-}
+& (Join-Path $PSScriptRoot 'preflight.ps1') -OutputPath $PreflightPath | Out-Null
+$postflight = Get-Content -LiteralPath $PreflightPath -Raw | ConvertFrom-Json
+$restartRequired = ($null -eq $postflight.windows.reboot.hardBlocker -or [bool]$postflight.windows.reboot.hardBlocker)
+$afterList = [string]$postflight.wsl.listVerboseCommand.output
+if ($postflight.wsl.listVerboseCommand.exitCode -ne 0) { $restartRequired = $true }
 $firstUser = switch ($case) {
     { $_ -in 'A', 'B' } { 'NOT_STARTED; FIRST_LAUNCH_REQUIRED_FOR_NEW_DISTRIBUTION' }
     'D' { [string]$legacy.linuxUserSetup }

@@ -9,6 +9,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $outputRoot = Join-Path $repoRoot 'artifacts\wsl-qualification'
 if (-not $OutputPath) { $OutputPath = Join-Path $outputRoot 'preflight.json' }
 $OutputPath = [System.IO.Path]::GetFullPath($OutputPath)
+. (Join-Path $PSScriptRoot 'diagnostic-helpers.ps1')
 
 function Invoke-CapturedCommand([string]$File, [string[]]$CommandArgs) {
     try {
@@ -187,37 +188,38 @@ function Get-ServiceDiagnostic([string]$ServiceName) {
 }
 
 function Get-PendingRestartState {
-    $baseKey = $null
-    $components = [ordered]@{}
-    $readFailed = $false
+    $baseKey = [Microsoft.Win32.Registry]::LocalMachine
+    $cbs = $null
+    $windowsUpdate = $null
+    $renameReadStatus = 'READ'
+    $rawOperations = @()
     try {
-        $baseKey = [Microsoft.Win32.Registry]::LocalMachine
-        foreach ($entry in @(
-            @{ name = 'componentBasedServicing'; path = 'SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending' },
-            @{ name = 'windowsUpdate'; path = 'SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired' }
-        )) {
-            try {
-                $key = $baseKey.OpenSubKey([string]$entry.path)
-                $components[$entry.name] = ($null -ne $key)
-                if ($null -ne $key) { $key.Close() }
-            } catch { $components[$entry.name] = $null; $readFailed = $true }
+        $key = $baseKey.OpenSubKey('SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending')
+        $cbs = ($null -ne $key)
+        if ($null -ne $key) { $key.Close() }
+    } catch { $cbs = $null }
+    try {
+        $key = $baseKey.OpenSubKey('SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired')
+        $windowsUpdate = ($null -ne $key)
+        if ($null -ne $key) { $key.Close() }
+    } catch { $windowsUpdate = $null }
+    try {
+        $sessionManager = $baseKey.OpenSubKey('SYSTEM\CurrentControlSet\Control\Session Manager')
+        if ($null -eq $sessionManager) { throw 'Session Manager registry key is unavailable.' }
+        if (@($sessionManager.GetValueNames()) -contains 'PendingFileRenameOperations') {
+            $rawOperations = @($sessionManager.GetValue('PendingFileRenameOperations', $null))
         }
-        try {
-            $sessionManager = $baseKey.OpenSubKey('SYSTEM\CurrentControlSet\Control\Session Manager')
-            if ($null -eq $sessionManager) { $components['pendingFileRenameOperations'] = $null; $readFailed = $true }
-            else {
-                $names = @($sessionManager.GetValueNames())
-                $hasValue = $names -contains 'PendingFileRenameOperations'
-                $value = if ($hasValue) { $sessionManager.GetValue('PendingFileRenameOperations', $null) } else { $null }
-                $pendingOperations = @($value | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
-                $components['pendingFileRenameOperations'] = [bool]($hasValue -and $pendingOperations.Count -gt 0)
-                $sessionManager.Close()
-            }
-        } catch { $components['pendingFileRenameOperations'] = $null; $readFailed = $true }
-    } catch { $readFailed = $true }
-    $values = @($components.Values)
-    $state = if ($values -contains $true) { 'TRUE' } elseif ($readFailed -or $values -contains $null) { 'UNKNOWN' } else { 'FALSE' }
-    return [ordered]@{ state = $state; components = $components }
+        $sessionManager.Close()
+    } catch { $renameReadStatus = 'ACCESS_DENIED_OR_UNAVAILABLE' }
+    $renameAnalysis = Get-PendingRenameAnalysis -Operations $rawOperations -UserProfile $env:USERPROFILE
+    $gate = Get-RebootGateState -CbsPending $cbs -WindowsUpdatePending $windowsUpdate -PendingRenameReadStatus $renameReadStatus -PendingRenameAnalysis $renameAnalysis
+    $renamePending = if ($renameReadStatus -ne 'READ') { $null } else { [bool]($renameAnalysis.entryCount -gt 0) }
+    $anyPending = if ($cbs -eq $true -or $windowsUpdate -eq $true -or $renamePending -eq $true) { 'TRUE' }
+                 elseif ($cbs -eq $false -and $windowsUpdate -eq $false -and $renamePending -eq $false) { 'FALSE' }
+                 else { 'UNKNOWN' }
+    $gate['state'] = $anyPending
+    $gate['pendingFileRenameReadStatus'] = $renameReadStatus
+    return $gate
 }
 
 function Get-RelevantEventLogs {
@@ -318,11 +320,15 @@ if ($wslList.exitCode -eq 0) {
     }
 }
 $ubuntu = @($distros | Where-Object { $_.name -match '(?i)^Ubuntu(?:[-_].*)?$' })
-$case = if (-not $runtimeInstalled) { 'A' }
-        elseif ($wslList.exitCode -ne 0) { 'UNKNOWN' }
-        elseif ($ubuntu.Count -eq 0) { 'B' }
-        elseif (@($ubuntu | Where-Object { $_.wslVersion -eq 2 }).Count -gt 0) { 'C' }
-        else { 'D' }
+$statusText = [string]$wslStatus.output
+$defaultVersion = $null
+if ($statusText -match '(?im)^.*(?:Default Version|\u65E2\u5B9A\u306E\u30D0\u30FC\u30B8\u30E7\u30F3).*?(?<version>[12])\s*$') {
+    $defaultVersion = [int]$Matches.version
+}
+$noDistroText = '(?i)no installed distributions|no distributions installed|\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u3055\u308C\u3066\u3044\u308B\u30C7\u30A3\u30B9\u30C8\u30EA\u30D3\u30E5\u30FC\u30B7\u30E7\u30F3\u306F\u3042\u308A\u307E\u305B\u3093'
+$listConfirmsNoDistro = ($wslList.output -match $noDistroText) -or ($wslList.exitCode -eq 0 -and $distros.Count -eq 0)
+$ubuntuVersions = @($ubuntu | ForEach-Object { [int]$_.wslVersion })
+$case = Get-WslInstallCase -RuntimeInstalled $runtimeInstalled -RegistryReadStatus $registryDistroState.readStatus -RegistryDistroCount ([int]$registryDistroState.distributions.Count) -WslStatusExitCode ([int]$wslStatus.exitCode) -DefaultVersion $(if ($null -eq $defaultVersion) { 0 } else { [int]$defaultVersion }) -WslListExitCode $(if ($null -eq $wslList.exitCode) { -1 } else { [int]$wslList.exitCode }) -ListConfirmsNoDistro ([bool]$listConfirmsNoDistro) -UbuntuVersions $ubuntuVersions
 
 $wslFailureText = @([string]$wslStatus.output, [string]$wslList.output) -join "`n"
 $accessDenied = ($wslFailureText -match '(?i)E_ACCESSDENIED|0x80070005|access denied|permission denied|unauthorizedaccess')
@@ -333,8 +339,14 @@ $wslServiceSummary = if (@($wslServiceCandidates | Where-Object { $_.state -eq '
                      else { 'UNKNOWN' }
 $diagnosticCase = 'NONE'
 $diagnosticReason = 'WSL_COMMANDS_AVAILABLE'
-if ($case -eq 'UNKNOWN') {
-    if ($wslServiceSummary -eq 'NOT_FOUND') {
+if ($case -eq 'B') {
+    $diagnosticCase = 'CASE_B_CONFIRMED'
+    $diagnosticReason = 'NO_DISTRO_INSTALLED'
+} elseif ($case -eq 'UNKNOWN') {
+    if ($pendingRestart.hardBlocker -eq $true) {
+        $diagnosticCase = 'UNKNOWN_PENDING_RESTART'
+        $diagnosticReason = 'PENDING_RESTART'
+    } elseif ($wslServiceSummary -eq 'NOT_FOUND') {
         $diagnosticCase = 'UNKNOWN_WSL_SERVICE_MISSING'
         $diagnosticReason = 'WSL_SERVICE_MISSING'
     } elseif ($wslServiceSummary -eq 'STOPPED') {
@@ -346,19 +358,13 @@ if ($case -eq 'UNKNOWN') {
     } elseif ($accessDenied -and $registryDistroState.readStatus -eq 'READ' -and $registryDistroState.distributions.Count -eq 0) {
         $diagnosticCase = 'UNKNOWN_WSL_COMMAND_ACCESS_DENIED_NO_REGISTERED_DISTRO'
         $diagnosticReason = 'WSL_COMMAND_ACCESS_DENIED'
-    } elseif ($pendingRestart.state -eq 'TRUE') {
+    } elseif ($pendingRestart.hardBlocker -eq $null) {
         $diagnosticCase = 'UNKNOWN_PENDING_RESTART'
-        $diagnosticReason = 'PENDING_RESTART'
+        $diagnosticReason = 'REBOOT_STATE_UNAVAILABLE'
     } else {
         $diagnosticCase = 'UNKNOWN_OTHER'
         $diagnosticReason = if ($accessDenied) { 'WSL_COMMAND_ACCESS_DENIED_REGISTRY_STATE_UNAVAILABLE' } else { 'WSL_COMMAND_FAILED' }
     }
-}
-
-$statusText = [string]$wslStatus.output
-$defaultVersion = $null
-if ($statusText -match '(?im)^.*(?:Default Version|\u65E2\u5B9A\u306E\u30D0\u30FC\u30B8\u30E7\u30F3).*?(?<version>[12])\s*$') {
-    $defaultVersion = [int]$Matches.version
 }
 
 $git = [ordered]@{
@@ -439,6 +445,7 @@ $document = [ordered]@{
         hypervisorPresent = if ($null -ne $computer) { $computer.HypervisorPresent } else { $null }
         optionalFeatures = $featureStates
         pendingRestart = $pendingRestart
+        reboot = $pendingRestart
     }
     wsl = [ordered]@{
         installed = $runtimeInstalled
@@ -475,6 +482,7 @@ $document = [ordered]@{
         windowsCodexDirectoryExists = Test-Path (Join-Path $env:USERPROFILE '.codex')
     }
     recommendedInstallCase = $case
+    reboot = $pendingRestart
     pendingRestart = $pendingRestart.state
 }
 
@@ -489,6 +497,9 @@ $summary = [ordered]@{
     wslService = $wslServiceSummary
     virtualMachinePlatform = $featureStates.virtualMachinePlatform.state
     pendingRestart = $pendingRestart.state
-    nextAction = if ($case -eq 'UNKNOWN') { 'DIAGNOSIS_REQUIRED' } else { 'REVIEW_PREFLIGHT' }
+    rebootClassification = $pendingRestart.classification
+    pendingFileRenameRelevantToWsl = $pendingRestart.pendingFileRenameRelevantToWsl
+    hardBlocker = $pendingRestart.hardBlocker
+    nextAction = if ($pendingRestart.hardBlocker -eq $true) { 'BLOCKED_REBOOT' } elseif ($pendingRestart.hardBlocker -eq $null -or $case -eq 'UNKNOWN') { 'DIAGNOSIS_REQUIRED' } elseif ($case -eq 'B') { 'INSTALL_PLAN_READY' } else { 'REVIEW_PREFLIGHT' }
 }
 Write-Output ($summary | ConvertTo-Json -Compress)
