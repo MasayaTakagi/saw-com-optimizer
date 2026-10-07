@@ -1,0 +1,22 @@
+{
+  "status": "PASS",
+  "complete": true,
+  "cells_expected": 10,
+  "cells_present": 10,
+  "cells_completed": 10,
+  "topologies_present": [
+    "P_D",
+    "D_P"
+  ],
+  "seeds_present": [
+    20261007,
+    20261008,
+    20261009,
+    20261010,
+    20261011
+  ],
+  "budget_per_cell": 96000,
+  "population_schedule_terminal_budget": 96000,
+  "common_validation_grid_id": "2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f",
+  "common_validation_grid_sha256": "54c1daf67dd2bb9242f95e638d7bd801db536acc2c7d6f00c1f62a788bead554"
+}

@@ -1,0 +1,20 @@
+{
+  "status": "COMPLETED",
+  "disposition": "COMPLETED",
+  "source": "explicit_run_disposition",
+  "outcome_status": "PASS",
+  "recorded_at_utc": "2026-10-07T06:45:34+00:00",
+  "completed_at_utc": "2026-10-07T06:45:34+00:00",
+  "final_checkpoints": [
+    "optimization/D_P/seed20261007/checkpoints/final.json",
+    "optimization/D_P/seed20261008/checkpoints/final.json",
+    "optimization/D_P/seed20261009/checkpoints/final.json",
+    "optimization/D_P/seed20261010/checkpoints/final.json",
+    "optimization/D_P/seed20261011/checkpoints/final.json",
+    "optimization/P_D/seed20261007/checkpoints/final.json",
+    "optimization/P_D/seed20261008/checkpoints/final.json",
+    "optimization/P_D/seed20261009/checkpoints/final.json",
+    "optimization/P_D/seed20261010/checkpoints/final.json",
+    "optimization/P_D/seed20261011/checkpoints/final.json"
+  ]
+}

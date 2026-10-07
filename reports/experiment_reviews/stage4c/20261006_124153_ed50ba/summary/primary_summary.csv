@@ -1,0 +1,3 @@
+﻿completed_seeds,dominant_violated_constraint_counts,feasible_count,max_violation_median,ripple_db_median,stop_1_703_748_violation_median,stop_2_832_862_violation_median,sum_violation_median,topology,worst_in_band_il_db_median
+5,"[[""stop_2"", 4], [""output_vswr"", 1]]",0,0.33029476412825265,2.4650283256116845,0.290623965674043,0.33029476412825265,1.8137628007651632,P_D,3.689447138100956
+5,"[[""stop_2"", 4], [""ripple"", 1]]",0,0.3236183582366201,2.534833560197646,0.21017442698428102,0.3224533478828453,1.7751705854557875,D_P,3.7700853382636703

@@ -1,0 +1,159 @@
+base_config: dms_topology_screening.yaml
+study:
+  type: hybrid_stage4c_confirmatory
+  revision: stage4c_confirmatory_v1
+  stage4a_protocol: stage4a_hybrid_protocol_qualification_v1
+  review_spec_id: hybrid_stage4c
+  review_stage: stage4c
+  topologies: [P_D, D_P]
+  seeds: [20261007, 20261008, 20261009, 20261010, 20261011]
+  comparison_arms: [P_D, D_P]
+  expected_cell_count: 10
+  budget_per_cell: 96000
+  population_schedule_terminal_budget: 96000
+  checkpoints: [8000, 16000, 24000, 32000, 48000, 64000, 80000, 96000]
+
+storage_contract:
+  production_policy: external_persistent_v1
+  production_root: C:/Users/sub/Documents/ChatGPT/saw-com-optimizer-runs/production
+  qualification_policy: external_qualification_v1
+  qualification_root: C:/Users/sub/Documents/ChatGPT/saw-com-optimizer-runs/qualification/stage4c
+
+dms_topology:
+  budget: 96000
+  initial_population: null
+  initial_population_per_dimension: 18
+  population_schedule_terminal_budget: 96000
+  checkpoints: [8000, 16000, 24000, 32000, 48000, 64000, 80000, 96000]
+  seeds: [20261007, 20261008, 20261009, 20261010, 20261011]
+  cold_start: true
+  impedance_ohm: 50.0
+  selection:
+    materials: [MLIT]
+    topologies: [T1_SYMMETRIC_5IDT]
+
+hybrid:
+  supported_topologies: [P_D, D_P]
+  source_impedance_ohm: 50.0
+  load_impedance_ohm: 50.0
+  common_grid_finalists: 16
+  resonator_bounds: [[4.5, 5.6], [10, 60], [30, 150]]
+  resonator_aperture_bounds_um: [30, 150]
+  resonator_model:
+    reflector_electrodes: 40
+    gap_lambda: 0.0
+    metallization_ratio: 0.5
+    thickness_over_lambda: 0.04
+  initializer:
+    method: independent_uniform_rejection_v1
+    max_attempts: 10000
+    seed_derivation: sha256(stage4b-v1/seed/material/topology/initial_population)
+    include_historical_seed: false
+  layout:
+    model: hypothetical_separate_rows
+    die_um: [900, 700]
+    length_margin_um: 60
+    width_margin_um: 60
+    max_total_electrodes: 500
+    qualification_only: true
+  parity:
+    rtol: 1.0e-10
+    atol: 1.0e-12
+  production_launch_authorized: false
+
+stage4c:
+  optimizer: L-SHADE
+  material: MLIT
+  dms_topology: T1_SYMMETRIC_5IDT
+  supported_hybrid_topologies: [P_D, D_P]
+  source_impedance_ohm: 50.0
+  load_impedance_ohm: 50.0
+  seeds: [20261007, 20261008, 20261009, 20261010, 20261011]
+  budget_per_cell: 96000
+  population_schedule_terminal_budget: 96000
+  initial_population_rule: 18 * topology_dimension
+  initial_populations: {P_D: 234, D_P: 234}
+  checkpoints: [8000, 16000, 24000, 32000, 48000, 64000, 80000, 96000]
+  cold_start: true
+  warm_start: false
+  parent_transfer: false
+  topology_transfer: false
+  historical_population_injection: false
+  production_early_stop: false
+  common_grid_finalists: 16
+  initializer:
+    method: independent_uniform_rejection_v1
+    max_attempts: 10000
+    seed_derivation: sha256(stage4b-v1/seed/material/topology/initial_population)
+    include_historical_seed: false
+  protected_inputs:
+    specification:
+      passband: [758, 803]
+      il: 3.0
+      ripple: 2.0
+      vswr: 2.5
+      stopbands: [[10, 700, 20], [703, 748, 32], [832, 862, 30], [880, 915, 30]]
+    geometry_constraints:
+      max_length_um: 750
+      max_width_um: 250
+      min_electrode_width_um: 0.8
+      min_electrode_gap_um: 0.8
+      max_electrodes: 500
+    mlit_profile:
+      profile_id: LI2024_42YX_LT_METAL_UNSPECIFIED_T25
+      profile_file: configs/models/stage3_7b_r1_normalized_literature_profile.yaml
+      aperture_bounds_um: [30, 180]
+    t1_active_bounds: [[4.6, 5.4], [4.6, 5.4], [4.6, 5.4], [4.6, 5.4], [4, 24], [4, 24], [5, 24], [0, 3], [0, 3], [30, 180]]
+    t1_hard_bounds: [[4.6, 5.4], [4.6, 5.4], [4.6, 5.4], [4.6, 5.4], [4, 24], [4, 24], [5, 24], [0, 3], [0, 3], [30, 180]]
+    resonator_bounds: [[4.5, 5.6], [10, 60], [30, 150]]
+    resonator_aperture_bounds_um: [30, 150]
+    t1_reflector_electrodes: 40
+    metallization_ratio: 0.5
+    gap_lambda: 0.0
+    thickness_over_lambda: 0.04
+    layout:
+      model: hypothetical_separate_rows
+      die_um: [900, 700]
+      length_margin_um: 60
+      width_margin_um: 60
+      max_total_electrodes: 500
+      qualification_only: true
+    search_grid_points: 1001
+    search_grid_sha256: 212dd2b0b71ddeffb7a8865937d132ee596870f25c989ac7d90c5dab6fd7faa0
+    common_validation_grid_points: 9113
+    common_validation_grid_id: 2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f
+    common_validation_grid_sha256: 54c1daf67dd2bb9242f95e638d7bd801db536acc2c7d6f00c1f62a788bead554
+    network_convention: Stage 4A; exp(+jωt), left-to-right, power-normalized acoustic waves
+  production_launch_authorized: false
+  maturity_criteria:
+    convergence_evidence_complete: true
+    grid_converged: true
+    recovery_pending_confirmation: false
+    historical_bound_hit_alone_blocks_maturity: false
+    hard_bound_unresolved: false
+    boundary_pending_confirmation: false
+    significant_improvement_80k_to_96k: false
+    fraction_of_budget_at_last_significant_improvement_max: 0.80
+  closeout_criteria:
+    primary_comparator: feasibility_first_lexicographic
+    comparator_fields: [feasible, max_violation, sum_violation, worst_il_db]
+    no_weighted_scalar_score: true
+    model_level_materiality:
+      primary_metric: max_normalized_violation
+      absolute_difference_threshold: 0.02
+      meaning: internal_computational_interpretation_threshold
+      manufacturing_or_measurement_tolerance: false
+    clear_winner:
+      minimum_matched_seed_wins: 4
+      late_checkpoints: [64000, 80000, 96000]
+      same_seed_wins_required_at_each_late_checkpoint: 4
+      require_all_cells_mature: true
+      terminal_winner_pairs_required: 4
+      material_pair_rule: "feasibility_differs_in_favor_of_winner OR both_infeasible_and_abs_delta_max_violation_at_least_0.02"
+      require_no_convergence_or_boundary_caveat: true
+    practically_equivalent:
+      require_all_cells_mature: true
+      require_no_stable_four_of_five_late_preference: true
+      require_matched_feasibility_status_for_every_seed: true
+      all_five_terminal_abs_delta_max_violation_strictly_below: 0.02
+    otherwise: STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED

@@ -1,0 +1,57 @@
+{
+  "review_schema_version": 1,
+  "run_id": "20261006_124153_ed50ba",
+  "stage": "stage4c",
+  "study_type": "hybrid_stage4c_confirmatory",
+  "production_execution_source_sha": "65e1815db1cc18d74ff0dcee20ffd5e9098709df",
+  "computation_fingerprint": "fdff19b63739efe1022092aa21e2ba3651c82a3344d54721522e5e0fc5cef9dd",
+  "protocol_fingerprint": "stage4c_confirmatory_v1",
+  "source_branch": "codex/stage4c-confirmatory-20261006-postrun",
+  "review_branch": "codex/stage4c-confirmatory-20261006-postrun",
+  "canonical_review_directory": "reports/experiment_reviews/stage4c/20261006_124153_ed50ba",
+  "optimizer_completion_state": "COMPLETED",
+  "exit_code": null,
+  "expected_cell_count": 10,
+  "completed_cell_count": 10,
+  "seeds": [
+    20261007,
+    20261008,
+    20261009,
+    20261010,
+    20261011
+  ],
+  "comparison_arms": [
+    "P_D",
+    "D_P"
+  ],
+  "evaluation_budget_per_cell": 96000,
+  "terminal_horizon": 96000,
+  "grid_identity": [
+    "2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f"
+  ],
+  "review_spec_id": "hybrid_stage4c",
+  "review_spec_sha256": "64b469a71393d44d2e8a4d77dbaf17327c94cb4e7fdad5309c5c69f0c9511514",
+  "exporter_identity": "sawopt.github_review_export/1",
+  "created_at_utc": "2026-10-07T06:45:34+00:00",
+  "package_complete": true,
+  "redaction_scan": "PASS",
+  "target_size_bytes": 2097152,
+  "hard_size_bytes": 10485760,
+  "target_size_exceeded": false,
+  "package_total_bytes": 264638,
+  "artifact_manifest_sha256": "bf46f1e9f52a591862fbe55d7708b00246517f830f9afd3d681b0848fc83e807",
+  "readme_sha256": "80e71008c33897aa36a60f0f6b69269aec724c889a96b67b79b61b002fe26ab0",
+  "orchestration_recovery": {
+    "classification": "postrun_orchestration_finalization_interrupted",
+    "audit_path": "orchestration/postrun_orchestration_recovery.json",
+    "optimizer_exit_code": null,
+    "optimizer_rerun": false
+  },
+  "queue_handoff": {
+    "state": "RECEIVER_CONFIRMED",
+    "attempt_count": 1,
+    "sender_accepted": true,
+    "receiver_thread_id": "01a10c54-4211-7d13-8b98-e76ad245b0c0",
+    "delivery_id": "d8d6621f3d54092952f4b89de377822d"
+  }
+}
