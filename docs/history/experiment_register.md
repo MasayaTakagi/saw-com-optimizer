@@ -578,7 +578,8 @@ practical shortlist is `P_D` and `D_P`, with no unique topology selected.
 - **Direction sanity:** The `P_D`/`D_P` direction check passed. The worst-IL
   difference changed sign across seeds, with median `P_D - D_P` about
   +0.0257 dB. There is no stable directional preference at 50/50 Ω, so both
-  remain relevant to future `Zs != Zl` work unless Stage 4C resolves them.
+  remain relevant to future `Zs != Zl` work; Stage 4C also left their selection
+  unresolved.
 - **`P_D_P` disposition:** It had 4,332 geometry rejections, versus 95 for
   `D`, 103 for `P_D`, and 113 for `D_P`. It showed no median max-violation
   advantage over `P_D`/`D_P` and lost 4–1 to each shortlisted topology. It is
@@ -588,17 +589,78 @@ practical shortlist is `P_D` and `D_P`, with no unique topology selected.
   geometry model, and fixed 50/50 Ω ports. They do not establish calibrated
   real-device prediction, physical B28 feasibility, a final topology optimum,
   or a final impedance optimum.
-- **Carry-forward:** Stage 4C is the next planning gate: shortlist convergence
-  and budget qualification for `P_D` and `D_P` under MLIT/T1 at 50/50 Ω, with
-  matched seeds, cold starts, L-SHADE, 9,113-point common validation, and a
-  longer predeclared terminal horizon. Stage 4C has not been launched. The
-  final `Zs × Zl` sweep remains gated.
+- **Carry-forward at Stage 4B closeout:** Stage 4C was planned as a matched
+  convergence/budget qualification for `P_D` and `D_P`; its execution and
+  disposition are recorded below. The final `Zs × Zl` sweep remains gated.
 - **Evidence:** The compact Git-tracked review bundle is at
   `reports/stage4b_production_review/20261003_20261003_014817_ea08db/`; the
   closeout is `docs/history/stage4b_closeout_20261004.md`, with current
   decisions in `docs/history/current_baseline.md` and forward gates in
   `docs/project_roadmap.md`. The large raw run and checkpoints remain local at
   `runs/stage4b-hybrid-topology-production-20261003`.
+
+## Stage 4C — shortlisted hybrid convergence / budget qualification
+
+**Status:** Execution completed; topology selection unresolved. The
+orchestration/review state is `REVIEW_WAITING`; this documentation closeout
+does not record scientific acceptance or select a topology. **Evidence
+level:** matched-seed production evidence under the provisional MLIT/T1 model
+at fixed 50/50 Ω.
+
+- **Question:** Do shortlisted `P_D` and `D_P` retain a relative advantage at a
+  longer search horizon, and does either approach a stable near-feasible
+  region?
+- **Production identity and conditions:** Run `20261006_124153_ed50ba`, study
+  `hybrid_stage4c_confirmatory`, protocol revision `stage4c_confirmatory_v1`,
+  production source
+  `65e1815db1cc18d74ff0dcee20ffd5e9098709df`, computation fingerprint
+  `fdff19b63739efe1022092aa21e2ba3651c82a3344d54721522e5e0fc5cef9dd`. The
+  study compared `P_D` and `D_P` with MLIT / `T1_SYMMETRIC_5IDT` and fixed
+  50/50 Ω ports. Five matched cold-start seeds were used:
+  20261007–20261011. Each of 10 cells received 96,000 unique evaluations
+  (960,000 across the matrix), with checkpoints at 8k, 16k, 24k, 32k, 48k,
+  64k, 80k, and 96k. Search used 1,001 frequencies and common validation used
+  9,113 points. There was no early stop, warm start, parent/topology transfer,
+  or historical population injection.
+- **Execution and integrity:** The optimizer state is `COMPLETED` and the
+  orchestration state is `REVIEW_WAITING`. All 10/10 cells completed at budget;
+  integrity is `PASS`, and all final checkpoints were finalized. The recorded
+  process exit code is null/unknown and is not inferred. The compact review
+  package was reconciled from existing durable evidence; no cell was rerun and
+  no raw result or checkpoint was changed.
+- **Feasibility and comparison:** Feasible cells were `P_D` 0/5 and `D_P` 0/5.
+  Terminal matched-seed lexicographic wins were `P_D` 3, `D_P` 2, with no ties
+  or indeterminate comparisons. The predeclared clear-winner rule requires at
+  least 4/5 wins, so neither topology passed. Median maximum normalized
+  violation was 0.330295 for `P_D` and 0.323618 for `D_P`. The formal
+  classification is `STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED`.
+- **Convergence and maturity:** All 10/10 terminal cells are
+  `IMMATURE_OR_INCOMPLETE`; each improved significantly from 80k to 96k.
+  Consequently this budget does not establish a converged terminal result.
+- **Boundary diagnostics:** Terminal unresolved hard-bound hits were an upper
+  hit on `resonator_0_pairs` for `P_D` / seed 20261007 and `D_P` / seeds
+  20261007 and 20261009. Other historical or non-terminal hits are not counted
+  as unresolved terminal hits.
+- **Implementation provenance:** The production path used compact history
+  retention (`compact_history_cache=True`) and 16 historical finalists.
+  L-SHADE checkpoint state version 4 and its compact-checkpoint MemoryError
+  fix are already in `main` (the fix is present at commit `1acd381`). These
+  implementation facts were checked read-only; no source or test files were
+  changed for closeout.
+- **Decision and limits:** Do not promote `P_D` or `D_P`; retain both for later
+  asymmetric `Zs != Zl` work. The 0.02 maximum normalized violation threshold
+  is an internal computational interpretation threshold, not a manufacturing
+  or measurement tolerance. The result is conditional on the provisional
+  literature COM profile, topology/model implementation, fixed 50/50 Ω ports,
+  and existing bounds. It does not establish physical B28 feasibility,
+  manufacturability, model calibration, or an impedance optimum. No additional
+  production authorization follows. Budget extension, bound changes, and
+  model/design-space changes require a separate review and plan.
+- **Evidence:** Canonical compact Git-tracked package:
+  `reports/experiment_reviews/stage4c/20261006_124153_ed50ba/`. It includes
+  `README.md`, run and review manifests, integrity and completion records,
+  per-cell results, and summary reports. The external raw run and checkpoints
+  remain outside the repository.
 
 ## Cleanup rule
 

@@ -1,7 +1,7 @@
 # Current SAW Design Baseline
 
-This is the current decision state after Stage 4B (baseline date
-2026-10-04). Read `experiment_register.md` for the evidence and limitations
+This is the current decision state after Stage 4C (baseline date
+2026-10-08). Read `experiment_register.md` for the evidence and limitations
 behind each item.
 
 ## Physical model
@@ -112,17 +112,40 @@ behind each item.
   only about +0.0257 dB (`P_D - D_P`), much smaller than the within-topology
   five-seed spans. Do not infer a stable 50/50 Ω input-side versus output-side
   resonator preference.
-- The next scientific gate is Stage 4C: fixed-50/50 Ω convergence/budget
-  qualification for `P_D` and `D_P`, with a predeclared longer L-SHADE horizon,
-  matched seeds, cold starts, common dense validation, and late-improvement /
-  boundary diagnostics. Stage 4C has not been launched.
-- The Stage 4C confirmatory protocol is now prepared and frozen for independent
-  review on branch `codex/stage4c-confirmatory-protocol`. Production remains
-  not launched and is not authorized by the protocol-preparation change.
-- Keep the final asymmetric impedance sweep premature until topology/design
-  space is sufficiently stable and the COM/material model has been physically
-  qualified. If Stage 4C does not establish a robust winner, both `P_D` and
-  `D_P` must remain available for later asymmetric `Zs != Zl` work.
+- Stage 4C production run `20261006_124153_ed50ba` completed under source
+  `65e1815db1cc18d74ff0dcee20ffd5e9098709df` and protocol
+  `stage4c_confirmatory_v1` (computation fingerprint
+  `fdff19b63739efe1022092aa21e2ba3651c82a3344d54721522e5e0fc5cef9dd`). It
+  compared `P_D` and `D_P` at MLIT/T1 and fixed 50/50 Ω, using five matched
+  cold-start seeds (20261007–20261011), 96,000 unique evaluations per cell,
+  and common 9,113-point validation. The optimizer state is `COMPLETED`; the
+  orchestration state is `REVIEW_WAITING`. All 10/10 cells completed, integrity
+  is `PASS`, and all final checkpoints were finalized. The compact Git-tracked
+  evidence is
+  `reports/experiment_reviews/stage4c/20261006_124153_ed50ba/`.
+- No Stage 4C cell was feasible (`P_D` 0/5, `D_P` 0/5). Terminal matched-seed
+  lexicographic wins were `P_D` 3 and `D_P` 2; neither met the 4/5 clear-winner
+  gate. The classification is
+  `STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED`; neither topology is selected.
+- All 10 terminal cells are `IMMATURE_OR_INCOMPLETE`, and all 10 improved
+  significantly from 80,000 to 96,000 evaluations. Terminal unresolved upper
+  hits on `resonator_0_pairs` occurred for `P_D` / seed 20261007 and `D_P` /
+  seeds 20261007 and 20261009. The results therefore do not establish
+  convergence or a credible near-feasible region. The 0.02 maximum normalized
+  violation threshold is an internal computational interpretation threshold,
+  not a manufacturing or measurement tolerance.
+- Read-only source review confirmed the Stage 4C production path used
+  `compact_history_cache=True`, retained 16 historical finalists, and used
+  L-SHADE checkpoint state version 4. The compact-checkpoint memory fix is
+  already present in `main` (commit `1acd381`); it was not reimplemented for
+  this closeout.
+- Keep topology selection unresolved and retain both `P_D` and `D_P` as
+  candidates for later asymmetric `Zs != Zl` work. The final 2-D impedance
+  sweep has not started and remains gated on a sufficiently stable design
+  direction and calibrated COM/model qualification. This documentation
+  closeout authorizes no budget extension, bound change, model/design-space
+  change, or additional production run; those decisions belong to a separate
+  review and plan.
 
 ## Current unresolved work
 
@@ -133,9 +156,10 @@ behind each item.
    30–150 µm versus MLIT 30–180 µm ranges.
 3. Keep MLIT/T2 explicitly unresolved; do not promote it on underexplored
    status alone. Any future T2 study is a separate, matched-budget question.
-4. Plan and run Stage 4C for `P_D` and `D_P` at fixed 50/50 Ω with a longer
-   predeclared L-SHADE terminal horizon and checkpoints sufficient to assess
-   whether the late Stage 4B improvements persist or plateau.
+4. Use a separate review and plan to decide how to address the unresolved
+   Stage 4C result, including whether to investigate the `resonator_0_pairs`
+   boundary, reconsider the model/design space, or propose another convergence
+   study. No such change or run is authorized by this closeout.
 5. A future impedance sweep must use independent inner optimizations per
    impedance and retain asymmetric source/load interfaces. The historical
    coarse screens are not a substitute, and impedance conclusions require a
