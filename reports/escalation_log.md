@@ -1780,3 +1780,14 @@ confirmation or a separately approved FEM extraction is required.
   failure evidence is published and `REVIEW_WAITING` is durable. The fix follows
   that policy and will not clear a marker merely because optimization failed.
 - Packet: `reports/escalation_packets/stage4c_memoryerror_compact_state_20261006.md`.
+
+
+## 2026-10-07 — uv environment removal safety
+
+A bounded review considered how to reconcile disposable root `.venv` cleanup
+with symlink and reparse-point protection. The review advised retaining strict
+checks while allowing a verified uv environment. After the user clarified the
+required behavior, the implementation treats root `.venv` as a disposable
+subtree, inspects internal links without following them, uses fd-safe removal,
+and retains protected-data and mount-point checks. The change does not affect
+scientific code.

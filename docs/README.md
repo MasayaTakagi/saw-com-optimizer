@@ -1,5 +1,7 @@
 # Documentation
 
+- [`guides/development_environment.md`](guides/development_environment.md): official WSL2/uv setup for every worktree
+
 - [`guides/data_storage_logging_review_policy.md`](guides/data_storage_logging_review_policy.md): canonical overview for production raw-data storage, logging, retention, and GitHub review evidence
 - [`history/experiment_register.md`](history/experiment_register.md): historical experiments, findings, decisions, and evidence limits
 - [`history/storage_reconciliation_20261005.md`](history/storage_reconciliation_20261005.md): verified historical run and log storage reconciliation
