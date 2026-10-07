@@ -204,7 +204,7 @@ if [[ "$main_write" != PASS || "$external_write" != PASS || "$canary_denial" != 
 fi
 write_status "$RESULTS/codex-sandbox.json" PASS "sandbox=workspace-write; repo_write=$main_write; external_worktree_write=$external_write; outside_canary=$canary_denial; danger-full-access=false"
 
-python3 "$SCRIPT_DIR/qualification_smoke.py" qualify \
+"$ROOT/.venv/bin/python" "$SCRIPT_DIR/qualification_smoke.py" qualify \
   --reference "$ROOT/reports/experiment_reviews/qualification/wsl2-core-20261007-65e1815/windows-baseline.json" \
   --output "$RESULTS/numerical.json" \
   --run-root "$RUN_DIR/raw" > "$RESULTS/numerical.log" 2>&1 || numerical_exit=$?
