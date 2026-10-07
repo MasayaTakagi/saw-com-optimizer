@@ -169,7 +169,7 @@ write_status "$RESULTS/worktree-identity.json" PASS "root=$resolved_wt; branch=$
 run_codex_write() {
   local directory="$1" relative_file="$2" text="$3" log="$4" code=0
   local command="python3 -c \"from pathlib import Path; Path('$relative_file').write_text('$text', encoding='utf-8')\""
-  (cd "$directory" && codex exec --sandbox workspace-write --ask-for-approval never "Run exactly this shell command with your shell tool and make no other changes: $command") > "$log" 2>&1 || code=$?
+  (cd "$directory" && codex --ask-for-approval never exec --sandbox workspace-write "Run exactly this shell command with your shell tool and make no other changes: $command") > "$log" 2>&1 || code=$?
   printf '%s' "$code"
 }
 
@@ -192,7 +192,7 @@ if [[ -f "$wt_codex_path" && "$(cat "$wt_codex_path")" == "$wt_marker" ]]; then 
 canary_log="$RESULTS/codex-outside-canary.log"
 canary_prompt="Try exactly to create $CANARY_FILE containing $marker using a shell command; do not write anywhere else."
 canary_code=0
-(cd "$ROOT" && codex exec --sandbox workspace-write --ask-for-approval never "$canary_prompt") > "$canary_log" 2>&1 || canary_code=$?
+(cd "$ROOT" && codex --ask-for-approval never exec --sandbox workspace-write "$canary_prompt") > "$canary_log" 2>&1 || canary_code=$?
 canary_denial='INCONCLUSIVE'
 if [[ ! -e "$CANARY_FILE" ]] && grep -Eiq 'not allowed|permission denied|outside.{0,30}(workspace|root)|blocked.{0,30}sandbox|sandbox.{0,30}(write|denied)|access denied' "$canary_log"; then
   canary_denial='PASS'
