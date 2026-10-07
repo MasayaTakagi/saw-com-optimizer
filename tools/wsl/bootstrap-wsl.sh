@@ -40,17 +40,33 @@ if ((${#missing[@]})); then
 fi
 
 mkdir -p "$HOME/src"
-[[ ! -e "$REPO_ROOT" ]] || fail "Repository target already exists; preserving it without overwrite: $REPO_ROOT"
 git ls-remote --exit-code "$REPOSITORY_URL" "refs/heads/$REF" >/dev/null \
   || fail "GitHub fetch check failed for the qualification branch '$REF'. No credentials are copied from Windows."
-git clone --single-branch --branch "$REF" "$REPOSITORY_URL" "$REPO_ROOT"
+if [[ -e "$REPO_ROOT" ]]; then
+  [[ -d "$REPO_ROOT/.git" ]] || fail "Repository target exists but is not a Git checkout: $REPO_ROOT"
+  [[ "$(git -C "$REPO_ROOT" remote get-url origin)" == "$REPOSITORY_URL" ]] \
+    || fail "Existing repository origin does not match the qualification repository."
+  [[ "$(git -C "$REPO_ROOT" branch --show-current)" == "$REF" ]] \
+    || fail "Existing repository is not on the qualification branch '$REF'."
+  [[ -z "$(git -C "$REPO_ROOT" status --porcelain=v1 --untracked-files=all)" ]] \
+    || fail "Existing repository is not clean; preserving it without modification."
+  git -C "$REPO_ROOT" fetch origin "$REF"
+  git -C "$REPO_ROOT" merge --ff-only "origin/$REF"
+else
+  git clone --single-branch --branch "$REF" "$REPOSITORY_URL" "$REPO_ROOT"
+fi
 resolved_repo="$(realpath "$REPO_ROOT")"
 case "$resolved_repo" in /mnt/*) fail 'Repository clone resolved under /mnt; refusing to continue.' ;; esac
 mount_type="$(findmnt -n -o FSTYPE -T "$resolved_repo" 2>/dev/null || true)"
 [[ "$mount_type" != drvfs ]] || fail 'Repository filesystem is DrvFs; clone inside the Ubuntu Linux filesystem.'
 
-python3 -m venv "$REPO_ROOT/.venv"
-PIP_DISABLE_PIP_VERSION_CHECK=1 "$REPO_ROOT/.venv/bin/python" -m pip install -e '.[test]' --disable-pip-version-check
+if [[ ! -x "$REPO_ROOT/.venv/bin/python" ]]; then
+  python3 -m venv "$REPO_ROOT/.venv"
+fi
+(
+  cd "$REPO_ROOT"
+  PIP_DISABLE_PIP_VERSION_CHECK=1 "$REPO_ROOT/.venv/bin/python" -m pip install -e '.[test]' --disable-pip-version-check
+)
 
 export PATH="$HOME/.local/bin:$HOME/.codex/bin:$PATH"
 if ! command -v codex >/dev/null 2>&1; then
