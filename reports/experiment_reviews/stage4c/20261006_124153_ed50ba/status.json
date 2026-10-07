@@ -1,6 +1,6 @@
 {
-  "state": "COMPLETED",
-  "updated_at": "2026-10-07T09:01:36+00:00",
+  "state": "REVIEW_WAITING",
+  "updated_at": "2026-10-07T09:04:18+00:00",
   "worker_pid": 28608,
   "optimizer_pid": 46760,
   "exit_code": null,
@@ -34,12 +34,12 @@
   "continuation_error": null,
   "continuation_receiver_confirmed_at": "2026-10-07T09:01:36+00:00",
   "continuation_receiver_thread_id": "01a10c54-4211-7d13-8b98-e76ad245b0c0",
-  "review_evidence_state": "EXPORTED",
+  "review_evidence_state": "PUBLISHED",
   "review_output_dir": "reports/experiment_reviews/stage4c/20261006_124153_ed50ba",
-  "review_publication_branch": null,
-  "review_publication_commit": null,
+  "review_publication_branch": "codex/stage4c-confirmatory-20261006-postrun",
+  "review_publication_commit": "7c4f4bb440d055aa88a2f997e744ee7b6ea796c5",
   "review_exported_at": "2026-10-07T08:59:21+00:00",
-  "review_published_at": null,
+  "review_published_at": "2026-10-07T09:04:18+00:00",
   "postrun_reconciled_at_utc": "2026-10-07T08:58:57+00:00",
   "postrun_recovery_audit_path": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer-runs\\production\\20261006_124153_ed50ba\\postrun_orchestration_recovery.json"
 }
