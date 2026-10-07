@@ -54,6 +54,14 @@ the registry product/build fields are the preflight's Windows identity.
 - `tools/wsl/collect-report.sh` produces local JSON and Markdown results. A
   successful report is `WSL2_CORE_QUALIFIED`; any missing or failed check is
   recorded as `WSL2_CORE_BLOCKED` with a `BLOCKER=` category.
+- The report's **Source commit** is the repository `HEAD` read for that
+  qualification run; it must not come from the earlier bootstrap environment
+  snapshot. The snapshot's `git_head` is reported separately as
+  **Bootstrap source commit**. Machine-readable reports expose both
+  `source_commit_sha` and `bootstrap_source_commit_sha`, plus the qualification
+  working-tree state. A dirty checkout remains blocked by the qualification
+  preflight; its report still identifies the HEAD and records that the working
+  tree was dirty, so that report is not mistaken for a clean-source run.
 - The sanitized Windows parity fixture and its provenance are in
   `reports/experiment_reviews/qualification/wsl2-core-20261007-65e1815/`.
 

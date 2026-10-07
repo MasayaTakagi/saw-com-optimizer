@@ -7,15 +7,32 @@ if [[ $# -ne 2 ]]; then
 fi
 RESULTS="$(realpath -m "$1")"
 REPORT="$(realpath -m "$2")"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd -P)"
 mkdir -p "$REPORT"
 
-python3 - "$RESULTS" "$REPORT" <<'PY'
+python3 - "$RESULTS" "$REPORT" "$ROOT" <<'PY'
 import json
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-results, report = map(Path, sys.argv[1:])
+results, report, root = map(Path, sys.argv[1:])
+
+def git(*args):
+    return subprocess.run(
+        ["git", "-C", str(root), *args], check=True, capture_output=True,
+        text=True, encoding="utf-8", errors="replace",
+    ).stdout
+
+try:
+    source_commit_sha = git("rev-parse", "HEAD").strip()
+    source_status = git("status", "--porcelain=v1", "--untracked-files=all")
+    source_working_tree = {"clean": not source_status, "status": source_status.splitlines()}
+except (OSError, subprocess.CalledProcessError) as exc:
+    source_commit_sha = None
+    source_working_tree = {"clean": None, "status": [], "error": str(exc)}
 
 def load(name):
     path = results / name
@@ -48,6 +65,12 @@ required = (
     ("regression", "FULL_REGRESSION"),
 )
 blockers = []
+if not source_commit_sha:
+    blockers.append({"category": "SOURCE_COMMIT_NOT_RECORDED", "reason": "could not read the qualification checkout HEAD"})
+if source_working_tree["clean"] is None:
+    blockers.append({"category": "SOURCE_WORKTREE_NOT_RECORDED", "reason": "could not read qualification checkout status"})
+elif not source_working_tree["clean"]:
+    blockers.append({"category": "SOURCE_WORKTREE_DIRTY", "reason": "qualification report was generated from a dirty checkout"})
 if files["blocker"]:
     category = files["blocker"].get("category", "UNKNOWN")
     reason = files["blocker"].get("reason", "qualification stopped before all phases completed")
@@ -71,11 +94,17 @@ if numerical:
         blockers.append({"category": "CHECKPOINT_VERSION", "reason": f"expected L-SHADE checkpoint v4; found {checkpoint.get('state_version')}"})
 
 final_status = "WSL2_CORE_QUALIFIED" if not blockers else "WSL2_CORE_BLOCKED"
+env = files["environment"] or {}
+bootstrap_source = env.get("git_head") or {}
+bootstrap_source_commit_sha = bootstrap_source.get("output") if isinstance(bootstrap_source, dict) else None
 payload = {
     "schema_version": 1,
     "captured_at_utc": datetime.now(timezone.utc).isoformat(),
     "final_status": final_status,
     "blockers": blockers,
+    "source_commit_sha": source_commit_sha,
+    "bootstrap_source_commit_sha": bootstrap_source_commit_sha,
+    "source_working_tree": source_working_tree,
     "environment": files["environment"],
     "checks": {key: files[key] for key in files if key != "blocker"},
     "regression_runs": 1 if files["regression"] else 0,
@@ -93,7 +122,6 @@ lines = [
     "## Environment",
     "",
 ]
-env = files["environment"] or {}
 for label, value in (
     ("Distribution", env.get("wsl_distro")),
     ("Kernel", env.get("kernel")),
@@ -102,9 +130,13 @@ for label, value in (
     ("SciPy", env.get("scipy")),
     ("Git", (env.get("git_version") or {}).get("output")),
     ("Codex CLI", (env.get("codex_version") or {}).get("output")),
-    ("Source commit", (env.get("git_head") or {}).get("output")),
+    ("Source commit", source_commit_sha),
+    ("Bootstrap source commit", bootstrap_source_commit_sha),
+    ("Source working tree", "CLEAN" if source_working_tree["clean"] is True else "DIRTY" if source_working_tree["clean"] is False else "NOT_RECORDED"),
 ):
     lines.append(f"- {label}: {value or 'NOT_RECORDED'}")
+if source_working_tree["status"]:
+    lines.extend(["", "### Source working-tree status", "", "```text", *source_working_tree["status"], "```"])
 lines.extend(["", "## Qualification checks", ""])
 for key, category in required:
     value = files[key]
