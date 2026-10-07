@@ -38,14 +38,15 @@
   "target_size_bytes": 2097152,
   "hard_size_bytes": 10485760,
   "target_size_exceeded": false,
-  "package_total_bytes": 264638,
-  "artifact_manifest_sha256": "bf46f1e9f52a591862fbe55d7708b00246517f830f9afd3d681b0848fc83e807",
-  "readme_sha256": "80e71008c33897aa36a60f0f6b69269aec724c889a96b67b79b61b002fe26ab0",
+  "package_total_bytes": 256571,
+  "artifact_manifest_sha256": "c28e080d822f4a6fb893649384e03ab8f84f62b530e4962bcb89044e5a96c96e",
+  "readme_sha256": "60349b7dd904d31d3aa615b16f5e61073796c336b7ffb59b22c2b43a22b0ce69",
   "orchestration_recovery": {
     "classification": "postrun_orchestration_finalization_interrupted",
-    "audit_path": "orchestration/postrun_orchestration_recovery.json",
+    "audit_path": "external persistent run root/postrun_orchestration_recovery.json",
     "optimizer_exit_code": null,
-    "optimizer_rerun": false
+    "optimizer_rerun": false,
+    "audit_sha256": "6d6b9a0795362e8b06dd32f13a61452da439a691b611881a01c37d6ce5932e5a"
   },
   "queue_handoff": {
     "state": "RECEIVER_CONFIRMED",
@@ -53,5 +54,7 @@
     "sender_accepted": true,
     "receiver_thread_id": "01a10c54-4211-7d13-8b98-e76ad245b0c0",
     "delivery_id": "d8d6621f3d54092952f4b89de377822d"
-  }
+  },
+  "scientific_disposition": "STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED",
+  "review_workflow_state": "WAITING_FOR_INDEPENDENT_REVIEW"
 }
