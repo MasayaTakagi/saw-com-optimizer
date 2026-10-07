@@ -49,7 +49,7 @@ cleanup_external_worktree() {
 }
 
 finish_report() {
-  if ! "$SCRIPT_DIR/collect-report.sh" "$RESULTS" "$REVIEW"; then
+  if ! bash "$SCRIPT_DIR/collect-report.sh" "$RESULTS" "$REVIEW"; then
     printf 'BLOCKED: report generation failed; qualification cannot be accepted.\n' >&2
     FINALIZED=1
     return 1
