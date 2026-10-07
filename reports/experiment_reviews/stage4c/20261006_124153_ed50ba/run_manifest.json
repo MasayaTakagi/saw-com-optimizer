@@ -1,0 +1,224 @@
+{
+  "schema_version": 4,
+  "run_id": "20261006_124153_ed50ba",
+  "experiment_name": "hybrid_stage4c_confirmatory",
+  "created_at": "2026-10-06T12:41:55+00:00",
+  "project_root": "C:\\Users\\sub\\.codex\\worktrees\\stage4c-final-preflight\\saw-com-optimizer",
+  "run_dir": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer-runs\\production\\20261006_124153_ed50ba",
+  "command": [
+    "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer\\.venv\\Scripts\\python.exe",
+    "-m",
+    "sawopt",
+    "run-study",
+    "--config",
+    "C:\\Users\\sub\\.codex\\worktrees\\stage4c-final-preflight\\saw-com-optimizer\\configs\\studies\\hybrid_stage4c_confirmatory.yaml",
+    "--run",
+    "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer-runs\\production\\20261006_124153_ed50ba\\optimizer",
+    "--stage4c-authorization-manifest",
+    "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer-runs\\production\\20261006_124153_ed50ba\\run_manifest.json"
+  ],
+  "config_path": "C:\\Users\\sub\\.codex\\worktrees\\stage4c-final-preflight\\saw-com-optimizer\\configs\\studies\\hybrid_stage4c_confirmatory.yaml",
+  "codex_session_id": null,
+  "codex_model": null,
+  "callback_enabled": false,
+  "review_after_completion": true,
+  "callback_timeout_minutes": null,
+  "codex_session_source": null,
+  "optimizer_run_dir": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer-runs\\production\\20261006_124153_ed50ba\\optimizer",
+  "callback_preflight": null,
+  "experiment_metadata": {
+    "user_authorized_production": true,
+    "authorization_scope": "stage4c-confirmatory-production-v1",
+    "required_production_root": "C:/Users/sub/Documents/ChatGPT/saw-com-optimizer-runs/production",
+    "study_type": "hybrid_stage4c_confirmatory",
+    "protocol_revision": "stage4c_confirmatory_v1",
+    "protocol_fingerprint": "stage4c_confirmatory_v1",
+    "computation_fingerprint": "fdff19b63739efe1022092aa21e2ba3651c82a3344d54721522e5e0fc5cef9dd",
+    "source_commit_sha": "65e1815db1cc18d74ff0dcee20ffd5e9098709df",
+    "run_id": "20261006_124153_ed50ba",
+    "topologies": [
+      "P_D",
+      "D_P"
+    ],
+    "comparison_arms": [
+      "P_D",
+      "D_P"
+    ],
+    "seeds": [
+      20261007,
+      20261008,
+      20261009,
+      20261010,
+      20261011
+    ],
+    "expected_cell_count": 10,
+    "budget_per_cell": 96000,
+    "population_schedule_terminal_budget": 96000,
+    "checkpoints": [
+      8000,
+      16000,
+      24000,
+      32000,
+      48000,
+      64000,
+      80000,
+      96000
+    ],
+    "initial_population_rule": "18 * topology_dimension",
+    "initial_populations": {
+      "P_D": 234,
+      "D_P": 234
+    },
+    "production_early_stop": false,
+    "search_grid_sha256": "212dd2b0b71ddeffb7a8865937d132ee596870f25c989ac7d90c5dab6fd7faa0",
+    "search_grid_points": 1001,
+    "common_validation_grid_id": "2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f",
+    "common_validation_grid_points": 9113,
+    "common_validation_grid_sha256": "54c1daf67dd2bb9242f95e638d7bd801db536acc2c7d6f00c1f62a788bead554",
+    "source_impedance_ohm": 50.0,
+    "load_impedance_ohm": 50.0,
+    "cold_start": true,
+    "warm_start": false,
+    "parent_transfer": false,
+    "topology_transfer": false,
+    "historical_population_injection": false,
+    "run_storage_policy": "external_persistent_v1",
+    "authorized_at": "2026-10-06T12:41:55+00:00",
+    "orchestration_run_dir": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer-runs\\production\\20261006_124153_ed50ba",
+    "optimizer_run_dir": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer-runs\\production\\20261006_124153_ed50ba\\optimizer",
+    "authorization_claim_id": "b33c973c3970c078472bdce8b2aaf2a98a670d268b9f235e50f1ebad69a57f2c",
+    "authorization_claim_path": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer\\.git\\sawopt-stage4c-authorization-claims\\b33c973c3970c078472bdce8b2aaf2a98a670d268b9f235e50f1ebad69a57f2c.json"
+  },
+  "continuation_mode": "queue",
+  "original_thread_id": "01a10c54-4211-7d13-8b98-e76ad245b0c0",
+  "next_expected_step": "publish_review_evidence",
+  "delivery_sentinel": "e9d13923d3f5c70ff1675177c26b5ba1",
+  "queue_preflight": {
+    "status": "PASS",
+    "captured_at": "2026-10-06T12:41:55+00:00",
+    "thread_id": "01a10c54-4211-7d13-8b98-e76ad245b0c0",
+    "effective_user": "desktop-9ipace7\\sub",
+    "user_profile": "C:\\Users\\sub",
+    "windows_user_profile": "C:\\Users\\sub",
+    "codex_executable": "C:\\Users\\sub\\AppData\\Local\\OpenAI\\Codex\\bin\\5ea220ae823df3d7\\codex.exe",
+    "codex_version": "codex-cli 0.160.1",
+    "queue_help_sha256": "2094bdc72867bd95fa3c1db0306c4813d5a158ef24ec641d080f84212e82c621",
+    "explicit_thread": true,
+    "explicit_message": true
+  },
+  "queue_timeout_seconds": 120.0,
+  "review_stage": "stage4c",
+  "review_contract_version": "1",
+  "review_output_dir": "reports/experiment_reviews/stage4c/20261006_124153_ed50ba",
+  "review_spec_id": "hybrid_stage4c",
+  "review_spec_sha256": "64b469a71393d44d2e8a4d77dbaf17327c94cb4e7fdad5309c5c69f0c9511514",
+  "review_spec": {
+    "spec_id": "hybrid_stage4c",
+    "stage": "stage4c",
+    "study_types": [
+      "hybrid_stage4c_confirmatory"
+    ],
+    "target_size_bytes": 2097152,
+    "hard_size_bytes": 10485760,
+    "required_artifacts": [
+      {
+        "source": "run_manifest.json",
+        "destination": "run_manifest.json",
+        "category": "orchestration"
+      },
+      {
+        "source": "status.json",
+        "destination": "status.json",
+        "category": "orchestration"
+      },
+      {
+        "source": "optimizer/metadata/run_completion.json",
+        "destination": "metadata/run_completion.json",
+        "category": "completion"
+      },
+      {
+        "source": "optimizer/metadata/config_snapshot.yaml",
+        "destination": "metadata/config_snapshot.yaml",
+        "category": "configuration"
+      },
+      {
+        "source": "optimizer/metadata/protocol_snapshot.json",
+        "destination": "metadata/protocol_snapshot.json",
+        "category": "protocol"
+      },
+      {
+        "source": "optimizer/metadata/integrity_check.json",
+        "destination": "metadata/integrity_check.json",
+        "category": "integrity"
+      },
+      {
+        "source": "optimizer/metadata/stage4c_run_manifest.json",
+        "destination": "metadata/stage4c_run_manifest.json",
+        "category": "protocol_provenance"
+      },
+      {
+        "source": "optimizer/summary/primary_summary.csv",
+        "destination": "summary/primary_summary.csv",
+        "category": "primary_summary"
+      },
+      {
+        "source": "optimizer/summary/paired_comparisons.csv",
+        "destination": "summary/paired_comparisons.csv",
+        "category": "paired_comparisons"
+      },
+      {
+        "source": "optimizer/summary/convergence.csv",
+        "destination": "summary/convergence.csv",
+        "category": "convergence"
+      },
+      {
+        "source": "optimizer/summary/bound_pressure_summary.csv",
+        "destination": "summary/bound_pressure_summary.csv",
+        "category": "bound_pressure"
+      },
+      {
+        "source": "optimizer/summary/runtime_accounting_summary.csv",
+        "destination": "summary/runtime_accounting_summary.csv",
+        "category": "runtime_accounting"
+      },
+      {
+        "source": "optimizer/summary/stopband_diagnostics.csv",
+        "destination": "summary/stopband_diagnostics.csv",
+        "category": "stopband_diagnostics"
+      },
+      {
+        "source": "optimizer/summary/scientific_limitations.md",
+        "destination": "summary/scientific_limitations.md",
+        "category": "scientific_limitations"
+      },
+      {
+        "source": "optimizer/summary/final_execution_report.md",
+        "destination": "summary/final_execution_report.md",
+        "category": "execution_report"
+      }
+    ],
+    "required_globs": [
+      {
+        "source_pattern": "optimizer/optimization/*/seed*/cell_result.json",
+        "capture_regex": "^optimizer/optimization/(?P<arm>P_D|D_P)/seed(?P<seed>2026100[7-9]|2026101[01])/cell_result\\.json$",
+        "destination": "cells/{arm}/{seed}_result.json",
+        "category": "terminal_result"
+      },
+      {
+        "source_pattern": "optimizer/optimization/*/seed*/cell_status.json",
+        "capture_regex": "^optimizer/optimization/(?P<arm>P_D|D_P)/seed(?P<seed>2026100[7-9]|2026101[01])/cell_status\\.json$",
+        "destination": "cells/{arm}/{seed}_status.json",
+        "category": "terminal_status"
+      }
+    ],
+    "optional_artifacts": [],
+    "optional_globs": []
+  },
+  "source_commit_sha": "65e1815db1cc18d74ff0dcee20ffd5e9098709df",
+  "source_branch": "",
+  "study_type": "hybrid_stage4c_confirmatory",
+  "run_storage_policy": "external_persistent_v1",
+  "persistent_run_root": "C:\\Users\\sub\\Documents\\ChatGPT\\saw-com-optimizer-runs\\production",
+  "repository_root_at_launch": "C:\\Users\\sub\\.codex\\worktrees\\stage4c-final-preflight\\saw-com-optimizer",
+  "source_worktree_at_launch": "C:\\Users\\sub\\.codex\\worktrees\\stage4c-final-preflight\\saw-com-optimizer"
+}

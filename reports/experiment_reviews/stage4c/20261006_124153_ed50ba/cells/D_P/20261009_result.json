@@ -1,0 +1,479 @@
+{
+  "schema_version": 1,
+  "topology": "D_P",
+  "seed": 20261009,
+  "dimension": 13,
+  "budget": 96000,
+  "population_schedule_terminal_budget": 96000,
+  "checkpoints": [
+    8000,
+    16000,
+    24000,
+    32000,
+    48000,
+    64000,
+    80000,
+    96000
+  ],
+  "initial_population": 234,
+  "initial_population_rule": "18 * dimension",
+  "cold_start": true,
+  "warm_start": false,
+  "parent_transfer": false,
+  "topology_transfer": false,
+  "historical_population_injection": false,
+  "mode": "production",
+  "computation_fingerprint": "fdff19b63739efe1022092aa21e2ba3651c82a3344d54721522e5e0fc5cef9dd",
+  "source_commit_sha": "65e1815db1cc18d74ff0dcee20ffd5e9098709df",
+  "common_validation_grid_id": "2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f",
+  "status": "COMPLETED",
+  "unique_evaluations": 96000,
+  "initialization": {
+    "method": "independent_uniform_rejection_v1",
+    "seed": 20261009,
+    "topology": "D_P",
+    "initial_sampling_seed": 1918810060,
+    "requested_population_size": 234,
+    "accepted_population_size": 234,
+    "candidate_draws": 252,
+    "geometry_rejections": 18,
+    "duplicate_rejections": 0,
+    "historical_seed_count": 0,
+    "warm_start": false,
+    "parent_transfer": false,
+    "topology_transfer": false
+  },
+  "search_incumbent": {
+    "evaluation_status": "PHYSICS_EVALUATED",
+    "topology": "D_P",
+    "candidate_vector": [
+      5.011441963464771,
+      5.099719835433708,
+      5.056965615951635,
+      4.657628314948692,
+      7.0,
+      14.0,
+      10.0,
+      0.2976898284876362,
+      1.5958509503677483,
+      161.67124763597775,
+      5.242167303245771,
+      60.0,
+      140.771741610809
+    ],
+    "dms_design": {
+      "wavelength_A_um": 5.011441963464771,
+      "wavelength_B_um": 5.099719835433708,
+      "wavelength_C_um": 5.056965615951635,
+      "reflector_wavelength_um": 4.657628314948692,
+      "pairs_A": 7,
+      "pairs_B": 14,
+      "pairs_C": 10,
+      "common_idt_gap_lambda": 0.2976898284876362,
+      "reflector_gap_lambda": 1.5958509503677483,
+      "aperture_um": 161.67124763597775,
+      "reflector_electrodes": 40,
+      "metallization_ratio": 0.5,
+      "thickness_over_lambda": 0.04
+    },
+    "resonator_designs": [
+      {
+        "wavelength_um": 5.242167303245771,
+        "pairs": 60,
+        "aperture_um": 140.771741610809,
+        "reflector_electrodes": 40,
+        "gap_lambda": 0.0
+      }
+    ],
+    "metrics": {
+      "worst_il_db": 3.992082821148891,
+      "ripple_db": 2.3036977980268887,
+      "input_vswr": 3.396929881676385,
+      "output_vswr": 3.394980297514458,
+      "source_return_loss_db_min": 5.269884205986654,
+      "load_return_loss_db_min": 5.2730997496759215,
+      "stop_attenuation_db": [
+        31.073464215971622,
+        27.38484130243329,
+        19.229220556404798,
+        27.838160901411527
+      ]
+    },
+    "violations": {
+      "il": 0.330694273716297,
+      "ripple": 0.15184889901344434,
+      "input_vswr": 0.35877195267055395,
+      "output_vswr": 0.3579921190057831,
+      "stop_0": 0.0,
+      "stop_1": 0.14422370929895967,
+      "stop_2": 0.35902598145317344,
+      "stop_3": 0.07206130328628244
+    },
+    "feasible": false,
+    "max_violation": 0.35902598145317344,
+    "sum_violation": 1.774618238444494,
+    "objective": 1359027756.075404,
+    "search_scalar_objective": 1359027756.075404,
+    "geometry_max_violation": 0.0,
+    "geometry_violations": {
+      "dms_max_total_acoustic_length": 0.0,
+      "dms_max_aperture_width": 0.0,
+      "dms_minimum_electrode_width": 0.0,
+      "dms_minimum_electrode_gap": 0.0,
+      "dms_max_total_electrode_count": 0.0,
+      "resonator_0_wavelength_lower": 0.0,
+      "resonator_0_wavelength_upper": 0.0,
+      "resonator_0_pairs_lower": 0.0,
+      "resonator_0_pairs_upper": 0.0,
+      "resonator_0_aperture_lower": 0.0,
+      "resonator_0_aperture_upper": 0.0,
+      "resonator_0_minimum_electrode_width": 0.0,
+      "resonator_0_minimum_electrode_gap": 0.0,
+      "resonator_0_max_acoustic_length": 0.0,
+      "resonator_0_max_aperture_width": 0.0,
+      "combined_die_length": 0.0,
+      "combined_die_width": 0.0,
+      "combined_max_total_electrodes": 0.0
+    },
+    "failure_stage": null
+  },
+  "common_grid_selected_finalist": {
+    "evaluation_status": "PHYSICS_EVALUATED",
+    "topology": "D_P",
+    "candidate_vector": [
+      5.011441963464771,
+      5.099719835433708,
+      5.056965615951635,
+      4.657628314948692,
+      7.0,
+      14.0,
+      10.0,
+      0.2976898284876362,
+      1.5958509503677483,
+      161.67124763597775,
+      5.242167303245771,
+      60.0,
+      140.771741610809
+    ],
+    "dms_design": {
+      "wavelength_A_um": 5.011441963464771,
+      "wavelength_B_um": 5.099719835433708,
+      "wavelength_C_um": 5.056965615951635,
+      "reflector_wavelength_um": 4.657628314948692,
+      "pairs_A": 7,
+      "pairs_B": 14,
+      "pairs_C": 10,
+      "common_idt_gap_lambda": 0.2976898284876362,
+      "reflector_gap_lambda": 1.5958509503677483,
+      "aperture_um": 161.67124763597775,
+      "reflector_electrodes": 40,
+      "metallization_ratio": 0.5,
+      "thickness_over_lambda": 0.04
+    },
+    "resonator_designs": [
+      {
+        "wavelength_um": 5.242167303245771,
+        "pairs": 60,
+        "aperture_um": 140.771741610809,
+        "reflector_electrodes": 40,
+        "gap_lambda": 0.0
+      }
+    ],
+    "metrics": {
+      "worst_il_db": 3.992082821148891,
+      "ripple_db": 2.3036977980268887,
+      "input_vswr": 3.396929881676385,
+      "output_vswr": 3.394980297514458,
+      "source_return_loss_db_min": 5.269884205986654,
+      "load_return_loss_db_min": 5.2730997496759215,
+      "stop_attenuation_db": [
+        30.74124680041084,
+        27.375456895300285,
+        19.227790103727134,
+        27.831818825437576
+      ]
+    },
+    "violations": {
+      "il": 0.330694273716297,
+      "ripple": 0.15184889901344434,
+      "input_vswr": 0.35877195267055395,
+      "output_vswr": 0.3579921190057831,
+      "stop_0": 0.0,
+      "stop_1": 0.14451697202186609,
+      "stop_2": 0.3590736632090955,
+      "stop_3": 0.07227270581874747
+    },
+    "feasible": false,
+    "max_violation": 0.3590736632090955,
+    "sum_violation": 1.7751705854557875,
+    "objective": 1359075438.3836732,
+    "search_scalar_objective": 1359075438.3836732,
+    "geometry_max_violation": 0.0,
+    "geometry_violations": {
+      "dms_max_total_acoustic_length": 0.0,
+      "dms_max_aperture_width": 0.0,
+      "dms_minimum_electrode_width": 0.0,
+      "dms_minimum_electrode_gap": 0.0,
+      "dms_max_total_electrode_count": 0.0,
+      "resonator_0_wavelength_lower": 0.0,
+      "resonator_0_wavelength_upper": 0.0,
+      "resonator_0_pairs_lower": 0.0,
+      "resonator_0_pairs_upper": 0.0,
+      "resonator_0_aperture_lower": 0.0,
+      "resonator_0_aperture_upper": 0.0,
+      "resonator_0_minimum_electrode_width": 0.0,
+      "resonator_0_minimum_electrode_gap": 0.0,
+      "resonator_0_max_acoustic_length": 0.0,
+      "resonator_0_max_aperture_width": 0.0,
+      "combined_die_length": 0.0,
+      "combined_die_width": 0.0,
+      "combined_max_total_electrodes": 0.0
+    },
+    "failure_stage": null
+  },
+  "active_bound_diagnostics": [
+    {
+      "variable": "wavelength_A_um",
+      "value": 5.011441963464771,
+      "lower_bound": 4.6,
+      "upper_bound": 5.4,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "wavelength_B_um",
+      "value": 5.099719835433708,
+      "lower_bound": 4.6,
+      "upper_bound": 5.4,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "wavelength_C_um",
+      "value": 5.056965615951635,
+      "lower_bound": 4.6,
+      "upper_bound": 5.4,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "reflector_wavelength_um",
+      "value": 4.657628314948692,
+      "lower_bound": 4.6,
+      "upper_bound": 5.4,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "pairs_A",
+      "value": 7.0,
+      "lower_bound": 4.0,
+      "upper_bound": 24.0,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "pairs_B",
+      "value": 14.0,
+      "lower_bound": 4.0,
+      "upper_bound": 24.0,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "pairs_C",
+      "value": 10.0,
+      "lower_bound": 5.0,
+      "upper_bound": 24.0,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "common_idt_gap_lambda",
+      "value": 0.2976898284876362,
+      "lower_bound": 0.0,
+      "upper_bound": 3.0,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "reflector_gap_lambda",
+      "value": 1.5958509503677483,
+      "lower_bound": 0.0,
+      "upper_bound": 3.0,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "dms_aperture_um",
+      "value": 161.67124763597775,
+      "lower_bound": 30.0,
+      "upper_bound": 180.0,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "resonator_0_wavelength_um",
+      "value": 5.242167303245771,
+      "lower_bound": 4.5,
+      "upper_bound": 5.6,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    },
+    {
+      "variable": "resonator_0_pairs",
+      "value": 60.0,
+      "lower_bound": 10.0,
+      "upper_bound": 60.0,
+      "at_lower_bound": false,
+      "at_upper_bound": true
+    },
+    {
+      "variable": "resonator_0_aperture_um",
+      "value": 140.771741610809,
+      "lower_bound": 30.0,
+      "upper_bound": 150.0,
+      "at_lower_bound": false,
+      "at_upper_bound": false
+    }
+  ],
+  "checkpoint_records": [
+    8000,
+    16000,
+    24000,
+    32000,
+    48000,
+    64000,
+    80000,
+    96000
+  ],
+  "checkpoint_summaries": [
+    {
+      "checkpoint_budget": 8000,
+      "selected_max_violation": 0.7946737362834836,
+      "selected_sum_violation": 3.8059312554823537,
+      "selected_worst_il_db": 3.9013964704884123,
+      "selected_ripple_db": 2.9116287045915867,
+      "unique_evaluations": 8000,
+      "generations": 7766
+    },
+    {
+      "checkpoint_budget": 16000,
+      "selected_max_violation": 0.5754303510019037,
+      "selected_sum_violation": 2.729854852409656,
+      "selected_worst_il_db": 3.84390424498792,
+      "selected_ripple_db": 2.8129449830956292,
+      "unique_evaluations": 16000,
+      "generations": 15766
+    },
+    {
+      "checkpoint_budget": 24000,
+      "selected_max_violation": 0.4965684417132099,
+      "selected_sum_violation": 2.370577447808372,
+      "selected_worst_il_db": 3.4957426949447337,
+      "selected_ripple_db": 2.417649062668879,
+      "unique_evaluations": 24000,
+      "generations": 23766
+    },
+    {
+      "checkpoint_budget": 32000,
+      "selected_max_violation": 0.43009763947324064,
+      "selected_sum_violation": 1.6608649915165465,
+      "selected_worst_il_db": 3.2997811703783912,
+      "selected_ripple_db": 2.178456503158891,
+      "unique_evaluations": 32000,
+      "generations": 31766
+    },
+    {
+      "checkpoint_budget": 48000,
+      "selected_max_violation": 0.4145715355613908,
+      "selected_sum_violation": 1.8702933603755196,
+      "selected_worst_il_db": 3.3992948352901253,
+      "selected_ripple_db": 2.162079963133468,
+      "unique_evaluations": 48000,
+      "generations": 47766
+    },
+    {
+      "checkpoint_budget": 64000,
+      "selected_max_violation": 0.38941871024693314,
+      "selected_sum_violation": 1.8570844938634776,
+      "selected_worst_il_db": 3.7327439902664237,
+      "selected_ripple_db": 2.30960764023648,
+      "unique_evaluations": 64000,
+      "generations": 63766
+    },
+    {
+      "checkpoint_budget": 80000,
+      "selected_max_violation": 0.37498892367748127,
+      "selected_sum_violation": 1.6075189159183836,
+      "selected_worst_il_db": 3.707735543813753,
+      "selected_ripple_db": 2.1093824243140165,
+      "unique_evaluations": 80000,
+      "generations": 79766
+    },
+    {
+      "checkpoint_budget": 96000,
+      "selected_max_violation": 0.3590736632090955,
+      "selected_sum_violation": 1.7751705854557875,
+      "selected_worst_il_db": 3.992082821148891,
+      "selected_ripple_db": 2.3036977980268887,
+      "unique_evaluations": 96000,
+      "generations": 95766
+    }
+  ],
+  "counters": {
+    "unique_decoded_evaluations": 96000,
+    "geometry_rejections": 35,
+    "geometry_valid_candidates": 95965,
+    "physics_attempted_evaluations": 95965,
+    "valid_physics_evaluations": 95965,
+    "physics_failures": 0,
+    "search_frequency_points": 96060965,
+    "cache_hits": 4357,
+    "objective_proposals": 100357,
+    "duplicate_proposals": 4357,
+    "raw_offspring_count": 100123,
+    "generations": 95766,
+    "population_size": 4,
+    "initial_population": 234,
+    "population_schedule_identifier": "lshade_linear_population_v1",
+    "population_schedule_terminal_budget": 96000,
+    "m_f": [
+      0.2471371338647359,
+      0.4993216866534396,
+      0.2783829840866241,
+      0.1742020974353165,
+      0.23829380054677649,
+      0.12243689635641518
+    ],
+    "m_cr": [
+      0.0662822569989149,
+      0.0016929431902381676,
+      0.01921507726269538,
+      0.04155581733589908,
+      0.035034272434800624,
+      0.01858089980588561
+    ],
+    "validation_evaluations": 128,
+    "validation_physics_failures": 0,
+    "validation_frequency_points": 1166464
+  },
+  "cache_statistics": {
+    "proposals_total": 100357,
+    "raw_offspring_count": 100123,
+    "duplicate_count": 4357,
+    "duplicate_rate": 0.04341500841994081,
+    "cache_hits": 4357,
+    "cache_hit_rate": 0.04341500841994081,
+    "search_space_exhausted": false
+  },
+  "physics_failures": 0,
+  "validation_physics_failures": 0,
+  "geometry_rejections": 35,
+  "runtime": {
+    "search_evaluation_wall_time_s": 5540.224745643325,
+    "common_validation_wall_time_s": 63.18216510000639,
+    "cell_wall_time_s": 6397.772114200052
+  },
+  "created_at": "2026-10-07T03:13:05.438932+00:00"
+}

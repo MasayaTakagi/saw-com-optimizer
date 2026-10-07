@@ -1,0 +1,545 @@
+{
+  "study_type": "hybrid_stage4c_confirmatory",
+  "protocol_revision": "stage4c_confirmatory_v1",
+  "optimizer": "L-SHADE",
+  "material": "MLIT",
+  "dms_topology": "T1_SYMMETRIC_5IDT",
+  "topologies": [
+    "P_D",
+    "D_P"
+  ],
+  "source_impedance_ohm": 50.0,
+  "load_impedance_ohm": 50.0,
+  "seeds": [
+    20261007,
+    20261008,
+    20261009,
+    20261010,
+    20261011
+  ],
+  "budget_per_cell": 96000,
+  "population_schedule_terminal_budget": 96000,
+  "checkpoints": [
+    8000,
+    16000,
+    24000,
+    32000,
+    48000,
+    64000,
+    80000,
+    96000
+  ],
+  "initial_population_rule": "18 * topology_dimension",
+  "initial_populations": {
+    "P_D": 234,
+    "D_P": 234
+  },
+  "cold_start": true,
+  "warm_start": false,
+  "parent_transfer": false,
+  "topology_transfer": false,
+  "historical_population_injection": false,
+  "production_early_stop": false,
+  "storage_contract": {
+    "production_policy": "external_persistent_v1",
+    "production_root": "C:/Users/sub/Documents/ChatGPT/saw-com-optimizer-runs/production",
+    "qualification_policy": "external_qualification_v1",
+    "qualification_root": "C:/Users/sub/Documents/ChatGPT/saw-com-optimizer-runs/qualification/stage4c"
+  },
+  "finalist_count_per_checkpoint": 16,
+  "search_frequency_count": 1001,
+  "search_frequency_sha256": "212dd2b0b71ddeffb7a8865937d132ee596870f25c989ac7d90c5dab6fd7faa0",
+  "common_validation_grid_id": "2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f",
+  "common_validation_frequency_count": 9113,
+  "common_validation_grid_sha256": "54c1daf67dd2bb9242f95e638d7bd801db536acc2c7d6f00c1f62a788bead554",
+  "protected_scientific_inputs": {
+    "specification": {
+      "passband": [
+        758,
+        803
+      ],
+      "il": 3.0,
+      "ripple": 2.0,
+      "vswr": 2.5,
+      "stopbands": [
+        [
+          10,
+          700,
+          20
+        ],
+        [
+          703,
+          748,
+          32
+        ],
+        [
+          832,
+          862,
+          30
+        ],
+        [
+          880,
+          915,
+          30
+        ]
+      ]
+    },
+    "geometry_constraints": {
+      "max_length_um": 750,
+      "max_width_um": 250,
+      "min_electrode_width_um": 0.8,
+      "min_electrode_gap_um": 0.8,
+      "max_electrodes": 500
+    },
+    "material_profile_config": {
+      "profile_id": "LI2024_42YX_LT_METAL_UNSPECIFIED_T25",
+      "profile_file": "configs/models/stage3_7b_r1_normalized_literature_profile.yaml",
+      "aperture_bounds_um": [
+        30.0,
+        180.0
+      ]
+    },
+    "material": "MLIT",
+    "dms_topology": "T1_SYMMETRIC_5IDT",
+    "t1_active_bounds": [
+      [
+        4.6,
+        5.4
+      ],
+      [
+        4.6,
+        5.4
+      ],
+      [
+        4.6,
+        5.4
+      ],
+      [
+        4.6,
+        5.4
+      ],
+      [
+        4.0,
+        24.0
+      ],
+      [
+        4.0,
+        24.0
+      ],
+      [
+        5.0,
+        24.0
+      ],
+      [
+        0.0,
+        3.0
+      ],
+      [
+        0.0,
+        3.0
+      ],
+      [
+        30.0,
+        180.0
+      ]
+    ],
+    "t1_hard_bounds": [
+      [
+        4.6,
+        5.4
+      ],
+      [
+        4.6,
+        5.4
+      ],
+      [
+        4.6,
+        5.4
+      ],
+      [
+        4.6,
+        5.4
+      ],
+      [
+        4.0,
+        24.0
+      ],
+      [
+        4.0,
+        24.0
+      ],
+      [
+        5.0,
+        24.0
+      ],
+      [
+        0.0,
+        3.0
+      ],
+      [
+        0.0,
+        3.0
+      ],
+      [
+        30.0,
+        180.0
+      ]
+    ],
+    "t1_reflector_electrodes": 40,
+    "mlit_profile_metadata": {
+      "id": "LI2024_42YX_LT_METAL_UNSPECIFIED_T25",
+      "source": "A New Method for Temperature Dependent COM Parameters Extraction and Its Application to Simulation of SAW Devices (doi:10.1088/1742-6596/2822/1/012170)",
+      "substrate": "42YX-LiTaO3",
+      "electrode_material": "unspecified_metal",
+      "temperature_c": 25.0,
+      "effective_h_over_lambda": 0.08,
+      "effective_duty": 0.65,
+      "phase_policy": "SIGNED_REAL_TABLE_ASSUMPTION",
+      "com_parameter_source": "C:\\Users\\sub\\.codex\\worktrees\\stage4c-final-preflight\\saw-com-optimizer\\configs\\models\\stage3_7b_r1_normalized_literature_profile.yaml",
+      "normalization_definition_source": "Full extraction of the COM parameters for Rayleigh type surface acoustic wave (doi:10.1063/5.0079529)",
+      "display_note": "effective MLIT profile values above override display semantics; legacy design fields are not used to generate MLIT COM parameters"
+    },
+    "resonator_bounds": [
+      [
+        4.5,
+        5.6
+      ],
+      [
+        10,
+        60
+      ],
+      [
+        30,
+        150
+      ]
+    ],
+    "resonator_aperture_bounds_um": [
+      30,
+      150
+    ],
+    "resonator_model": {
+      "reflector_electrodes": 40,
+      "gap_lambda": 0.0,
+      "metallization_ratio": 0.5,
+      "thickness_over_lambda": 0.04
+    },
+    "layout": {
+      "model": "hypothetical_separate_rows",
+      "die_um": [
+        900,
+        700
+      ],
+      "length_margin_um": 60,
+      "width_margin_um": 60,
+      "max_total_electrodes": 500,
+      "qualification_only": true
+    },
+    "source_impedance_ohm": 50.0,
+    "load_impedance_ohm": 50.0,
+    "network_convention": "Stage 4A; exp(+jωt), left-to-right, power-normalized acoustic waves",
+    "search_grid_points": 1001,
+    "search_grid_sha256": "212dd2b0b71ddeffb7a8865937d132ee596870f25c989ac7d90c5dab6fd7faa0",
+    "common_validation_grid_points": 9113,
+    "common_validation_grid_id": "2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f",
+    "common_validation_grid_sha256": "54c1daf67dd2bb9242f95e638d7bd801db536acc2c7d6f00c1f62a788bead554"
+  },
+  "com_provider": {
+    "id": "LI2024_42YX_LT_METAL_UNSPECIFIED_T25",
+    "source": "A New Method for Temperature Dependent COM Parameters Extraction and Its Application to Simulation of SAW Devices (doi:10.1088/1742-6596/2822/1/012170)",
+    "substrate": "42YX-LiTaO3",
+    "electrode_material": "unspecified_metal",
+    "temperature_c": 25.0,
+    "effective_h_over_lambda": 0.08,
+    "effective_duty": 0.65,
+    "phase_policy": "SIGNED_REAL_TABLE_ASSUMPTION",
+    "com_parameter_source": "C:\\Users\\sub\\.codex\\worktrees\\stage4c-final-preflight\\saw-com-optimizer\\configs\\models\\stage3_7b_r1_normalized_literature_profile.yaml",
+    "normalization_definition_source": "Full extraction of the COM parameters for Rayleigh type surface acoustic wave (doi:10.1063/5.0079529)",
+    "display_note": "effective MLIT profile values above override display semantics; legacy design fields are not used to generate MLIT COM parameters"
+  },
+  "matrix": [
+    {
+      "topology": "P_D",
+      "seed": 20261007,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 96000,
+      "population_schedule_terminal_budget": 96000,
+      "checkpoints": [
+        8000,
+        16000,
+        24000,
+        32000,
+        48000,
+        64000,
+        80000,
+        96000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false,
+      "historical_population_injection": false
+    },
+    {
+      "topology": "P_D",
+      "seed": 20261008,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 96000,
+      "population_schedule_terminal_budget": 96000,
+      "checkpoints": [
+        8000,
+        16000,
+        24000,
+        32000,
+        48000,
+        64000,
+        80000,
+        96000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false,
+      "historical_population_injection": false
+    },
+    {
+      "topology": "P_D",
+      "seed": 20261009,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 96000,
+      "population_schedule_terminal_budget": 96000,
+      "checkpoints": [
+        8000,
+        16000,
+        24000,
+        32000,
+        48000,
+        64000,
+        80000,
+        96000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false,
+      "historical_population_injection": false
+    },
+    {
+      "topology": "P_D",
+      "seed": 20261010,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 96000,
+      "population_schedule_terminal_budget": 96000,
+      "checkpoints": [
+        8000,
+        16000,
+        24000,
+        32000,
+        48000,
+        64000,
+        80000,
+        96000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false,
+      "historical_population_injection": false
+    },
+    {
+      "topology": "P_D",
+      "seed": 20261011,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 96000,
+      "population_schedule_terminal_budget": 96000,
+      "checkpoints": [
+        8000,
+        16000,
+        24000,
+        32000,
+        48000,
+        64000,
+        80000,
+        96000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false,
+      "historical_population_injection": false
+    },
+    {
+      "topology": "D_P",
+      "seed": 20261007,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 96000,
+      "population_schedule_terminal_budget": 96000,
+      "checkpoints": [
+        8000,
+        16000,
+        24000,
+        32000,
+        48000,
+        64000,
+        80000,
+        96000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false,
+      "historical_population_injection": false
+    },
+    {
+      "topology": "D_P",
+      "seed": 20261008,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 96000,
+      "population_schedule_terminal_budget": 96000,
+      "checkpoints": [
+        8000,
+        16000,
+        24000,
+        32000,
+        48000,
+        64000,
+        80000,
+        96000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false,
+      "historical_population_injection": false
+    },
+    {
+      "topology": "D_P",
+      "seed": 20261009,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 96000,
+      "population_schedule_terminal_budget": 96000,
+      "checkpoints": [
+        8000,
+        16000,
+        24000,
+        32000,
+        48000,
+        64000,
+        80000,
+        96000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false,
+      "historical_population_injection": false
+    },
+    {
+      "topology": "D_P",
+      "seed": 20261010,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 96000,
+      "population_schedule_terminal_budget": 96000,
+      "checkpoints": [
+        8000,
+        16000,
+        24000,
+        32000,
+        48000,
+        64000,
+        80000,
+        96000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false,
+      "historical_population_injection": false
+    },
+    {
+      "topology": "D_P",
+      "seed": 20261011,
+      "dimension": 13,
+      "initial_population": 234,
+      "budget": 96000,
+      "population_schedule_terminal_budget": 96000,
+      "checkpoints": [
+        8000,
+        16000,
+        24000,
+        32000,
+        48000,
+        64000,
+        80000,
+        96000
+      ],
+      "cold_start": true,
+      "warm_start": false,
+      "parent_transfer": false,
+      "topology_transfer": false,
+      "historical_population_injection": false
+    }
+  ],
+  "total_unique_evaluations": 960000,
+  "initializer_contract": {
+    "method": "independent_uniform_rejection_v1",
+    "max_attempts": 10000,
+    "seed_derivation": "sha256(stage4b-v1/seed/material/topology/initial_population)",
+    "include_historical_seed": false
+  },
+  "maturity_criteria": {
+    "convergence_evidence_complete": true,
+    "grid_converged": true,
+    "recovery_pending_confirmation": false,
+    "historical_bound_hit_alone_blocks_maturity": false,
+    "hard_bound_unresolved": false,
+    "boundary_pending_confirmation": false,
+    "significant_improvement_80k_to_96k": false,
+    "fraction_of_budget_at_last_significant_improvement_max": 0.8
+  },
+  "closeout_criteria": {
+    "primary_comparator": "feasibility_first_lexicographic",
+    "comparator_fields": [
+      "feasible",
+      "max_violation",
+      "sum_violation",
+      "worst_il_db"
+    ],
+    "no_weighted_scalar_score": true,
+    "model_level_materiality": {
+      "primary_metric": "max_normalized_violation",
+      "absolute_difference_threshold": 0.02,
+      "meaning": "internal_computational_interpretation_threshold",
+      "manufacturing_or_measurement_tolerance": false
+    },
+    "clear_winner": {
+      "minimum_matched_seed_wins": 4,
+      "late_checkpoints": [
+        64000,
+        80000,
+        96000
+      ],
+      "same_seed_wins_required_at_each_late_checkpoint": 4,
+      "require_all_cells_mature": true,
+      "terminal_winner_pairs_required": 4,
+      "material_pair_rule": "feasibility_differs_in_favor_of_winner OR both_infeasible_and_abs_delta_max_violation_at_least_0.02",
+      "require_no_convergence_or_boundary_caveat": true
+    },
+    "practically_equivalent": {
+      "require_all_cells_mature": true,
+      "require_no_stable_four_of_five_late_preference": true,
+      "require_matched_feasibility_status_for_every_seed": true,
+      "all_five_terminal_abs_delta_max_violation_strictly_below": 0.02
+    },
+    "otherwise": "STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED"
+  },
+  "run_storage_policy": "external_persistent_v1"
+}
