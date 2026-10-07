@@ -1,13 +1,13 @@
-# Bounded Review Log
+# Luna → Sol Escalation Log
 
 ## 2026-09-29 — Stage 4A hybrid protocol pre-implementation judgment
 
-- C2C PLAN `c2c_0b52`, iteration 0, classified a pre-edit bounded review judgment as
+- C2C PLAN `c2c_0b52`, iteration 0, classified pre-edit Sol judgment as
   required because Stage 4A adds hybrid design variables, comparison
   conditions, and a T1/resonator composition interface.
 - Escalation packet:
   `reports/escalation_packets/stage4a_hybrid_sol_judgment_2026-09-29.md`.
-- Requested target: bounded review; backend model identity is not exposed.
+- Requested target: `gpt-6-sol`; backend model identity is not exposed.
   Bounded judgment: approve qualification with gates. Reuse the complete
   MLIT provider for both T1 and existing resonator physics; stop if provider
   validation or existing assumptions fail rather than borrowing M0 values.
@@ -17,7 +17,7 @@
   telemetry. Preserve matched 50/50 conditions, geometry-first comparison,
   fail-closed D-only parity, and `REVIEW_WAITING` pending C2C acceptance.
   This is qualification only and does not authorize Stage 4B or production.
-- The review corrected the dimensional count: T1 is 10 DOFs, so P_D_P is 16 DOFs;
+- Sol corrected the dimensional count: T1 is 10 DOFs, so P_D_P is 16 DOFs;
   the default 18-per-DOF initializer would consume 288 candidates and cannot
   be used for a 256-evaluation smoke.
 - No implementation or optimizer run was performed before the judgment.
@@ -43,7 +43,7 @@ identity and behavior.
   command or OS ACL change was used. `sandbox-allow --json` reported `alreadyAllowed=true`,
   while the active managed sandbox's writable-root metadata omitted AppData.
   No external C2C source changes or broad permission changes are allowed.
-- Judgment requested from bounded review: exact canary design, startup/sandbox
+- Judgment requested from GPT-6 Sol: exact canary design, startup/sandbox
   distinction, failure behavior, and validation threshold. Backend identity
   and actual internal reasoning effort are not independently verified.
 - Decision: proceed with a project-owned canary inside only the canonical,
@@ -83,9 +83,9 @@ identity and behavior.
 - Scope: resolve the direct preflight's `STATE_PATH_MISMATCH` caused by the
   Windows textual resolution of the default lexical state path, without
   authorizing another root or weakening redirect protection.
-- Judgment requested from bounded review: allow a `samefile` exception for the
+- Judgment requested from `gpt-6-sol`: allow a `samefile` exception for the
   default `%LOCALAPPDATA%\codex-with-chatgpt` lexical path while keeping canary
-  I/O lexical and all noncanonical overrides rejected. The review conditionally
+  I/O lexical and all noncanonical overrides rejected. Sol conditionally
   approved the exception only when `lstat` first rejects symlinks, junctions,
   and every other reparse point on the state directory; samefile by itself is
   insufficient because it also succeeds for redirects.
@@ -134,7 +134,7 @@ identity and behavior.
 
 ### User-authorized exact-root ACL qualification
 
-- Bounded review judgment: an explicit inheritable grant to
+- Bounded Sol judgment: an explicit inheritable grant to
   `DESKTOP-9IPACE7\CodexSandboxOffline` on only the canonical C2C state root is
   narrower than a parent-directory or group grant and is within the user's
   specific authorization. It is not least-privilege across time if this
@@ -218,7 +218,7 @@ identity and behavior.
   violating its empty-at-start contract. The callback separately failed to
   access the Codex state store in the detached worker context. The failed run
   is retained unchanged and has no scientific checkpoint to resume.
-- Judgment requested from bounded review: select the smallest safe orchestration
+- Judgment requested from `gpt-6-sol`: select the smallest safe orchestration
   repair and define callback recovery boundaries. Backend identity and actual
   reasoning effort were not independently exposed.
 - Decision: give schema-v2 runs a nested `optimizer/` output directory while
@@ -252,7 +252,7 @@ identity and behavior.
   `py_compile` and `git diff --check` passed. The initial correction attempt
   exposed a syntax error in the new test fixture, which was fixed before the
   passing rerun. No optimizer retry or 16k optimizer was launched.
-- No additional review escalation was needed for this strictness correction.
+- No additional Sol escalation was needed for this strictness correction.
   Independent C2C review of the follow-up is pending.
 
 ## 2026-09-25 — Historical cleanup architecture boundary
@@ -267,7 +267,7 @@ identity and behavior.
   from Stage 3.6/3.3 modules. Stage 3.8C imports helpers from the Stage 3.8
   module and hashes historical files. No COM, optimizer, objective, bounds,
   RNG, budget, checkpoint, or saved-run changes; no production rerun.
-- Requested reviewer: bounded review, high reasoning, judgment only.
+- Requested reviewer: GPT-6 Sol (`gpt-6-sol`), high reasoning, judgment only.
 - Full packet: `reports/historical_cleanup_architecture_escalation.md`.
 
 ### Decision
@@ -322,7 +322,7 @@ identity and behavior.
   tracing, or another bounded audit; classify RC1–RC8.
 - Constraints: no source edits, optimizer changes, Phase D, production reruns,
   tuning, tolerance changes, or `multi_agent_v2` configuration.
-- Requested reviewer: bounded review, high reasoning, one reviewer.
+- Requested reviewer: GPT-5.6 Sol, high reasoning, one reviewer.
 
 ### Decision
 
@@ -349,7 +349,7 @@ identity and behavior.
   matched-protocol parity check fails, or a repair would change optimizer
   behavior or require repeating a long production run.
 - Backend model identity and actual internal reasoning effort were not
-  independently verified by the runtime; bounded review and high reasoning were
+  independently verified by the runtime; GPT-5.6 Sol and high reasoning were
   requested through the task API.
 
 ## 2026-09-24 — Stage 3.8C-R1.1 initializer judgment
@@ -365,7 +365,7 @@ identity and behavior.
   limits, topology definitions, COM/network/evaluation/objective behavior,
   comparator, L-SHADE update rule, budget, impedance, profiles, and validation
   grid unchanged. No clamp or projection.
-- Requested reviewer: bounded review, one bounded judgment review.
+- Requested reviewer: GPT-6 Sol (`gpt-6-sol`), one bounded judgment review.
 
 ### Decision
 
@@ -383,7 +383,7 @@ identity and behavior.
 - Implemented a study-level conditional integer feasible-set initializer.
   Generic L-SHADE, declared bounds, physical constraints, and comparator code
   were left unchanged. Added all-cell deterministic/bounds/geometry/unique
-  population tests and active review policy regression coverage.
+  population tests and active Sol policy regression coverage.
 - Targeted tests: 14 passed. Full repository suite: 227 passed and 14
   subtests passed. Independent preflight: implementation PASS, fixed-design
   sanity 6/6, known-seed preflight 6/6, and geometry-valid population 6/6.
@@ -396,7 +396,7 @@ identity and behavior.
 - The 96k production run was not started. The R1.1 pass marker and review
   bundle are provided for review; no production, Stage 3.9, hybrid, or
   impedance-sweep work was started.
-- A bounded review was requested; runtime-visible backend identity and
+- Requested model was `gpt-6-sol`; runtime-visible backend identity and
   internal reasoning effort were not exposed and are not claimed as verified.
 
 ## 2026-09-23 — Stage 3.8C-R1 post-review pilot outcome
@@ -434,7 +434,7 @@ identity and behavior.
   `[16000]` request would incorrectly use a 16,000 horizon.
 - Constraints: no optimizer/objective/physics/search-space/canonicalization/
   tolerance/seed/budget-semantic changes; one diagnostic run only.
-- Requested reviewer: bounded review, high reasoning, one reviewer.
+- Requested reviewer: GPT-5.6 Sol, high reasoning, one reviewer.
 
 ### Decision
 
@@ -469,7 +469,7 @@ preflight and post-run guardrails before launching the one diagnostic run.
   checkout normalized CRLF to LF.
 - Constraints: no production experiment, objective, COM, search-space, or
   comparison-condition changes; review budget semantics before source edits.
-- Requested reviewer: bounded review, medium reasoning, one reviewer.
+- Requested reviewer: GPT-5.6 Sol, medium reasoning, one reviewer.
 
 ### Decision
 
@@ -492,7 +492,7 @@ preflight and post-run guardrails before launching the one diagnostic run.
   the GitHub Actions rerun must confirm both the Python 3.11 budget behavior
   and the frozen S1 raw hash.
 - Backend model identity and actual internal reasoning effort were not
-  independently verified by the runtime; bounded review and medium reasoning
+  independently verified by the runtime; GPT-5.6 Sol and medium reasoning
   were requested through the task API.
 
 ## 2026-09-18 — Stage 3.7 literature COM mapping gate
@@ -510,7 +510,7 @@ preflight and post-run guardrails before launching the one diagnostic run.
 - Constraints: preserve Stage 3.6 artifacts; do not mix sources or fill
   missing alpha, capacitance, loss, phase, or normalization from M0; no Phase D
   or Stage 3.8 baseline without a complete profile.
-- Requested reviewer: bounded review, high reasoning, one reviewer, judgment only.
+- Requested reviewer: GPT-5.6 Sol, high reasoning, one reviewer, judgment only.
 
 ### Decision
 
@@ -535,7 +535,7 @@ reference/control artifacts before emitting `STAGE3_7_COM_MAPPING_BLOCKED_STOP`.
 No Phase D optimizer run was launched.
 
 - Backend model identity and actual internal reasoning effort were not
-  independently verified by the runtime; bounded review and high reasoning were
+  independently verified by the runtime; GPT-5.6 Sol and high reasoning were
   requested through the task API.
 
 ## 2026-09-23 — Stage 3.8 dual-material DMS topology fast screen
@@ -549,7 +549,7 @@ No Phase D optimizer run was launched.
   outer-IDT-gap-R path; Stage 3.6 has a reusable section-geometry path but
   not a generic multi-IDT port map; M0 and MLIT inputs and the 9113-point
   validation-grid identity were audited.
-- Requested reviewer: bounded review, high reasoning, judgment only, no file
+- Requested reviewer: GPT-5.6 Sol, high reasoning, judgment only, no file
   edits.
 
 ### Decision
@@ -579,7 +579,7 @@ No Phase D optimizer run was launched.
   optimization or Stage 3.9/hybrid/impedance-sweep work is authorized by
   this escalation.
 - Backend model identity and actual reasoning effort were not independently
-  verified by the runtime; bounded review and high reasoning were requested
+  verified by the runtime; GPT-5.6 Sol and high reasoning were requested
   through the task API.
 
 ## 2026-09-23 — Stage 3.8C-R1 geometry gate and rerun
@@ -596,7 +596,7 @@ No Phase D optimizer run was launched.
   physics evaluations and zero solved points in all 12 cells. The current R1
   user handoff requests MLIT 30–180 um, while the archived Stage 3.7D record and
   prior Stage 3.8 decision say 30–150 um.
-- Requested reviewer: bounded review, high reasoning, judgment only, no edits or
+- Requested reviewer: GPT-5.6 Sol, high reasoning, judgment only, no edits or
   tests.
 
 ### Decision
@@ -641,7 +641,7 @@ No Phase D optimizer run was launched.
   global comparator or L-SHADE algorithm. Stage 3.9 and third-seed work remain
   outside this run.
 - Backend model identity and actual reasoning effort were not independently
-  verified by the runtime; bounded review and high reasoning were requested
+  verified by the runtime; GPT-5.6 Sol and high reasoning were requested
   through the task API.
 
 ## 2026-09-18 — Stage 3.7B literature COM reconstruction boundary
@@ -660,7 +660,7 @@ No Phase D optimizer run was launched.
 - Constraints: no file edits or experiments by the reviewer; no arbitrary
   fitting, mixed-source values, FEM execution, B28 optimization before source
   reconstruction PASS, or changes to frozen Stage 3.6/3.7A artifacts.
-- Requested reviewer: bounded review, high reasoning, one reviewer, judgment only.
+- Requested reviewer: GPT-5.6 Sol, high reasoning, one reviewer, judgment only.
 
 ### Decision
 
@@ -733,7 +733,7 @@ No Phase D optimizer run was launched.
 - Stage 3.7B remains stopped at the source/mapping gate pending acquisition and
   direct audit of the original paper.
 - Backend model identity and actual internal reasoning effort were not exposed
-  or independently verified by the runtime; bounded review and high reasoning
+  or independently verified by the runtime; GPT-5.6 Sol and high reasoning
   were requested through the task API.
 
 ## 2026-09-18 — Stage 3.7B implementation outcome
@@ -762,7 +762,7 @@ confirmation or a separately approved FEM extraction is required.
 - Requested judgment: whether an 80 um evaluation aperture, signed-real phase
   policy, and amplitude-loss gamma mapping are acceptable for frequency-only
   diagnostics and whether the frozen B28 fixed-design sensitivity may run.
-- Requested reviewer: bounded review, high reasoning, one reviewer, judgment only.
+- Requested reviewer: GPT-5.6 Sol, high reasoning, one reviewer, judgment only.
 
 ### Decision
 
@@ -803,7 +803,7 @@ confirmation or a separately approved FEM extraction is required.
   material model. The next scientific branch remains
   `FEM_EXTRACTION_REQUIRED` if phase/loss uncertainty must be resolved.
 - Backend model identity and actual internal reasoning effort were not
-  independently verified by the runtime; bounded review and high reasoning were
+  independently verified by the runtime; GPT-5.6 Sol and high reasoning were
   requested through the task API.
 
 ## 2026-09-24 — Stage 3.8C-R1.2 initializer judgment
@@ -813,8 +813,8 @@ confirmation or a separately approved FEM extraction is required.
 - Scope: judgment only on the initializer proposal law, rejection/uniqueness
   semantics, attempt cap, diversity gates, and initializer-only distribution
   regression before implementation.
-- Requested review target: bounded review, as required by the active project
-  policy. No alternate reviewer was requested.
+- Requested review target: `gpt-6-sol`, as required by the active project
+  policy. No fallback to GPT-5.6 Sol was requested.
 - Packet: `reports/stage3_8c_r1_2_initializer_escalation.md`.
 
 ### Decision
@@ -846,7 +846,7 @@ confirmation or a separately approved FEM extraction is required.
   (232 tests and 14 subtests). The six-cell initializer-only preflight passed
   distribution/diversity checks, and historical R1 seeded populations
   replayed exactly.
-- Requested bounded review was accepted through the task routing. The
+- Requested GPT-6 Sol review was accepted through the task routing. The
   runtime did not expose resolved backend identity or internal reasoning
   effort; neither is claimed as verified.
 
@@ -858,7 +858,7 @@ confirmation or a separately approved FEM extraction is required.
 - Decision requested: define safe boundaries for additive fingerprint v2 and generic review bundles, DMS topology extraction, and comparator/counter/accounting/sampler ownership.
 - Constraints: no source edits by reviewer, no optimizer or Stage 3.8 reruns, preserve the Stage 3.8 legacy fingerprint/gates/artifacts, and avoid numerical, comparator, accounting, or RNG behavior changes.
 - Inventory: existing canonical candidates are `reporting/review_bundle.py`, `optimization/counters.py`, `optimization/population.py`, `optimizers/selection.py`, and `io/run_store.py`; Stage 3.8 R1 combines its fingerprint, geometry-first comparator, counters, sampler, and checkpoint validator in the study module. T0 imports its released design and simulator from Stage 3.6.
-- Requested reviewer: bounded review, high reasoning effort requested through the task API. Runtime-visible backend identity and actual reasoning effort were not independently exposed.
+- Requested reviewer: `gpt-6-sol`, high reasoning effort requested through the task API. Runtime-visible backend identity and actual reasoning effort were not independently exposed.
 
 ### Decision
 
@@ -886,7 +886,7 @@ confirmation or a separately approved FEM extraction is required.
 - Decision requested: canonical owner/API, safe fallback behavior, success-gated finalization, coverage of L-SHADE and custom continuation checkpoints, and generic review-bundle metadata integration.
 - Constraints: preserve optimizer state payload and all numerical/RNG semantics; no Stage 3.8 or historical-run cleanup; no fingerprint schema v3; keep reporting separate from lifecycle deletion.
 - Inventory: no lifecycle owner exists; L-SHADE writes raw JSON at several study call sites; continuation writes per-milestone population snapshots without a matching load path; buffered JSONL history already exists; generic review bundle filters every path component containing `checkpoint`.
-- Requested reviewer: bounded review, high reasoning effort requested through the task API. Runtime-visible backend identity and actual reasoning effort were not independently exposed.
+- Requested reviewer: `gpt-6-sol`, high reasoning effort requested through the task API. Runtime-visible backend identity and actual reasoning effort were not independently exposed.
 
 ### Decision
 
@@ -926,7 +926,7 @@ confirmation or a separately approved FEM extraction is required.
 - Constraints: preserve checkpoint payloads and optimizer/RNG semantics, keep
   Stage 3.8 historical source and artifacts protected, and do not launch an
   optimizer run.
-- Requested reviewer target: bounded review; the runtime did not expose verified
+- Requested reviewer target: `gpt-6-sol`; the runtime did not expose verified
   backend identity or actual reasoning effort.
 
 ### Decision
@@ -962,7 +962,7 @@ confirmation or a separately approved FEM extraction is required.
   checkout. This is a compatibility boundary, not a successful legacy run
   resume claim. Existing dirty Stage 3.8.5 source edits may also affect saved
   hashes, so mismatches are not attributed exclusively to Stage 3.8.6.
-- Reviewer: bounded review requested through the project escalation workflow;
+- Reviewer: `gpt-6-sol` requested through the project escalation workflow;
   the runtime did not expose resolved backend identity or reasoning effort.
 
 ### Supplemental decision — scoped review-bundle Git diff
@@ -978,7 +978,7 @@ confirmation or a separately approved FEM extraction is required.
 - Outcome: implemented and covered by a temporary Git-repository test,
   including full-status retention and staged/unstaged scope. No computation
   fingerprint or numerical behavior changed.
-- Reviewer: bounded review requested through the project escalation workflow;
+- Reviewer: `gpt-6-sol` requested through the project escalation workflow;
   runtime-visible backend identity and internal reasoning effort were not
   independently exposed.
 
@@ -1002,7 +1002,7 @@ confirmation or a separately approved FEM extraction is required.
   temporary compatibility behavior, and minimum parity gates. The correction
   instructions prohibit historical bulk deletion and numerical changes in
   this pass.
-- Judgment requested from bounded review: whether
+- Judgment requested from `gpt-6-sol`: whether
   `optimization/convergence_evidence.py` is the appropriate owner, whether
   old study callers need an interim import path, and what checks should gate
   the move. The runtime did not expose independently verified backend identity
@@ -1035,12 +1035,12 @@ confirmation or a separately approved FEM extraction is required.
 
 ### Packet and decision
 
-- The temporary review packet was consolidated into this decision record
+- The temporary Sol review packet was consolidated into this decision record
   after implementation and verification.
 - Scope: the boundary between the completed, Stage-named 3.8C R1.2 gate
   sequence and the cleanup plan's living DMS topology study, plus safe deletion
   order for historical runners and their configs/tests/shims.
-- Judgment requested from bounded review. Runtime-visible backend identity and
+- Judgment requested from `gpt-6-sol`. Runtime-visible backend identity and
   reasoning effort were not independently exposed.
 - Decision: preserve the R1.2 numerical study capability by moving its
   behavior to a role-based DMS topology study module. Treat the completed R1,
@@ -1097,14 +1097,14 @@ confirmation or a separately approved FEM extraction is required.
   prohibited Computer Use generically. The user authorized computer use only
   within IAB. C2C/ChatGPT PLAN recommended preserving the existing
   `browser-client.mjs` bootstrap while narrowing the prohibition.
-- Requested reviewer: bounded review, high reasoning, judgment only.
+- Requested reviewer: GPT-6 Sol (`gpt-6-sol`), high reasoning, judgment only.
   Backend model identity and actual reasoning effort were not independently
   exposed.
 - Judgment requested: whether to preserve the Browser Use bootstrap or
   document the currently exposed IAB computer-use API, and which credential,
   consent, and non-IAB boundaries must remain explicit.
 
-### Review judgment
+### Sol judgment
 
 - Use the current `mcp__cua_repl` IAB APIs for ChatGPT browser interaction;
   keeping the old Browser Use bootstrap would not implement the user's request.
@@ -1133,7 +1133,7 @@ confirmation or a separately approved FEM extraction is required.
   and checkpoints every 2,000 evaluations. The common validation grid,
   constraints, objective, COM profile, comparator, initializer, frequencies,
   and search bounds remain unchanged.
-- Judgment requested from bounded review: whether this is an appropriate first
+- Judgment requested from `gpt-6-sol`: whether this is an appropriate first
   viability test; whether the population schedule should preserve its 8,000
   evaluation horizon or expand to 16,000; and whether parity and stopping
   criteria are sufficient. Backend identity and actual reasoning effort were
@@ -1182,7 +1182,7 @@ confirmation or a separately approved FEM extraction is required.
 - No COM physics, objective, constraints, search bounds, initializer,
   comparator, or frequency grid were changed. No 16k production optimizer was
   launched. Before interpreting a future extension, its 2k–8k overlap must
-  satisfy the review parity gate; before production launch, C2C must accept the
+  satisfy the Sol parity gate; before production launch, C2C must accept the
   implementation/preflight and the required callback session must be valid.
 
 ## 2026-09-27 — Stage 3.9B retry blocked at callback preflight
@@ -1237,7 +1237,7 @@ confirmation or a separately approved FEM extraction is required.
   wait was performed. Completion/parity review remains a later manual step;
   the 16,000-evaluation extension remains unauthorized.
 
-## 2026-09-27 — bounded review: Stage 3.9B overlap parity divergence
+## 2026-09-27 — Sol escalation: Stage 3.9B overlap parity divergence
 
 ### Packet and judgment requested
 
@@ -1258,7 +1258,7 @@ confirmation or a separately approved FEM extraction is required.
   common-grid designs/metrics also differ. A common-grid file-byte hash
   mismatch is also reported. Full evidence is under
   `artifacts/review_bundles/stage3_9b_overlap_parity_retry1_review/`.
-- Requested reviewer: bounded review, bounded judgment only. Assess whether the
+- Requested reviewer: GPT-6 Sol, bounded judgment only. Assess whether the
   observed result establishes real trajectory/protocol divergence versus a
   verifier or provenance-normalization defect, identify the smallest
   read-only diagnostics that can distinguish them, and state whether any
@@ -1268,9 +1268,9 @@ confirmation or a separately approved FEM extraction is required.
   repair or rerun is in progress; the 16,000-evaluation extension remains
   unauthorized pending a valid parity PASS and C2C acceptance.
 
-### Review judgment and bounded follow-up diagnostics
+### Sol judgment and bounded follow-up diagnostics
 
-- Review finding: the initializer RNG seeds and evaluated design sequence differ
+- Sol judgment: the initializer RNG seeds and evaluated design sequence differ
   materially; this is real initialization/trajectory divergence, not merely
   metadata or float serialization. The complete historical cause was
   unresolved at judgment time. Do not claim optimizer regression, changed
@@ -1301,29 +1301,29 @@ confirmation or a separately approved FEM extraction is required.
 - Diagnostic bundle: `artifacts/review_bundles/stage3_9b_overlap_parity_root_cause/`.
   The result and diagnostic bundle were sent to C2C for independent review.
   No scientific code/config edit, new overlap run, or 16,000-evaluation run is
-  authorized. Obtain the review judgment before any seed-contract correction or
+  authorized. Obtain Sol judgment before any seed-contract correction or
   repeated overlap experiment; require C2C acceptance before implementation.
 
-### C2C diagnostic acceptance and review remediation
+### C2C diagnostic acceptance and Sol remediation judgment
 
 - C2C iteration 8 independently accepted the forensic bundle and confirmed
   the root-cause conclusion: the first real divergence is initializer RNG
   seed-contract drift; the current sampler reproduces both historical
   populations exactly when given the canonical seeds. The grid-hash issue is
   serialization-only; exact numerical-array equality remains a required gate.
-- Review finding: the bounded repair should preserve the historical namespace
+- Sol judgment: the bounded repair should preserve the historical namespace
   and `r1_2_independent_rejection` suffix as an explicit parity compatibility
   contract, avoiding a global change to unrelated DMS studies. Correct the
   verifier's documented LF-normalized hash comparison separately; do not
   weaken the exact array/count/ID checks. This judgment authorizes no code
   change or production run.
-- Before a fresh 8,000-evaluation overlap, the review requires source-level
+- Before a fresh 8,000-evaluation overlap, Sol requires source-level
   compatibility evidence for comparator ordering, evaluator payload/ranking,
   design decoding/canonicalization, optimizer configuration, and checkpoint
   scheduling. Record source hashes and preserve the caveat that the exact
   canonical runtime source blob is unavailable at its recorded Git head. An
   unchanged tracked `lshade.py` alone does not close this gap.
-- Required gates: C2C repair PLAN, recorded review judgment, targeted repair
+- Required gates: C2C repair PLAN, recorded Sol judgment, targeted repair
   validation, C2C acceptance of the integrated implementation and launch
   preflight, then C2C review of the rerun. The 16,000-evaluation run remains
   unauthorized until repaired 8,000-evaluation parity passes and C2C accepts
@@ -1331,7 +1331,7 @@ confirmation or a separately approved FEM extraction is required.
 
 ### C2C repair PLAN and bounded implementation validation
 
-- C2C iteration 9 accepted the review's judgment and authorized only the scoped seed-
+- C2C iteration 9 accepted Sol's judgment and authorized only the scoped seed-
   contract mechanism, Stage 3.9B parity hash correction, tests, metadata, and a
   read-only compatibility evidence builder. No pilot or production optimizer
   launch was authorized. Source-compatibility evidence is a post-implementation,
@@ -1593,25 +1593,25 @@ confirmation or a separately approved FEM extraction is required.
 ### Stage 3.9 closeout interpretation
 
 - C2C closeout PLAN `c2c_stage39_close`, iteration 1, found that the Stage 3.9
-  exit gate had two reasonable interpretations and required a bounded
-  review judgment before formal closure. It recommended a no-run closeout if the review
+  exit gate had two reasonable interpretations and required a bounded Sol
+  judgment before formal closure. It recommended a no-run closeout if Sol
   accepted the narrow reference-path interpretation.
 - Escalation packet:
   `reports/escalation_packets/stage3_9_close_sol_judgment_2026-09-27.md`.
-- Review finding: close under exit branch (b) for the selected MLIT/T1 50/50 Ω
+- Sol judgment: close under exit branch (b) for the selected MLIT/T1 50/50 Ω
   DMS reference path. The two-seed 8k-to-16k accepted evidence, near-identical
   late plateau, common-grid infeasibility, and absence of unresolved bound
   pressure are sufficient for this scoped engineering closeout. Do not extend
   T1 again. T2 may remain unresolved and unpromoted; it does not block this
   scoped closure. Do not claim formal convergence, global impossibility,
-  material superiority, or infeasibility of every DMS variant. the review did not
+  material superiority, or infeasibility of every DMS variant. Sol did not
   authorize a production run.
 - Integrated closeout synthesis and documentation were prepared in
   `artifacts/review_bundles/stage3_9_closeout_20260927/` and the Stage 3.9
   history, baseline, and roadmap.
 - C2C integrated review iteration 2 verified the scientific record and
   accepted the closeout scope, numbers, normalized constraints, Gate D/E
-  references, T2 caveat, and the review judgment. It requested one blocking
+  references, T2 caveat, and Sol judgment. It requested one blocking
   documentation correction: update the roadmap's section 4 baseline from the
   post-Stage-3.8C state to the post-Stage-3.9 state, while retaining the
   impedance-sweep and model-qualification gates. Updated only that roadmap
@@ -1628,10 +1628,10 @@ confirmation or a separately approved FEM extraction is required.
 - GitHub CI for PR #13 reported 206 passing tests and one failure in
   `test_live_study_adapters_are_role_named`: the two Stage 3.9B saved-run
   auditors were placed directly in `sawopt.studies`, alongside live adapters.
-- Bounded review judgment: place these read-only auditors in
+- Bounded Sol judgment: place these read-only auditors in
   `sawopt.studies.audits`; preserve the architecture test and audit semantics,
   and update imports, source paths, and architecture documentation. No further
-  review is needed unless the correction expands into audit behavior,
+  Sol review is needed unless the correction expands into audit behavior,
   launch behavior, science, or provenance contracts.
 - C2C PLAN `c2c_pr13_architecture_ci`, iteration 1, accepted that scope and
   requires focused plus full pytest validation, syntax/import checks,
@@ -1661,7 +1661,7 @@ confirmation or a separately approved FEM extraction is required.
 
 ### Stage 4B matched-topology comparison decisions
 
-- Bounded high-risk judgment was requested from the existing review agent
+- Bounded high-risk judgment was requested from the existing Sol review agent
   before production implementation. The review considered fixed-horizon L-SHADE
   fairness, dimension-scaled cold populations, immutable launch authorization,
   and the P_D/D_P symmetry rule. Recommendation: retain one 24k terminal
@@ -1688,11 +1688,11 @@ confirmation or a separately approved FEM extraction is required.
 ### Post-run queue and evidence-publication contract
 
 - Before changing orchestration interfaces/state semantics for PR #17, requested
-  bounded review judgment on detached-worker ownership, exact-thread delivery,
+  bounded Sol judgment on detached-worker ownership, exact-thread delivery,
   one-shot claims, receiver trust, historical manifest compatibility, and the
   boundary between evidence publication and scientific review. No scientific
   or optimizer behavior was in scope.
-- The review recommended: persist one claim before queue I/O; build/validate the
+- Sol recommended: persist one claim before queue I/O; build/validate the
   bounded payload first; treat uncertain claimed delivery as consumed and
   ambiguous; accept only runtime `CODEX_THREAD_ID` for receiver proof; retain
   old schema readers without silent upgrades; and make `REVIEW_WAITING` depend
@@ -1705,14 +1705,14 @@ confirmation or a separately approved FEM extraction is required.
 
 ### Persistent run storage and worktree removal safety
 
-- Bounded review judgment was requested before changing the orchestration launch
+- Bounded Sol judgment was requested before changing the orchestration launch
   interface. Recommendation: require explicit external storage for launches
   declared user-authorized or ranking-eligible; remove the Stage 4B new-launch
   fixed output path under repository `runs/`; preserve historical manifests;
   fail closed when Git worktree discovery or Windows path identity is uncertain;
   reject reparse points and compare paths by components, case-insensitively on
   Windows; and test the removal utility only with temporary repositories.
-- The review also identified that Stage 4B one-shot authorization claims are globally
+- Sol also identified that Stage 4B one-shot authorization claims are globally
   unique. A registry selected per run root could permit reuse. The existing
   repository-wide claim registry is therefore retained for this task; it is
   authorization metadata, while raw run outputs use external persistent
@@ -1749,7 +1749,7 @@ confirmation or a separately approved FEM extraction is required.
 - The fixes preserve `created_at_utc` across resume, separate historical bound
   hits from terminal unresolved boundary states, apply the reviewed 0.02
   max-normalized-violation model-level rule, and store Stage 4C claims under
-  Git common-directory state. The unverified Stage 4C review-attribution packet
+  Git common-directory state. The unverified Stage 4C Sol-attribution packet
   was removed.
 - Focused tests: 70 passed. Full suite: 338 passed and 20 subtests passed.
   The external two-cell 512-evaluation shakedown and a later resume invocation
@@ -1769,7 +1769,7 @@ confirmation or a separately approved FEM extraction is required.
 ### Stage 4C MemoryError — compact L-SHADE checkpoint state — 2026-10-06
 
 - Escalation was required before changing optimizer checkpoint architecture and
-  orchestration failure semantics. The review approved a canonical-key/grid-version
+  orchestration failure semantics. Sol approved a canonical-key/grid-version
   history index with bounded results, exact stable-order cumulative top-16
   finalist retention, direct counter persistence, pre-parse rejection of v3
   checkpoints, and durable traceback/exit diagnostics.
