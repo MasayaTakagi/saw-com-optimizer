@@ -41,12 +41,15 @@ requested objective.
 
 ## Execution and review-artifact conventions
 
-Use the project virtual environment by default. From the
-`saw-com-optimizer` directory, the Windows interpreter is
-`.venv\Scripts\python.exe`; do not silently fall back to a system or bundled
-Python runtime. Create the environment with `py -3 -m venv .venv` when it is
-missing, then install the project with `.venv\Scripts\python.exe -m pip
-install -e .`.
+The official development environment is WSL2 Ubuntu 24.04, VS Code Remote
+WSL, Codex CLI inside Linux, and uv. Keep repositories/worktrees under
+`/home/...` on the Linux filesystem and keep Windows and WSL `.codex` state
+separate. Windows Codex Desktop WSL Agent is not part of this environment.
+Use Ubuntu system Python 3.12 (`/usr/bin/python3.12`), not uv-managed Python.
+From each new worktree root run `uv sync --locked --extra test`; use
+`uv run --locked` for project commands and `uv run --locked pytest` for tests.
+Track `.python-version` and `uv.lock`; never track `.venv`. Do not install Node.
+See [`docs/guides/development_environment.md`](docs/guides/development_environment.md).
 
 For new production studies, canonical lightweight GitHub review evidence lives
 under `reports/experiment_reviews/<stage>/<run_id>/`. Large raw runs,

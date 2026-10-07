@@ -19,7 +19,7 @@ class WorktreeSafetyTests(unittest.TestCase):
         self.git(self.repository, "config", "user.name", "Safety Test")
         self.git(self.repository, "config", "user.email", "safety@example.invalid")
         (self.repository / ".gitignore").write_text(
-            "runs/\n.pytest-tmp/\n.pytest_cache/\nignored.dat\n", encoding="utf-8",
+            ".venv/\nruns/\n.pytest-tmp/\n.pytest_cache/\nignored.dat\n", encoding="utf-8",
         )
         (self.repository / "tracked.txt").write_text("baseline\n", encoding="utf-8")
         self.git(self.repository, "add", ".gitignore", "tracked.txt")
@@ -51,6 +51,114 @@ class WorktreeSafetyTests(unittest.TestCase):
         self.assertTrue(audit.filesystem_inventory_complete)
         self.assertEqual(audit.classification, "WORKTREE_REMOVE_ALLOWED")
         self.assertTrue(audit.deletion_allowed)
+
+    def make_environment(self):
+        environment = self.worktree / ".venv"
+        environment.mkdir()
+        (environment / "pyvenv.cfg").write_text("uv = 0.12.23\n")
+        return environment
+
+    def test_root_environment_is_disposable_and_audit_is_read_only(self):
+        environment = self.make_environment()
+        self.assertTrue(self.audit().deletion_allowed)
+        self.assertTrue(environment.exists())
+        result = worktree_safety.remove_worktree(self.worktree, repository_root=self.repository)
+        self.assertEqual(result.classification, "WORKTREE_REMOVED")
+
+    def test_environment_does_not_exempt_other_data(self):
+        for name in ("ignored.dat", "new.txt", "runs/result.json", "nested/.venv/data"):
+            with self.subTest(name=name):
+                environment = self.make_environment()
+                data = self.worktree / name
+                data.parent.mkdir(parents=True, exist_ok=True)
+                data.write_text("valuable")
+                result = worktree_safety.remove_worktree(self.worktree, repository_root=self.repository)
+                self.assertFalse(result.remove_invoked)
+                self.assertTrue(environment.exists())
+                self.assertTrue(data.exists())
+                data.unlink()
+                for parent in (data.parent, data.parent.parent):
+                    if parent != self.worktree and parent.is_relative_to(self.worktree) and parent.exists():
+                        parent.rmdir()
+                (environment / "pyvenv.cfg").unlink()
+                environment.rmdir()
+
+    def test_real_uv_environment_allows_verified_interpreter_symlinks(self):
+        (self.worktree / "pyproject.toml").write_text(
+            '[project]\nname = "safety-test"\nversion = "0.1.0"\n'
+            'requires-python = ">=3.12,<3.13"\ndependencies = []\n'
+            '[project.optional-dependencies]\ntest = []\n')
+        subprocess.run(["uv", "lock", "--python", "/usr/bin/python3.12"],
+                       cwd=self.worktree, check=True, capture_output=True)
+        self.git(self.worktree, "add", "pyproject.toml", "uv.lock")
+        self.git(self.worktree, "commit", "-m", "test environment fixture")
+        subprocess.run(["uv", "sync", "--locked", "--extra", "test",
+                        "--python", "/usr/bin/python3.12"],
+                       cwd=self.worktree, check=True, capture_output=True)
+        self.assertTrue(self.audit().deletion_allowed)
+        result = worktree_safety.remove_worktree(self.worktree, repository_root=self.repository)
+        self.assertEqual(result.classification, "WORKTREE_REMOVED")
+
+    def test_uv_environment_does_not_exempt_external_symlink(self):
+        subprocess.run(["uv", "venv", "--python", "/usr/bin/python3.12",
+                        str(self.worktree / ".venv")], check=True, capture_output=True)
+        outside = self.base / "valuable"
+        outside.write_text("keep")
+        (self.worktree / "external-link").symlink_to(outside)
+        result = worktree_safety.remove_worktree(self.worktree, repository_root=self.repository)
+        self.assertEqual(result.classification, "WORKTREE_REMOVE_BLOCKED_REPARSE_POINT")
+        self.assertFalse(result.remove_invoked)
+        self.assertTrue(outside.exists())
+
+    def test_uv_environment_internal_links_never_delete_external_targets(self):
+        subprocess.run(["uv", "venv", "--python", "/usr/bin/python3.12",
+                        str(self.worktree / ".venv")], check=True, capture_output=True)
+        outside = self.base / "valuable"
+        outside.mkdir()
+        marker = outside / "keep.txt"
+        marker.write_text("keep")
+        (self.worktree / ".venv/external-directory").symlink_to(outside, target_is_directory=True)
+        (self.worktree / ".venv/external-file").symlink_to(marker)
+        (self.worktree / ".venv/broken-link").symlink_to(self.base / "absent")
+        audit = self.audit()
+        self.assertTrue(audit.deletion_allowed)
+        self.assertFalse(audit.reparse_points)
+        result = worktree_safety.remove_worktree(self.worktree, repository_root=self.repository)
+        self.assertEqual(result.classification, "WORKTREE_REMOVED")
+        self.assertEqual(marker.read_text(), "keep")
+
+    def test_environment_cleanup_failure_preserves_worktree(self):
+        self.make_environment()
+        with mock.patch.object(worktree_safety.shutil, "rmtree", side_effect=PermissionError("denied")) as remover:
+            remover.avoids_symlink_attacks = True
+            result = worktree_safety.remove_worktree(self.worktree, repository_root=self.repository)
+        self.assertEqual(result.classification, "FAIL_ENVIRONMENT_CLEANUP")
+        self.assertFalse(result.remove_invoked)
+        self.assertTrue(self.worktree.exists())
+
+    def test_root_environment_symlink_blocks(self):
+        outside = self.base / "outside"
+        outside.mkdir()
+        (self.worktree / ".venv").symlink_to(outside, target_is_directory=True)
+        self.assertEqual(self.audit().classification, "WORKTREE_REMOVE_BLOCKED_REPARSE_POINT")
+
+    def test_environment_protected_data_remains_blocked(self):
+        environment = self.make_environment()
+        checkpoint = environment / "checkpoint"
+        checkpoint.mkdir()
+        (checkpoint / "valuable.bin").write_text("keep")
+        self.assertFalse(self.audit().deletion_allowed)
+
+    def test_unrecognized_environment_remains_blocked(self):
+        environment = self.worktree / ".venv"
+        environment.mkdir()
+        (environment / "data").write_text("keep")
+        self.assertFalse(self.audit().deletion_allowed)
+
+    def test_environment_mount_point_blocks(self):
+        self.make_environment()
+        with mock.patch.object(worktree_safety.os.path, "ismount", return_value=True):
+            self.assertFalse(self.audit().deletion_allowed)
 
     def test_linked_caller_identifies_and_blocks_main_worktree_before_remove(self):
         main_caller_audit = worktree_safety.audit_worktree(
@@ -104,6 +212,7 @@ class WorktreeSafetyTests(unittest.TestCase):
         self.assertEqual(audit.classification, "FAIL_ACTIVE_RUN_REGISTRY_UNINITIALIZED")
 
     def test_active_run_blocks_worktree_until_explicit_release(self):
+        self.make_environment()
         identity = next(
             item for item in worktree_safety._worktree_identities(self.repository)
             if worktree_safety._path_equal(item.path, self.worktree)
@@ -136,6 +245,7 @@ class WorktreeSafetyTests(unittest.TestCase):
         self.assertFalse(result.registered_after)
 
     def test_tracked_modification_blocks_removal(self):
+        self.make_environment()
         (self.worktree / "tracked.txt").write_text("changed\n", encoding="utf-8")
         audit = self.audit()
         self.assertFalse(audit.deletion_allowed)

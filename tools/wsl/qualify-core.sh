@@ -230,7 +230,7 @@ write_status "$RESULTS/worktree-cleanup.json" PASS 'temporary worktree passed th
 git -C "$ROOT" status --porcelain=v1 --untracked-files=all > "$RESULTS/git-status-before-regression.txt"
 [[ ! -s "$RESULTS/git-status-before-regression.txt" ]] || block 'REPOSITORY_CLEANUP' 'qualification left tracked or untracked files in the cloned repository'
 set +e
-(cd "$ROOT" && .venv/bin/python -m pytest -q --basetemp "$RUN_DIR/pytest-tmp" -o "cache_dir=$RUN_DIR/pytest-cache") > "$RESULTS/full-regression.log" 2>&1
+(cd "$ROOT" && uv run --locked pytest -q --basetemp "$RUN_DIR/pytest-tmp" -o "cache_dir=$RUN_DIR/pytest-cache") > "$RESULTS/full-regression.log" 2>&1
 regression_code=$?
 set -e
 write_status "$RESULTS/regression.json" "$( [[ "$regression_code" -eq 0 ]] && printf PASS || printf FAIL )" "pytest_exit=$regression_code; this was the sole full-regression run"

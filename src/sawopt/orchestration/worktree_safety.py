@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass
 import json
 import os
 from pathlib import Path, PureWindowsPath
+import shutil
 import stat
 import subprocess
 from typing import Any
@@ -143,6 +144,26 @@ def _is_reparse(info: os.stat_result) -> bool:
     )
 
 
+def _disposable_uv_environment(root: Path) -> bool:
+    """Recognize only a real root uv environment; never follow its links."""
+    try:
+        environment = root / ".venv"
+        info = environment.lstat()
+        if _is_reparse(info) or not stat.S_ISDIR(info.st_mode):
+            return False
+        config = environment / "pyvenv.cfg"
+        info = config.lstat()
+        if _is_reparse(info) or not stat.S_ISREG(info.st_mode):
+            return False
+        if not shutil.rmtree.avoids_symlink_attacks:
+            return False
+        descriptor = os.open(config, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(descriptor) as stream:
+            return any(line.strip() == "uv = 0.12.23" for line in stream)
+    except (OSError, ValueError):
+        return False
+
+
 def _filesystem_inventory(root: Path) -> dict[str, Any]:
     count = 0
     total_bytes = 0
@@ -160,6 +181,7 @@ def _filesystem_inventory(root: Path) -> dict[str, Any]:
         inaccessible.append(f"{git_metadata}: registered worktree has no .git marker")
     except OSError as exc:
         inaccessible.append(f"{git_metadata}: {exc}")
+    disposable = _disposable_uv_environment(root)
     stack = [root]
     while stack:
         directory = stack.pop()
@@ -176,16 +198,23 @@ def _filesystem_inventory(root: Path) -> dict[str, Any]:
                         if any(part in PROTECTED_COMPONENTS for part in components) or Path(relative).suffix.casefold() in {".log", ".ckpt", ".checkpoint"}:
                             protected.append(relative)
                         if _is_reparse(info):
-                            reparse_points.append(relative)
+                            if not (disposable and relative.startswith(".venv/")
+                                    and stat.S_ISLNK(info.st_mode) and os.name == "posix"):
+                                reparse_points.append(relative)
                             count += 1
                             if not entry.is_dir(follow_symlinks=False):
                                 total_bytes += int(info.st_size)
                             continue
                         if entry.is_dir(follow_symlinks=False):
-                            stack.append(path)
+                            if components[0] == ".venv" and os.path.ismount(path):
+                                inaccessible.append(f"{path}: mounted environment directory")
+                            else:
+                                stack.append(path)
                         elif entry.is_file(follow_symlinks=False):
                             count += 1
                             total_bytes += int(info.st_size)
+                        else:
+                            inaccessible.append(f"{path}: not an ordinary file or directory")
                     except (OSError, ValueError) as exc:
                         inaccessible.append(f"{path}: {exc}")
         except OSError as exc:
@@ -272,7 +301,11 @@ def audit_worktree(
         inventory = {"file_count": 0, "total_bytes": 0, "protected_paths": (),
                      "reparse_points": (), "inaccessible_paths": (str(exc),), "complete": False}
     errors.extend(inventory["inaccessible_paths"])
-    allowed = not any((tracked, untracked, ignored, inventory["protected_paths"],
+    disposable = _disposable_uv_environment(target)
+    # Keep the full Git inventory in the report; exempt only this exact root.
+    other_untracked = tuple(x for x in untracked if not (disposable and x.startswith(".venv/")))
+    other_ignored = tuple(x for x in ignored if not (disposable and x.startswith(".venv/")))
+    allowed = not any((tracked, other_untracked, other_ignored, inventory["protected_paths"],
                        inventory["reparse_points"], errors)) and inventory["complete"]
     if not inventory["complete"]:
         classification = "FAIL_INCOMPLETE_FILESYSTEM_INVENTORY"
@@ -282,7 +315,7 @@ def audit_worktree(
         classification = "WORKTREE_REMOVE_BLOCKED_REPARSE_POINT"
     elif tracked:
         classification = "WORKTREE_REMOVE_BLOCKED_TRACKED_CHANGES"
-    elif untracked or ignored or inventory["protected_paths"]:
+    elif other_untracked or other_ignored or inventory["protected_paths"]:
         classification = "WORKTREE_REMOVE_BLOCKED_NONTRACKED_DATA"
     else:
         classification = "WORKTREE_REMOVE_ALLOWED"
@@ -316,6 +349,26 @@ def remove_worktree(worktree: str | Path, *, repository_root: str | Path) -> Wor
                                   else second.classification)
                 return WorktreeRemoval(classification, False, False, Path(first.path).exists(), second.registered,
                                        "immediate pre-removal audit did not match initial audit", second)
+            environment = Path(first.path) / ".venv"
+            if environment.exists():
+                if not shutil.rmtree.avoids_symlink_attacks:
+                    return WorktreeRemoval("FAIL_UNSAFE_ENVIRONMENT_REMOVER", False, False,
+                                           True, True, "symlink-safe rmtree unavailable", second)
+                try:
+                    # Anchor deletion to an opened worktree directory, not a resolved link.
+                    descriptor = os.open(first.path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+                    try:
+                        shutil.rmtree(".venv", dir_fd=descriptor)
+                    finally:
+                        os.close(descriptor)
+                except OSError as exc:
+                    return WorktreeRemoval("FAIL_ENVIRONMENT_CLEANUP", False, False,
+                                           True, True, str(exc), second)
+                final = audit_worktree(first.path, repository_root=repository_root, _lock_held=True)
+                if not final.deletion_allowed or final.identity != first.identity:
+                    return WorktreeRemoval("WORKTREE_REMOVE_BLOCKED_AFTER_ENVIRONMENT_CLEANUP", False,
+                                           False, True, final.registered, "post-cleanup audit failed", final)
+                second = final
             result = subprocess.run(
                 ["git", "worktree", "remove", first.path], cwd=Path(repository_root),
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,

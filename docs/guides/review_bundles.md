@@ -7,7 +7,7 @@ canonical review path for new production studies.
 For new production runs use:
 
 ```text
-python -m sawopt export-review --run <run-dir>
+uv run --locked python -m sawopt export-review --run <run-dir>
 ```
 
 with canonical GitHub evidence under:
@@ -57,10 +57,10 @@ files:
 
 Then run from the project root using the project virtual environment:
 
-```powershell
-.\.venv\Scripts\python.exe -m sawopt.reporting.review_bundle `
-  --run <saved-run-dir> `
-  --output my_saved_run_review.zip `
+```bash
+uv run --locked python -m sawopt.reporting.review_bundle \
+  --run <saved-run-dir> \
+  --output my_saved_run_review.zip \
   --spec configs/review/my_saved_run.json
 ```
 

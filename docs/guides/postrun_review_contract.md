@@ -333,7 +333,7 @@ delivery ID, and sentinel. Neither sender acceptance nor receiver confirmation
 changes the orchestration state to `REVIEWED`.
 
 The supported publication finalizer is
-`python -m sawopt.orchestration.cli mark-review-published`. It requires a
+`uv run --locked python -m sawopt.orchestration.cli mark-review-published`. It requires a
 terminal run, a complete/redacted canonical package, a commit containing that
 package, a clean package path, and the matching pushed upstream branch. Only
 then does the run enter `REVIEW_WAITING` and record publication metadata.
@@ -345,7 +345,7 @@ The project closeout/experiment register records the later external decision.
 The active reusable command is:
 
 ```text
-python -m sawopt export-review --run <run-dir>
+uv run --locked python -m sawopt export-review --run <run-dir>
 ```
 
 The generic exporter owns:

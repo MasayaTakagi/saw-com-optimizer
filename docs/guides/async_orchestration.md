@@ -32,12 +32,12 @@ queue modeでは`CODEX_THREAD_ID`が必須で、`--thread-id`はそのruntime値
 
 概念上のlaunchは次の形です。
 
-```powershell
-.\.venv\Scripts\python.exe -m sawopt.orchestration.cli launch `
-  --config <PRODUCTION_CONFIG> `
-  --thread-id <EXACT_ORIGINAL_THREAD_ID> `
-  --review-stage <STAGE> `
-  --review-spec <FROZEN_SPEC_ID> `
+```bash
+uv run --locked python -m sawopt.orchestration.cli launch \
+  --config <PRODUCTION_CONFIG> \
+  --thread-id <EXACT_ORIGINAL_THREAD_ID> \
+  --review-stage <STAGE> \
+  --review-spec <FROZEN_SPEC_ID> \
   --run-root <ABSOLUTE_PERSISTENT_RUN_ROOT>
 ```
 
@@ -145,16 +145,16 @@ raw orchestration/optimizer outputは外部persistent run rootに残し、GitHub
 
 publisherが使う標準操作は以下です。
 
-```powershell
-.\.venv\Scripts\python.exe -m sawopt.orchestration.cli confirm-queue `
-  --run-dir <RUN_DIR> --run-id <RUN_ID> `
+```bash
+uv run --locked python -m sawopt.orchestration.cli confirm-queue \
+  --run-dir <RUN_DIR> --run-id <RUN_ID> \
   --delivery-id <DELIVERY_ID> --delivery-sentinel <DELIVERY_SENTINEL>
 
-.\.venv\Scripts\python.exe -m sawopt export-review --run <RUN_DIR>
+uv run --locked python -m sawopt export-review --run <RUN_DIR>
 
-.\.venv\Scripts\python.exe -m sawopt.orchestration.cli mark-review-published `
-  --run-dir <RUN_DIR> `
-  --review-path reports/experiment_reviews/<stage>/<run_id> `
+uv run --locked python -m sawopt.orchestration.cli mark-review-published \
+  --run-dir <RUN_DIR> \
+  --review-path reports/experiment_reviews/<stage>/<run_id> \
   --branch <EXPERIMENT_BRANCH> --commit <PUSHED_COMMIT_SHA>
 ```
 

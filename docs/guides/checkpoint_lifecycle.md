@@ -142,7 +142,7 @@ For new production studies, do not package full checkpoints into GitHub review
 evidence. Use the canonical exporter:
 
 ```text
-python -m sawopt export-review --run <run-dir>
+uv run --locked python -m sawopt export-review --run <run-dir>
 ```
 
 and publish compact evidence under:

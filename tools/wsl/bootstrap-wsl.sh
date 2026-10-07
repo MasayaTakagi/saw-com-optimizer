@@ -29,7 +29,7 @@ else
 fi
 
 missing=()
-for package in git curl ca-certificates python3 python3-venv python3-pip build-essential; do
+for package in git curl ca-certificates python3.12 build-essential; do
   if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q 'install ok installed'; then
     missing+=("$package")
   fi
@@ -60,12 +60,15 @@ case "$resolved_repo" in /mnt/*) fail 'Repository clone resolved under /mnt; ref
 mount_type="$(findmnt -n -o FSTYPE -T "$resolved_repo" 2>/dev/null || true)"
 [[ "$mount_type" != drvfs ]] || fail 'Repository filesystem is DrvFs; clone inside the Ubuntu Linux filesystem.'
 
-if [[ ! -x "$REPO_ROOT/.venv/bin/python" ]]; then
-  python3 -m venv "$REPO_ROOT/.venv"
+export PATH="$HOME/.local/bin:$HOME/.codex/bin:$PATH"
+if ! command -v uv >/dev/null 2>&1; then
+  curl -LsSf https://astral.sh/uv/0.12.23/install.sh | sh
 fi
+command -v uv >/dev/null 2>&1 || fail 'uv is not on PATH after installation.'
+[[ -x /usr/bin/python3.12 ]] || fail 'Ubuntu system Python 3.12 is missing.'
 (
   cd "$REPO_ROOT"
-  PIP_DISABLE_PIP_VERSION_CHECK=1 "$REPO_ROOT/.venv/bin/python" -m pip install -e '.[test]' --disable-pip-version-check
+  uv sync --locked --extra test
 )
 
 export PATH="$HOME/.local/bin:$HOME/.codex/bin:$PATH"
@@ -136,10 +139,12 @@ data = {
     "scipy": scipy.__version__,
     "matplotlib": matplotlib.__version__,
     "pyyaml": yaml.__version__,
-    "pip_freeze": command(str(repo / ".venv/bin/python"), "-m", "pip", "freeze"),
+    "uv_version": command("uv", "--version"),
+    "installed_packages": command("uv", "pip", "freeze", "--python", str(repo / ".venv/bin/python")),
+    "python_executable": sys.executable,
+    "base_python_executable": getattr(sys, "_base_executable", sys.executable),
+    "base_prefix": sys.base_prefix,
     "codex_version": command("codex", "--version"),
-    "node": command("node", "--version"),
-    "npm": command("npm", "--version"),
     "node_required_for_codex_install": False,
     "windows_codex_home_copied": False,
     "qualification_ref": os.environ.get("REF"),

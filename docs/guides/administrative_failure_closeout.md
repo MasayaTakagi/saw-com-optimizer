@@ -36,10 +36,10 @@ The authoritative record is the blob committed in the current clean Git `HEAD`. 
 
 The finalizer is invoked explicitly:
 
-```powershell
-.\.venv\Scripts\python.exe -m sawopt.orchestration.administrative_closeout `
-  --run-dir <ABSOLUTE_RUN_DIR> `
-  --evidence reports/administrative_run_closeouts/<RUN_ID>.json `
+```bash
+uv run --locked python -m sawopt.orchestration.administrative_closeout \
+  --run-dir <ABSOLUTE_RUN_DIR> \
+  --evidence reports/administrative_run_closeouts/<RUN_ID>.json \
   --confirm-abandon
 ```
 

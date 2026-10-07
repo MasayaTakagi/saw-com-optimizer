@@ -41,8 +41,8 @@ For an existing repository, initialize the registry only after reconciling
 every known external production-run root and confirming there are no active
 unregistered runs:
 
-```powershell
-python scripts/worktree_safety.py initialize-registry `
+```bash
+uv run --locked python scripts/worktree_safety.py initialize-registry \
   --confirm-no-unregistered-active-runs
 ```
 
@@ -59,9 +59,9 @@ removal check.
 
 Use the repository utility before considering a worktree removable:
 
-```powershell
-python scripts/worktree_safety.py audit <absolute-worktree-path>
-python scripts/worktree_safety.py remove <absolute-worktree-path>
+```bash
+uv run --locked python scripts/worktree_safety.py audit <absolute-worktree-path>
+uv run --locked python scripts/worktree_safety.py remove <absolute-worktree-path>
 ```
 
 The removal command repeats its full audit and worktree-identity check
@@ -72,3 +72,21 @@ and unregistered residual directories block removal. If Git removal errors or
 leaves a deregistered directory, the utility does not perform filesystem
 cleanup. Preserve the residual and investigate separately. Do not use
 `git clean` as a cleanup shortcut.
+
+## Disposable uv environment
+
+Only the worktree root `.venv/` is disposable. It must be a real directory with
+an ordinary `pyvenv.cfg` containing the pinned uv marker (`uv = 0.12.23`).
+Unrecognized environments remain nontracked-data blockers. Audit never deletes.
+The full inventory still blocks inaccessible entries, mount points, protected
+runs/checkpoints/logs, tracked changes, active runs, and every other ignored or
+untracked path (including nested `.venv` directories).
+
+Inside this verified subtree, POSIX symlinks are leaf entries: inventory never
+follows them, and fd-safe `shutil.rmtree` unlinks them without deleting their
+file or directory targets. No per-link allowlist is needed. The `.venv` root
+itself and every link/reparse point outside it still block; Windows reparse
+points remain blocked. Platforms without symlink-safe removal fail closed.
+After two successful audits and identity checks under the shared launch lock,
+remove deletes only `.venv`, then re-audits before plain Git worktree removal.
+A cleanup failure preserves the worktree and prevents Git removal.
