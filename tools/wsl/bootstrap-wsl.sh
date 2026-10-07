@@ -83,10 +83,25 @@ import datetime, json, os, platform, subprocess, sys
 from pathlib import Path
 import matplotlib, numpy, scipy, yaml
 
+def decode_command_output(data):
+    if not data:
+        return ""
+    if data.startswith((b"\\xff\\xfe", b"\\xfe\\xff")):
+        return data.decode("utf-16", errors="replace")
+    odd = data[1::2]
+    if len(data) % 2 == 0 and odd and (odd.count(0) / len(odd)) > 0.20:
+        return data.decode("utf-16-le", errors="replace")
+    for encoding in ("utf-8", "cp932"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            pass
+    return data.decode("utf-8", errors="replace")
+
 def command(*args):
     try:
-        result = subprocess.run(args, capture_output=True, text=True, check=False)
-        return {"exit_code": result.returncode, "output": (result.stdout + result.stderr).strip()}
+        result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
+        return {"exit_code": result.returncode, "output": decode_command_output(result.stdout).strip()}
     except OSError as exc:
         return {"exit_code": None, "output": str(exc)}
 
