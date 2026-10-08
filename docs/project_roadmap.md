@@ -1,190 +1,131 @@
 # SAW COM Filter Optimizer — Project Goal and Long-Term Roadmap
 
-**Status:** Active project roadmap
-**Baseline date:** 2026-10-08
-
-**Current baseline:** after Stage 4C
-**Repository:** `saw-com-optimizer`
+**Status:** Active product/development roadmap
+**Revision:** 2026-10-08 — goals reset after Stage 4C
+**Evidence baseline:** Stage 4C complete; topology selection unresolved
 
 ---
 
-## 1. Purpose
+## 1. Revised project goals
 
-This document defines the long-term engineering objective of the SAW COM filter optimization project and the sequence of work required to reach it.
+Develop a reusable SAW filter design flow for **user-provided COM parameters, frequency-domain specifications, geometry/area limits, and source/load impedances**.
 
-It is a **living forward-looking document**. Historical experiment results and evidence belong in:
+1. **Constrained optimization:** Find and report the best design discovered under the specified model, constraints, topology/design variables, and computing budget.
+2. **Re-optimized impedance sensitivity:** Re-optimize the filter at **each** sampled source/load impedance condition and visualize achieved performance as a **Smith-chart heatmap**. A fixed-design termination sweep is **not** a user-facing goal.
+3. **Practical computation:** Reduce both the number of evaluations required and the work per evaluation so single designs and impedance maps complete within realistic time/resources.
 
-- `docs/history/current_baseline.md`
-- `docs/history/experiment_register.md`
+The tool must work with given, even hypothetical, COM values. **Measurement/FEM calibration, material attribution, device correlation, manufacturability certification and physical validation are no longer mandatory project gates.** Numerical correctness, COM conventions, input units, consistency of modeled constraints, and reproducibility remain mandatory. A calibrated model may be supplied, but cannot be required.
 
-Software structure and ownership belong in:
-
-- `docs/architecture_overview.md`
-
-This roadmap should be updated when a major gate changes the adopted technical direction. It should not become a detailed log of every experiment.
+B28 Rx at 50/50 ohm is a **regression and diagnostic case** rather than the universal product deliverable. DMS and DMS-plus-ladder hybrid are supported design candidates, not assumed final winners. Never claim that a finite-budget best-found design is mathematically globally optimal.
 
 ---
 
-## 2. Final project goal
+## 2. Completion criteria
 
-The final goal is to determine, with reproducible numerical evidence and a physically qualified model, the **best robustly achievable B28 Rx SAW filter design** when the following are allowed to vary jointly:
-
-- SAW filter topology;
-- DMS geometry and relevant discrete/continuous design degrees of freedom;
-- ladder-resonator structure and geometry;
-- source impedance `Zs`;
-- load impedance `Zl`.
-
-The project must not assume that the optimum occurs at `Zs = Zl = 50 Ω`, and it must not assume that the optimum source and load impedances are equal.
-
-For every impedance pair under consideration, the filter itself must be **independently re-optimized**. Comparing one fixed filter under different terminations is not sufficient for the final impedance conclusion.
-
-The final result should answer:
-
-> Under a calibrated COM / network model and realistic manufacturing constraints, what topology, geometry, source impedance, and load impedance give the best achievable B28 Rx performance, and how much improvement is obtained relative to an independently optimized 50/50 Ω reference?
-
-The intended final architecture is expected to be a **DMS + ladder hybrid**, but this is a working hypothesis rather than a predetermined conclusion. The project must retain the ability to reject that hypothesis if the validated evidence favors another topology.
-
----
-
-## 3. Definition of a successful final result
-
-A final design recommendation is not complete unless it contains all of the following:
-
-| Item | Required final evidence |
+| Goal | Required deliverable |
 |---|---|
-| Physical model | COM parameters traceable to measurement and/or FEM, with documented loss, phase, terminal, material, and geometry assumptions |
-| Topology | Selected DMS / hybrid topology with alternatives explicitly compared |
-| Geometry | Fully specified optimized geometry within manufacturing constraints |
-| Port condition | Independently optimized `Zs` and `Zl`, with 50/50 Ω retained as the reference |
-| Electrical performance | Common dense-grid evaluation of passband loss/ripple, return loss or VSWR, and stopband attenuation |
-| Optimization evidence | Multiple independent seeds, sufficient budget, convergence evidence, and boundary diagnostics |
-| Robustness | Sensitivity to manufacturing variation, model uncertainty, and relevant parasitics |
-| Reproducibility | Frozen config, source fingerprint, result summary, and review bundle |
-| Decision statement | Quantified difference between the selected design and the independently optimized 50/50 Ω reference |
+| Parametric design | Explicit COM input, filter specifications, topology, variables/bounds, dimension/area constraints, Zs/Zl and optimizer budget; best-found geometry, metrics, feasibility and constraint violations |
+| Impedance sensitivity | At each selected Zs/Zl, an **independently re-optimized** candidate and validated performance; Smith heatmaps over named impedance-space slices; 50/50-ohm baseline |
+| Computational efficiency | Measured time-to-target, evaluation breakdown, CPU/memory, seed variation, map scaling; faster methods shown to preserve validated solution quality |
+| Reproducibility | Frozen inputs, source/computation identity, seeds, search horizon, dense-grid results and compact review evidence |
 
-The project should report a Pareto set when meaningful trade-offs remain rather than forcing a single scalar “winner” prematurely.
+An infeasible result under a given COM/area/spec combination is **a legitimate tool output**: include the best-found design, active limits, major violated bands/metrics and confidence/unfinished-convergence warnings. Do not force an apparent feasible design by silently relaxing constraints. When useful, report non-dominated alternatives for conflicting performance metrics.
 
 ---
 
-## 4. Current baseline — after Stage 4C
+## 3. Baseline and the immediate problem at 50 ohm
 
-The project has a reusable software architecture with separate `core`, `problem`, `optimizers`, `optimization`, `studies`, `io`, `reporting`, and orchestration layers. Stage 4A qualified the hybrid representation and protocol mechanics. Stage 4B compared four hybrid topologies, and Stage 4C completed the matched convergence/budget study of `P_D` and `D_P` at fixed 50/50 Ω under the provisional MLIT/T1 model. See [`history/current_baseline.md`](history/current_baseline.md) and [`history/experiment_register.md`](history/experiment_register.md).
+Prior studies remain immutable historical evidence; see [current baseline](history/current_baseline.md) and [experiment register](history/experiment_register.md).
 
-The historical cleanup is complete, and closed experiment knowledge is retained in the history documents and the annotated Git recovery tag.
+- Stage 4A qualified hybrid computation/protocol behavior.
+- Stage 4B completed 20/20 cells with four topologies; none achieved feasibility.
+- Stage 4C completed **10/10 cells × 96,000 evaluations** at fixed 50/50 ohm with integrity PASS. P_D and D_P both had feasible 0/5; matched wins were 3–2; all 10 terminal cells were immature and still improving; three cells had unresolved resonator_0_pairs upper-bound hits. Scientific disposition: **STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED**. Execution completion does not imply convergence or topology selection. The persisted orchestration review state is **REVIEW_WAITING**.
+- The 2026-10-08 [fixed-design resonator-pairs probe](history/stage4c_resonator_pair_coordinate_probe.md) reproduced all five baseline cases. All 15 points over 60 pairs improved stop_2, but only 1/15 improved maximum violation (by 0.00486), so classification was **MIXED_BOUND_SIGNAL**. The probe is diagnostic only; it did not authorize expanding bounds or rerunning production.
+- The previous advice in that historical probe to prioritize COM/model calibration reflected the **old project objective**. Calibration is not a gate under this revised roadmap.
 
-Scientifically, the current state is:
-
-- 50/50 Ω remains the comparison reference.
-- Source and load impedance must remain independently controllable.
-- The Stage 3.6 G1+G2 release is the historical 50 Ω DMS reference.
-- T0, T1, and T2 DMS representations are available and validated at the structural/network level.
-- Stage 3.8C produced no filter-feasible design.
-- The selected MLIT/T1 50/50 Ω DMS reference path closed Stage 3.9 under branch (b); two accepted 16k trajectories plateaued empirically near maximum normalized violation 0.43 while remaining materially infeasible.
-- Stage 4B run `20261003_014817_ea08db` completed 20/20 cells (4 topologies × 5 matched seeds × 24,000 unique evaluations) with integrity PASS, but all four topologies remained 0/5 feasible.
-- The formal Stage 4B IQR shortlist retained all four topologies, so it did not identify a unique production winner. External review carries `P_D` and `D_P` forward as the practical shortlist and de-prioritizes `D` and `P_D_P` without globally rejecting them.
-- `P_D` and `D_P` remained close: the matched-seed lexicographic comparison split 2–3 between them, and the 50/50 Ω direction sanity check found no stable input-side versus output-side worst-IL preference.
-- Stage 4B did not establish convergence; its late improvement led to the separately budgeted Stage 4C study.
-- Stage 4C run `20261006_124153_ed50ba` completed 10/10 cells at 96,000 unique evaluations each with integrity PASS and all final checkpoints finalized. The optimizer is `COMPLETED`; orchestration remains `REVIEW_WAITING`.
-- Stage 4C found no feasible cells (`P_D` 0/5; `D_P` 0/5). Matched terminal wins were 3 for `P_D` and 2 for `D_P`, below the 4/5 clear-winner gate. All 10 terminal cells are `IMMATURE_OR_INCOMPLETE`, all improved significantly from 80k to 96k, and unresolved terminal upper-bound hits on `resonator_0_pairs` remain in three cells. Classification: `STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED`; do not promote either topology.
-- The 0.02 maximum normalized violation threshold used in interpretation is computational only; it is not a manufacturing or measurement tolerance. Stage 4C does not qualify the provisional COM model or establish physical feasibility.
-- Since no credible near-feasible result or converged winner was demonstrated, the next gate is an independent review and plan on whether to reconsider the model/design space, investigate the active bound, or propose further convergence work. This closeout authorizes none of those changes or another production run.
-- The dominant remaining violation is usually the 832–862 MHz upper stopband (`stop_2`). Broad active-bound saturation was not observed.
-- Formal convergence is still not established for the hybrid shortlist; MLIT/T2 also remains unresolved and unpromoted.
-- M0 and MLIT cannot yet support a clean material-superiority claim because their provenance and aperture bounds differ.
-- MLIT is still an evaluation-only literature profile, not a production-qualified material model.
-- The final impedance optimum is unknown. Earlier 45 Ω and 62.5 Ω observations are screening results only and are not final recommendations.
-
-Accordingly, the project is **not ready for the final 2-D impedance sweep**.
-Stage 6 has not started; both the stable design-direction gate and calibrated
-COM/model qualification remain open.
+**We do not yet know why 50/50-ohm optimization remains below specification.** Plausible and possibly interacting causes are optimizer implementation/parameterization, insufficient search, imposed geometry/area and variable bounds, available topology/design degrees of freedom, and performance trade-offs under the supplied COM input. Failure to find a feasible solution does **not** prove mathematical infeasibility.
 
 ---
 
-## 5. Long-term roadmap
+## 4. Development phases and gates
 
-| Phase | Main question | Core work | Exit gate |
+| Phase | Purpose | Required work | Exit gate |
 |---|---|---|---|
-| **Stage 3.9 — Search viability and 50 Ω reference recovery (CLOSED 2026-09-27, branch b scoped to MLIT/T1)** | Can the current model/topology/search space produce a credible feasible or near-feasible 50 Ω design? | Decompose active violations by constraint/frequency; improve search coverage and parameterization without silently relaxing physical constraints; resolve obviously inefficient/redundant DOFs; keep common dense validation and reproducible L-SHADE accounting; align material bounds before direct M0-vs-MLIT comparisons or keep the material tracks separate. | Closed for the selected MLIT/T1 50/50 Ω DMS reference path after two accepted 16k trajectories remained materially infeasible near max normalized violation 0.43. MLIT/T2 remains unresolved and unpromoted. This is not a global impossibility result. |
-| **Stage 4A — hybrid protocol qualification (COMPLETED)** | Can the hybrid representation use the current accounting, validation, provenance, and checkpoint contracts? | Completed implementation validation, D-only parity, and bounded smoke cells at 50/50 Ω. | Hybrid software baseline is available; no scientific topology ranking or feasible-filter claim follows from the smoke. |
-| **Stage 4B — hybrid topology comparison (COMPLETED 2026-10-03)** | Which DMS + ladder architecture should be carried forward? | Compared `D`, `P_D`, `D_P`, and `P_D_P` at MLIT/T1, fixed 50/50 Ω, five matched cold seeds, 24k unique evaluations/cell, and common 9,113-point validation. | Execution/integrity accepted. No topology was feasible. Formal shortlist rule retained all four; external review carries `P_D` and `D_P` as the practical shortlist while keeping topology selection unresolved. |
-| **Stage 4C — shortlisted hybrid convergence / budget qualification (COMPLETED 2026-10-07; selection unresolved)** | Do `P_D` and `D_P` retain their relative advantage with a sufficiently long predeclared search horizon, and does either approach a stable near-feasible region? | Compared `P_D` and `D_P` at MLIT/T1, fixed 50/50 Ω, five matched cold seeds, 96k unique evaluations/cell, and common 9,113-point validation; recorded late improvement and terminal bound diagnostics. | No feasible cells; matched wins 3–2, below the 4/5 rule; all 10 terminal cells immature and still improving; three terminal unresolved `resonator_0_pairs` upper-bound hits. Exit disposition: `STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED`. Promote neither. The result did not demonstrate a credible near-feasible region, so review model/design-space and boundary options before proposing any next study. |
-| **Model Qualification Track — run in parallel, become mandatory before final impedance optimization** | Is the physical model accurate enough for a real impedance conclusion? | Extract/fit COM parameters from FEM and/or measurement; resolve electrode/material assumptions, terminal/phase registry, attenuation/loss conventions, aperture dependence, and parasitics; validate against resonator/device S-parameters; version the calibrated provider. | A calibrated model with documented uncertainty and validation error. No final impedance recommendation is allowed before this gate. |
-| **Stage 5 — Calibrated-model re-baseline and geometry release** | Which eligible topology and geometry DOFs remain justified after physical calibration? | Re-run the 50 Ω reference and each still-eligible hybrid candidate under the calibrated model; release left/right/asymmetric or additional geometry DOFs progressively; re-check active bounds and parameter correlations; reconsider topology if calibration materially changes the ranking. | A calibrated, converged 50/50 Ω production reference and a frozen design-space definition for impedance exploration. |
-| **Stage 6 — Asymmetric impedance exploration** | Where in `(Zs, Zl)` space does the independently re-optimized filter perform best? | Use an outer impedance search and a full inner filter re-optimization for every impedance pair. Preserve separate `Zs` and `Zl`. Begin with a coarse 20–200 Ω real-impedance region or an adaptively selected representative subset, retain 50/50 Ω as a control, then refine promising regions. Warm starts may accelerate computation but must not replace independent global-search protection. Stage 4C left `P_D` and `D_P` unresolved, so both remain eligible for later asymmetric work; a 50/50 Ω directional tie does not imply equivalence when `Zs != Zl`. | A reproducible impedance-performance map with a small set of candidate regions; no optimum claim based only on sparse screening. |
-| **Stage 7 — Deep certification of candidate impedance regions** | Are the apparent impedance gains real and converged? | Increase seeds and budget for the best candidate pairs plus 50/50 Ω; perform late-improvement and boundary checks; compare cold-start and transferred populations where necessary; verify common-grid performance and repeatability. | Stable ranking of the candidate impedance regions with convergence evidence strong enough to support engineering comparison. |
-| **Stage 8 — Robust optimization and implementation realism** | Does the advantage survive realistic uncertainty? | Include manufacturing tolerances, material/model uncertainty, electrode/process variation, and relevant package/interconnect parasitics. Evaluate robust or yield-oriented objectives and retain Pareto alternatives where appropriate. | The preferred non-50 Ω or 50 Ω solution remains competitive under uncertainty and does not depend on an unrealistically narrow nominal optimum. |
-| **Stage 9 — Physical validation and final release** | Does hardware/FEM validation agree with the predicted design advantage? | Fabricate or otherwise validate the final candidate(s), compare measured/FEM and predicted S-parameters, update the calibrated model if needed, and perform one final optimization/verification loop if discrepancies are material. | Final released design and impedance recommendation with measured/FEM correlation, uncertainty statement, and complete reproducibility package. |
+| **Stage 5A — Diagnose and simplify the 50-ohm optimization** (**NEXT**) | Determine whether generic high-dimensional optimization is feasible in realistic compute time and what blocks current performance | Audit objective/network and optimizer; quantify quality/time scaling; diagnose constraints; investigate classical SAW synthesis for guided starts/reparameterization; fair bounded comparisons | Evidence-based cause matrix, baseline cost envelope, recommended algorithm/design-space strategy |
+| **Stage 5B — General-purpose design optimization** | Reliable best-found constrained designs for arbitrary supplied inputs | Unify COM/spec/area/topology/port/budget configuration; mixed-integer optimizer and ranking; diagnostics; optional validated SAW-informed search | End-to-end user-configurable optimization with consistent constraints and reproducible outputs |
+| **Stage 5C — Complex Zs/Zl numerical support** | Valid impedance-space evaluation | Positive-real reference parity; complex passive source/load power-transfer and reflection conventions; analytic network tests | Numerically verified complex-port evaluation without changing the meaning of old real-port results |
+| **Stage 5D — Impedance-wise re-optimization** | Compute best-found performance for sampled port pairs | Outer impedance sampling, independent inner design search, coarse-to-fine/adaptive refinement, comparison controls | Per-point candidate, validated metrics, seed/budget/time metadata |
+| **Stage 5E — Smith-chart re-optimized heatmaps** | Inspect impedance-dependent achievable filter quality | Gamma coordinates, fixed-other-port slices, selectable metrics, feasibility and missing-point annotation | Reproducible heatmap of **re-optimized designs**, not fixed geometry |
+| **Stage 5F — Runtime/memory scaling** | Make map computation practical | COM/Y and frequency reuse where valid, profiling, evaluation acceleration, worker parallelism, adaptive budgets and search efficiency | Demonstrated wall-clock/memory gains at comparable dense-validated quality |
+| **Stage 5G — Integrated design tool** | Ship a usable workflow | CLI/config, progress/time estimates, bounded resume, plots, export and benchmark documentation | Reproducible model→constrained design→impedance map→Smith plot within agreed resources |
+
+**Performance measurement starts at 5A and runs through all stages.** Stage 5F is the final integrated performance gate, not permission to postpone obvious optimizations.
+
+### Stage 5A-1 — Read-only numerical/optimizer and cost audit
+
+Start with existing Stage 4C evidence and current source. Verify feasibility-first comparator/objective behavior, search versus dense-validation ranking, mixed-integer canonicalization, geometry gates, initializer, cache identity, population behavior, late convergence, and run accounting. Distinguish implementation bugs from legitimate infeasible designs. Profile or reconstruct COM/network, metric, optimizer, validation and storage time. Estimate scaling by evaluations × seeds × topologies × impedance points and memory.
+
+Historical Stage 4C consumed about **18.1 cell-hours for 10 cells** at 96k each (roughly **1.8 cell-hours/cell**). This is a reference measurement, **not** a runtime guarantee. Dense maps that repeat the full 96k horizon at every point are likely impractical. Also, L-SHADE's terminal budget affects its population schedule: a checkpoint at 24k in a 96k run is not a valid independent 24k benchmark.
+
+**Deliverable:** quantitative generic-method quality/time envelope, identified correctness risks and minimum next experiment; no new production runs.
+
+### Stage 5A-2 — Generic high-dimensional optimization viability
+
+Before narrowing the search, treat the current 13-variable mixed continuous/integer P_D/D_P optimization as a generic constrained black-box problem. Check whether full-space L-SHADE, controlled differential evolution, and targeted local polish can achieve useful quality within a practical resource envelope. Keep the COM/spec/geometry contract fixed; use independent seeds, matching **unique-evaluation budgets** and **wall-clock quality curves**, followed by the same dense-grid validation. Start small; escalate only when evidence justifies the information gained. A method winning one short run is not evidence of universal superiority.
+
+### Stage 5A-3 — Constraint and design-space cause isolation
+
+Assess resonator pair bounds, DMS IDT variables, aperture, acoustic dimensions, hypothetical die footprint and electrode count. Begin with read-only boundary/correlation analysis; when warranted, authorize minimal **re-optimization** with one bound/constraint changed at a time, keeping independent baseline controls. Fixed-coordinate probes alone cannot settle a constrained multi-variable question. Only broaden topology, dimensionality or interacting constraints if simpler diagnostics fail or reveal strong coupling. Do not use a single optimizer failure to prove a mathematical impossibility.
+
+### Stage 5A-4 — Classical SAW-design guidance
+
+Review methods for center-frequency/wavelength and pitch initialization, DMS modal coupling and pole/zero placement, ladder resonator resonance/antiresonance or equivalent-circuit seeds, aperture/capacitance/matching, and hierarchical DMS/resonator adjustment. For each, document applicable COM assumptions and topology, which variables it guides, and when it is invalid.
+
+**First use the knowledge as a diversified initializer or reparameterization, without deleting parts of the full search space.** Only freeze variables or narrow bounds after a controlled demonstration that doing so does not materially degrade solution quality or robustness. Always retain a generic full-space fallback for other COM inputs/impedances.
+
+### Stage 5A-5 — Small controlled comparison and method selection
+
+Compare:
+- Generic full-space optimizer baseline;
+- Algorithmic improvements with the same design space;
+- SAW-guided initialization, hierarchical search or justified reduced-variable methods.
+
+Measure feasible fraction, common-grid best/median violations, stopband, IL, ripple, matching, seed variation, time-to-target, evaluation counts and memory. Use identical computational inputs, validated comparison rules and independent seeds. Select the simplest approach with demonstrated quality/runtime benefit. Obtain separate approval before any large run or permanent constraint change.
 
 ---
 
-## 6. Required sequencing rules
+## 5. Re-optimized impedance map definition
 
-The roadmap is intentionally gated.
+Let x denote geometry/topology design variables and F the declared feasibility-first objective. At every sampled port pair, the software must independently search for the best discovered x under that pair:
 
-**Do not perform the expensive final `Zs × Zl` optimization before both of these are true:**
+    best_found(Zs,Zl) ≈ min_x F(x; Zs,Zl)
 
-1. the topology/design-space direction is sufficiently stable at 50/50 Ω; and
-2. the COM/material model is physically qualified enough that an impedance optimum has engineering meaning.
+It maps the validated **best-found** performance after optimization, not the response of one fixed filter at different terminations. Warm-start sharing across map points is an optional acceleration and must be clearly labeled and checked against independent cold-start controls.
 
-Likewise, do not interpret a change in optimum impedance as a pure impedance effect if topology, material model, aperture bounds, objective definition, or optimization budget changed at the same time.
+For Smith display use **Gamma = (Z − Z0)/(Z + Z0)** with documented real positive reference Z0 (normally 50 ohm). Two independently complex port impedances are four real dimensions; provide first (a) a Zs Smith slice at fixed Zl and (b) a Zl Smith slice at fixed Zs. Mark the slice condition. Distinguish evaluated, interpolated, uncomputed, infeasible and insufficiently converged points.
 
-Every production impedance comparison must preserve the principle:
+The current **core/network.evaluate** supports positive real scalar terminations only. Complex source/load calculations require explicit available-source-power, delivered-load-power, reflection and power-wave/reference conventions. Verify against 50/50-ohm legacy results, analytic passive circuits and finite/passive power accounting before use. Return loss and VSWR require a stated impedance reference, not an implicit real-only assumption.
 
-\[
-x^*(Z_s,Z_l)=\arg\min_x F(x;Z_s,Z_l)
-\]
-
-and the outer comparison must be performed on the optimized value
-
-\[
-F^*(Z_s,Z_l)=F(x^*(Z_s,Z_l);Z_s,Z_l).
-\]
-
-The project is therefore a nested optimization problem, not a termination sweep of one fixed geometry.
-
-The active repository review path is GitHub-mediated external review. C2C is
-frozen as a historical reference and is not a roadmap gate; see
-[`guides/github_review_workflow.md`](guides/github_review_workflow.md).
+Allow plotting worst IL, ripple, source/load matching, stopband attenuation, maximum violation, feasibility and computational effort. Fixed-network impedance sweeps may serve **internal tests and optimizations**, but are not a separate end-user heatmap feature.
 
 ---
 
-## 7. Optimization strategy policy
+## 6. Efficiency, development and evidence rules
 
-L-SHADE is the current production search backend because it is the adopted later-stage protocol, not because the historical short-budget A/B proved universal optimizer superiority.
+Total effort depends on **distinct design evaluations × work per evaluation + validation/orchestration overhead**. Improvements may reduce required evaluations (SAW-guided initialization, structured parameterization, local refinement) or cost per evaluation (COM/Y reuse, cache, vectorization and careful frequency resolution). Reuse of a fixed geometry's Y-response across *different termination conditions* is valid only if it preserves the correct network semantics; it does not replace inner design re-optimization. Parallelize independent seeds/impedance points while measuring memory and I/O pressure.
 
-Optimizer strategy may be revisited when the dimensionality or topology changes substantially. A new benchmark is justified especially when moving from DMS-only to a higher-dimensional hybrid/full-asymmetric design space.
+Do not weaken the authoritative dense-grid validation or silently relax geometry/specification limits for speed. Set actual runtime targets with the user after baseline profiling rather than inventing an SLA now. L-SHADE remains the historical reference, **not** the presumed final optimizer.
 
-Potential later improvements such as surrogate-assisted search, multi-fidelity search, or specialized mixed-variable methods should be introduced only after the baseline problem and validation contract are stable. They are acceleration tools, not substitutes for model qualification or convergence evidence.
+Development cycle: **docs first → necessary focused tests → minimal implementation → review contradictions/dead code**. Keep the implementation KISS; avoid redundant legacy compatibility when not required by explicitly frozen historical evidence. Preserve historical experiment source identities and prior interpretation in [experiment register](history/experiment_register.md). New large production, resume, extra budget or changed bounds require a separate review and explicit user authorization.
 
----
-
-## 8. Documentation and evidence policy
-
-The repository should distinguish four document roles:
-
-| Document | Role |
-|---|---|
-| `docs/project_roadmap.md` | Forward-looking goals, sequencing, and gates |
-| `docs/history/current_baseline.md` | Current adopted scientific assumptions and unresolved questions |
-| `docs/history/experiment_register.md` | Closed experiment results, decisions, evidence limits, and provenance |
-| `docs/architecture_overview.md` | Current software architecture and ownership boundaries |
-
-At each major study closeout:
-
-1. record the experiment result in `experiment_register.md`;
-2. update `current_baseline.md` only when the adopted state changes;
-3. update this roadmap only when the future sequence, final goal, or a major gate changes;
-4. remove obsolete experiment-specific implementation from the active tree once its necessary evidence is preserved.
-
-The active repository should describe the **current system and future work**. Detailed superseded implementation plans should be retained through Git history/tags rather than left in the repository root as if they were active instructions.
+The official development environment and storage/review contracts remain as documented; this goal reset does not authorize any run. Use the active [GitHub review workflow](guides/github_review_workflow.md), not frozen C2C.
 
 ---
 
-## 9. Final deliverable
+## 7. Final deliverable and next task
 
-The project is complete when it can release a reproducible record containing:
+A user can supply **COM parameters, performance spec, topology/variables, area/geometry limits, independent (potentially complex) Zs/Zl conditions and runtime budget**, then obtain the best-found constrained design with explanations if infeasible, a Smith heatmap of independently re-optimized designs, verified metrics and reproducible run evidence, all at measured practical computation cost.
 
-**calibrated model version + selected topology + optimized geometry + `Zs*` + `Zl*` + validated B28 performance + robustness/yield evidence + comparison against an independently optimized 50/50 Ω reference + provenance/review bundle.**
+The tool need not prove actual-device accuracy, find a universally feasible design or demonstrate that non-50-ohm ports always win.
 
-The final conclusion may legitimately be that 50/50 Ω remains preferable. The purpose of the project is to determine the optimum from evidence, not to prove that a non-50 Ω interface is better.
+**NEXT:** Stage 5A-1 **read-only audit of optimizer integrity and full-space cost/quality feasibility**, followed by classical-SAW synthesis method investigation and the smallest fair comparison study. No automatic 192k/256k extension or COM calibration track.

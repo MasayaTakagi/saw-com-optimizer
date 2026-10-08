@@ -1,8 +1,13 @@
 # Current SAW Design Baseline
 
-This is the current decision state after Stage 4C (baseline date
-2026-10-08). Read `experiment_register.md` for the evidence and limitations
-behind each item.
+This is the current scientific and software decision state after Stage 4C
+(baseline date 2026-10-08). The project goal was revised on 2026-10-08 to
+general constrained design optimization using supplied COM inputs, Smith
+heatmaps of independently re-optimized impedance conditions, and practical
+runtime. Physical COM calibration is no longer a roadmap requirement; correct
+units/numerics and explicit design constraints remain required. See
+`../project_roadmap.md` for the new plan and `experiment_register.md` for
+historical evidence and limitations.
 
 ## Physical model
 
@@ -16,8 +21,9 @@ behind each item.
   source-device geometry, terminal/phase registry, and loss details prevent a
   production-qualified or native-device claim. The profile must not borrow
   missing values from M0.
-- FEM or measurement extraction is still needed to establish material
-  parameters and device-specific loss. A 2026-09-25 retrospective recovery of
+- FEM or measurement extraction would be needed to make claims about real
+  device-specific parameters or loss, but it is **not a prerequisite** for the
+  revised given-COM optimization tool. A 2026-09-25 retrospective recovery of
   the Stage 3.7D closeout corrected the aperture lineage: the 150 µm MLIT upper
   bound was judged moderately active, a no-rerun probe at 150/165/180/200 µm
   supported adopting 30–180 µm for the next topology screen, and 200 µm was
@@ -140,30 +146,41 @@ behind each item.
   already present in `main` (commit `1acd381`); it was not reimplemented for
   this closeout.
 - Keep topology selection unresolved and retain both `P_D` and `D_P` as
-  candidates for later asymmetric `Zs != Zl` work. The final 2-D impedance
-  sweep has not started and remains gated on a sufficiently stable design
-  direction and calibrated COM/model qualification. This documentation
-  closeout authorizes no budget extension, bound change, model/design-space
-  change, or additional production run; those decisions belong to a separate
-  review and plan.
+  candidates for future asymmetric `Zs != Zl` re-optimization. The Smith
+  map of re-optimized complex impedance conditions has not started. Its new
+  prerequisites are diagnosis of optimizer/constraint limitations, reliable
+  design optimization, consistent complex-port numerics, and measured resource
+  feasibility, **not COM calibration**. The historical Stage 4C closeout
+  authorized no budget extension, bounds change, or further production run.
 
-## Current unresolved work
+## Revised objective and current unresolved work
 
-1. Obtain calibrated COM parameters from measurement or FEM and resolve the
-   MLIT source-data gaps.
-2. Either align material search bounds before comparing M0 and MLIT, or keep
-   cross-material conclusions explicitly conditional on the current M0
-   30–150 µm versus MLIT 30–180 µm ranges.
-3. Keep MLIT/T2 explicitly unresolved; do not promote it on underexplored
-   status alone. Any future T2 study is a separate, matched-budget question.
-4. Use a separate review and plan to decide how to address the unresolved
-   Stage 4C result, including whether to investigate the `resonator_0_pairs`
-   boundary, reconsider the model/design space, or propose another convergence
-   study. No such change or run is authorized by this closeout.
-5. A future impedance sweep must use independent inner optimizations per
-   impedance and retain asymmetric source/load interfaces. The historical
-   coarse screens are not a substitute, and impedance conclusions require a
-   calibrated COM model.
+- **Accepted probe evidence:** The Stage 4C resonator-pairs coordinate probe
+  is now recorded in
+  [stage4c_resonator_pair_coordinate_probe.md](stage4c_resonator_pair_coordinate_probe.md).
+  Five selected baselines reproduced existing values; 22 points were
+  geometry-valid under probe-only assumptions; all 15 points above 60
+  improved stop_2, but only one improved max violation (by 0.00486).
+  Disposition is MIXED_BOUND_SIGNAL, not permission to enlarge frozen bounds,
+  launch production, or promote either topology. Its earlier call to prioritize
+  physical COM qualification was conditional on the old goal and is superseded.
+
+1. **Stage 5A priority:** Audit 50/50-ohm objective/numerics, mixed-variable
+   optimizer, budget/seed behavior and late convergence. Distinguish optimizer,
+   geometry/area, bounds and model/topology causes; none has been proven primary.
+2. Characterize the practical quality/time envelope of generic full-space
+   optimization **before** reducing degrees of freedom or running new long
+   horizons. Historical Stage 4C checkpoints are not independent shorter runs.
+3. Investigate classical SAW synthesis for physically guided initialization
+   and hierarchical optimization; compare against full-space generic baselines
+   and preserve a fallback for arbitrary user-supplied COM parameters.
+4. Unify configurable COM/spec/area/geometry/port inputs and extend the
+   real-positive-only network evaluation to passive complex source/load.
+5. Build Smith heatmaps from a new design optimization at **each impedance
+   condition**; a fixed-geometry termination map is not a final feature.
+   Measure runtime/memory, dense-grid quality and seed dispersion as first-class
+   outputs. Historical M0 versus MLIT bounds and MLIT/T2 limitations remain
+   model-specific; no unwarranted material superiority claims.
 
 ## Active software boundaries
 
