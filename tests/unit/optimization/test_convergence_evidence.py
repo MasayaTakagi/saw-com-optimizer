@@ -1,4 +1,5 @@
 from sawopt.optimization import convergence_evidence as canonical
+from sawopt.optimizers.selection import FeasibilityFirstComparator, GeometryFirstComparator
 
 
 def test_explicit_checkpoint_evidence_and_budget_overrides_have_fixed_output():
@@ -112,3 +113,165 @@ def test_applied_evidence_augments_record_without_dropping_source_fields():
     assert result["fraction_of_budget_at_last_significant_improvement"] == 1.0
     assert result["convergence_evidence_complete"] is True
     assert result["convergence_evidence_missing_fields"] == []
+
+
+def _infeasible_trace_record(max_violation):
+    return {
+        "evaluation_status": "PHYSICS_EVALUATED",
+        "feasible": False,
+        "max_violation": max_violation,
+        "sum_violation": max_violation,
+        "metrics": {"worst_il_db": 8.0, "ripple_db": 2.0},
+        "violations": {"filter": max_violation},
+    }
+
+
+def _feasible_trace_record(worst_il=7.0):
+    return {
+        "evaluation_status": "PHYSICS_EVALUATED",
+        "feasible": True,
+        "max_violation": 0.0,
+        "sum_violation": 0.0,
+        "metrics": {"worst_il_db": worst_il, "ripple_db": 2.0},
+        "violations": {"filter": 0.0},
+    }
+
+
+def test_geometry_first_trace_uses_underlying_primary_rank_component():
+    comparator = GeometryFirstComparator()
+    earlier = comparator.rank_key(_infeasible_trace_record(0.4))
+    later = comparator.rank_key(_infeasible_trace_record(0.39))
+    assert earlier == (0.0, 0.0, 1.0, 0.4, 0.4, 8.0, 2.0)
+    assert later == (0.0, 0.0, 1.0, 0.39, 0.39, 8.0, 2.0)
+    assert earlier[1] == later[1] == 0.0
+    assert earlier[3] == 0.4
+    assert later[3] == 0.39
+    assert comparator.primary_metric(_infeasible_trace_record(0.4)) == 0.4
+    assert comparator.better(
+        _infeasible_trace_record(0.39), _infeasible_trace_record(0.4)
+    )
+
+    evidence = canonical.derive_checkpoint_evidence({
+        "requested_unique_design_budget": 10_000,
+        "best_so_far_trace": [
+            {"unique_evaluation": 234, "rank_key": list(earlier)},
+            {"unique_evaluation": 5_000, "rank_key": list(later)},
+        ],
+    }, trace_comparator="GeometryFirstComparator")
+
+    assert evidence["fraction_of_budget_at_last_significant_improvement"] == 0.5
+
+    new_trace_row = {
+        "comparator": "GeometryFirstComparator",
+        "rank_key": list(earlier),
+        "primary_metric": comparator.primary_metric(_infeasible_trace_record(0.4)),
+    }
+    assert canonical._trace_primary(new_trace_row) == 0.4
+    feasible_trace_row = {
+        "comparator": "GeometryFirstComparator",
+        "rank_key": list(comparator.rank_key(_feasible_trace_record())),
+        "primary_metric": comparator.primary_metric(_feasible_trace_record()),
+    }
+    assert canonical._trace_primary(feasible_trace_row) == 7.0
+
+
+def test_geometry_first_primary_metric_handles_evaluation_and_geometry_states():
+    comparator = GeometryFirstComparator()
+    feasible = _feasible_trace_record()
+    infeasible = _infeasible_trace_record(0.4)
+    rejected = {
+        "evaluation_status": "GEOMETRY_REJECTED",
+        "geometry_violations": {"max_total_length": 0.1},
+    }
+    failed = {"evaluation_status": "PHYSICS_FAILED"}
+
+    assert comparator.rank_key(feasible) == (0.0, 0.0, 0.0, 7.0, 2.0, 0.0, 0.0)
+    assert comparator.primary_metric(feasible) == 7.0
+    assert comparator.primary_metric(infeasible) == 0.4
+    assert comparator.primary_metric(rejected) is None
+    assert comparator.primary_metric(failed) is None
+    assert comparator.rank_key(rejected) == (1.0, 0.0, 0.1, 0.1, 0.0, 0.0, 0.0)
+    assert comparator.rank_key(failed) == (
+        0.0, 1.0, float("inf"), float("inf"), float("inf"), float("inf"), float("inf")
+    )
+    assert comparator.better(feasible, rejected)
+    assert comparator.better(failed, rejected)
+    assert canonical._trace_primary(
+        {"rank_key": list(comparator.rank_key(rejected))},
+        legacy_comparator="GeometryFirstComparator",
+    ) is None
+    assert canonical._trace_primary(
+        {"rank_key": list(comparator.rank_key(failed))},
+        legacy_comparator="GeometryFirstComparator",
+    ) is None
+
+
+def test_feasibility_first_trace_uses_its_primary_rank_component():
+    comparator = FeasibilityFirstComparator()
+    earlier = comparator.rank_key(_infeasible_trace_record(0.4))
+    later = comparator.rank_key(_infeasible_trace_record(0.39))
+    assert earlier == (1.0, 0.4, 0.4, 8.0, 2.0)
+    assert later == (1.0, 0.39, 0.39, 8.0, 2.0)
+    assert earlier[1] == 0.4
+    assert later[1] == 0.39
+    assert comparator.primary_metric(_infeasible_trace_record(0.4)) == 0.4
+    assert comparator.better(
+        _infeasible_trace_record(0.39), _infeasible_trace_record(0.4)
+    )
+
+    evidence = canonical.derive_checkpoint_evidence({
+        "requested_unique_design_budget": 10_000,
+        "best_so_far_trace": [
+            {"unique_evaluation": 234, "rank_key": list(earlier)},
+            {"unique_evaluation": 5_000, "rank_key": list(later)},
+        ],
+    }, trace_comparator="FeasibilityFirstComparator")
+
+    assert evidence["fraction_of_budget_at_last_significant_improvement"] == 0.5
+
+    feasible = _feasible_trace_record()
+    feasible_key = comparator.rank_key(feasible)
+    assert feasible_key == (0.0, 7.0, 2.0, 0.0, 0.0)
+    assert comparator.primary_metric(feasible) == 7.0
+    assert comparator.better(feasible, _infeasible_trace_record(0.4))
+    assert canonical._trace_primary({
+        "comparator": "FeasibilityFirstComparator",
+        "rank_key": list(feasible_key),
+        "primary_metric": 7.0,
+    }) == 7.0
+    infeasible_trace_row = {
+        "comparator": "FeasibilityFirstComparator",
+        "rank_key": list(earlier),
+        "primary_metric": comparator.primary_metric(_infeasible_trace_record(0.4)),
+    }
+    assert canonical._trace_primary(infeasible_trace_row) == 0.4
+
+
+def test_ambiguous_or_unknown_legacy_trace_layouts_remain_unavailable():
+    assert canonical._trace_primary({"rank_key": [0.0, 0.2]}) is None
+    assert canonical._trace_primary({
+        "rank_key": [0.0, 0.2, 0.3, 4.0, 5.0],
+    }) is None
+    assert canonical._trace_primary(
+        {"rank_key": [2.0, 0.2, 0.3, 4.0, 5.0]},
+        legacy_comparator="FeasibilityFirstComparator",
+    ) is None
+    assert canonical._trace_primary({
+        "comparator": "CustomComparator",
+        "rank_key": [1.0, 0.2, 0.3, 4.0, 5.0],
+    }) is None
+    assert canonical._trace_primary({
+        "comparator": "GeometryFirstComparator",
+        "rank_key": [1.0, 0.0, 0.1, 0.1, 0.0, 0.0, 0.0],
+    }) is None
+    assert canonical.derive_checkpoint_evidence({
+        "requested_unique_design_budget": 10_000,
+        "best_so_far_trace": [
+            {"unique_evaluation": 234, "rank_key": [0.0, 0.0, 1.0, 0.4, 0.4, 8.0, 2.0]},
+        ],
+    })["fraction_of_budget_at_last_significant_improvement"] is None
+    assert canonical._trace_primary({
+        "comparator": "CustomComparator",
+        "rank_key": [0.0, 0.0, 1.0, 0.4, 0.4, 8.0, 2.0],
+        "primary_metric": None,
+    }) is None

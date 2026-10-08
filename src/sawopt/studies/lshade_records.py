@@ -112,8 +112,10 @@ def serialize_lshade_record(backend, wiring, seed, budget, checkpoint_path,
          ),
          "design_space_version": int(backend.design_space_version),
     })
+    comparator = getattr(backend, "comparator", None)
     record = apply_checkpoint_evidence(
-        record, current_budget=requested, terminal_budget=terminal_budget
+        record, current_budget=requested, terminal_budget=terminal_budget,
+        trace_comparator=(type(comparator).__name__ if comparator is not None else None),
     )
     if isinstance(checkpoint_path, Mapping):
         record.update(checkpoint_path)

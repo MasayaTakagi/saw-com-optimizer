@@ -75,6 +75,11 @@ class FeasibilityFirstComparator:
         key = self.rank_key(record)
         return float(key[1])
 
+    def primary_metric(self, record: Mapping[str, Any]) -> float | None:
+        """Return the active scalar component for convergence telemetry."""
+        value = _finite(self.rank_key(record)[1])
+        return value if math.isfinite(value) else None
+
     def improvement(self, old: Mapping[str, Any], new: Mapping[str, Any]) -> float:
         if not self.better(new, old):
             return 0.0
@@ -145,6 +150,12 @@ class GeometryFirstComparator:
     def quality(self, record: Mapping[str, Any]) -> float:
         key = self.rank_key(record)
         return _finite(key[2], 1.0e12)
+
+    def primary_metric(self, record: Mapping[str, Any]) -> float | None:
+        """Return the underlying filter metric, excluding rank-key prefixes."""
+        if _evaluation_status(record) != "PHYSICS_EVALUATED":
+            return None
+        return DEFAULT_COMPARATOR.primary_metric(record)
 
 
 def rank_key(record: Mapping[str, Any], *, comparator: FeasibilityFirstComparator = DEFAULT_COMPARATOR):
