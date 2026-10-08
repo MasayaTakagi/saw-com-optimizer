@@ -420,11 +420,21 @@ class LShadeBackend(OptimizerBackend):
         self._update_incumbent()
         if self._incumbent is None:
             return
+        primary_metric = getattr(self.comparator, "primary_metric", None)
         row = {
             "unique_evaluation": int(self.unique_evaluations),
             "population_size": len(self._population),
             "frequency_grid_version": int(self.frequency_grid_version),
+            "comparator": type(self.comparator).__name__,
             "rank_key": list(self.comparator.rank_key(self._incumbent)),
+            "primary_metric": (
+                primary_metric(self._incumbent) if callable(primary_metric) else None
+            ),
+            "primary_metric_feasible": (
+                bool(self._incumbent["feasible"])
+                if isinstance(self._incumbent.get("feasible"), (bool, np.bool_))
+                else None
+            ),
         }
         previous_key = tuple(np.inf if value is None else value
                              for value in (self.best_so_far_trace[-1]["rank_key"]

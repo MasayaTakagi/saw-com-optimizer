@@ -76,3 +76,12 @@ def test_lshade_selection_and_trace_preserve_geometry_priority():
     assert backend.incumbent()["geometry_valid"] is True
     assert backend._ordered_indices()[0] != 0
     assert backend.best_so_far_trace[-1]["rank_key"][0] == 0.0
+    assert backend.best_so_far_trace[-1]["rank_key"][1] == 0.0
+    assert backend.best_so_far_trace[-1]["comparator"] == "GeometryFirstComparator"
+    assert tuple(backend.best_so_far_trace[-1]["rank_key"]) == comparator.rank_key(
+        backend.incumbent()
+    )
+    assert backend.best_so_far_trace[-1]["primary_metric"] == comparator.primary_metric(
+        backend.incumbent()
+    )
+    assert backend.best_so_far_trace[-1]["primary_metric_feasible"] is False

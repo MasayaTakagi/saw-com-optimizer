@@ -203,6 +203,7 @@ def _checkpoint_rows(
             })
             evidence = apply_checkpoint_evidence(
                 raw_evidence, current_budget=checkpoint, terminal_budget=BUDGET,
+                trace_comparator="GeometryFirstComparator",
             )
             row = {
                 "topology": topology, "seed": seed, "checkpoint_budget": checkpoint,

@@ -523,8 +523,10 @@ def test_stage4c_report_summaries_cover_convergence_boundary_runtime_and_stopban
                 "candidate_vector": vector,
             }
             trace = [
-                {"unique_evaluation": 1000, "rank_key": [0, 0.60]},
-                {"unique_evaluation": int(checkpoint * 0.70), "rank_key": [0, 0.40]},
+                {"unique_evaluation": 1000,
+                 "rank_key": [0.0, 0.0, 1.0, 0.60, 1.4, 4.4, 1.2]},
+                {"unique_evaluation": int(checkpoint * 0.70),
+                 "rank_key": [0.0, 0.0, 1.0, 0.40, 1.4, 4.4, 1.2]},
             ]
             (cell_dir / f"B{checkpoint}.json").write_text(json.dumps({
                 "common_grid_selected_finalist": selected,
@@ -576,8 +578,10 @@ def _write_boundary_checkpoint_fixture(tmp_path, context, *, early_hit, terminal
             },
             "lshade_summary": {
                 "best_so_far_trace": [
-                    {"unique_evaluation": 1000, "rank_key": [0, 0.60]},
-                    {"unique_evaluation": int(checkpoint * 0.70), "rank_key": [0, 0.40]},
+                    {"unique_evaluation": 1000,
+                     "rank_key": [0.0, 0.0, 1.0, 0.60, 1.2, 4.0, 1.0]},
+                    {"unique_evaluation": int(checkpoint * 0.70),
+                     "rank_key": [0.0, 0.0, 1.0, 0.40, 1.2, 4.0, 1.0]},
                 ],
             },
         }), encoding="utf-8")

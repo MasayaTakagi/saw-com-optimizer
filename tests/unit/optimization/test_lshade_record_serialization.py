@@ -28,8 +28,10 @@ class _FixedBackend:
             "hard_max_budget": 16,
             "search_space_exhausted": False,
             "best_so_far_trace": [
-                {"unique_evaluation": 4, "primary_metric": 10.0},
-                {"unique_evaluation": 8, "primary_metric": 9.97},
+                {"unique_evaluation": 4, "primary_metric": 10.0,
+                 "primary_metric_feasible": False},
+                {"unique_evaluation": 8, "primary_metric": 9.97,
+                 "primary_metric_feasible": False},
             ],
             "population_trace": [{"unique_evaluation": 8, "size": 4}],
         }
