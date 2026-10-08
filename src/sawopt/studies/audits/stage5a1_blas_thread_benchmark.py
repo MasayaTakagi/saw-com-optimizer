@@ -155,6 +155,24 @@ def validate_parallel_settings(settings: Sequence[str]) -> tuple[str, ...]:
     return selected
 
 
+def estimate_parallel_matrix_seconds(
+    pilot: Mapping[str, Any], *, jobs_per_batch: int,
+    repetitions: int, settings: Sequence[str], safety_factor: float = 1.25,
+) -> float:
+    """Scale the pilot evaluation window while charging process setup once per batch."""
+    if jobs_per_batch < 1 or repetitions < 1 or safety_factor < 1:
+        raise ValueError("invalid parallel matrix projection inputs")
+    setup_seconds = float(pilot["setup_wall_s"])
+    evaluation_seconds = float(pilot["evaluation_window_wall_s"])
+    if not math.isfinite(setup_seconds) or not math.isfinite(evaluation_seconds):
+        raise ValueError("parallel pilot times must be finite")
+    if setup_seconds < 0 or evaluation_seconds <= 0:
+        raise ValueError("parallel pilot times must be non-negative with a positive evaluation window")
+    return (setup_seconds + evaluation_seconds * jobs_per_batch / 24.0) * (
+        repetitions * len(settings) * len(WORKER_COUNTS) * safety_factor
+    )
+
+
 def validate_parallel_job_results(
     worker_results: Sequence[Mapping[str, Any]], *, rtol: float, atol: float,
 ) -> float:
@@ -1020,6 +1038,7 @@ def run_benchmark(
             single_summary_rows = summarize_single_profiles(single_profiles) if single_profiles else []
         pilot = None
         parallel_order = []
+        projected_matrix_seconds = None
         if len(profile_records) == len(BLAS_SETTINGS) and not partial_reason:
             try:
                 pilot = _run_parallel_condition(
@@ -1028,9 +1047,9 @@ def run_benchmark(
                 )
                 pilot["kind"] = "pilot"
                 throughput_rows.append(pilot)
-                projected_matrix_seconds = pilot["total_batch_wall_s"] * (
-                    jobs_per_batch / 24.0 * parallel_repetitions
-                    * len(parallel_settings) * len(WORKER_COUNTS) * 1.25
+                projected_matrix_seconds = estimate_parallel_matrix_seconds(
+                    pilot, jobs_per_batch=jobs_per_batch,
+                    repetitions=parallel_repetitions, settings=parallel_settings,
                 )
                 if projected_matrix_seconds > max(0.0, deadline - time.monotonic()):
                     partial_reason = (
@@ -1109,6 +1128,7 @@ def run_benchmark(
             "single_process_summary": single_summary_rows,
             "single_process_source": single_process_source,
             "parallel_pilot": pilot,
+            "projected_parallel_matrix_seconds": projected_matrix_seconds,
             "parallel_summary": parallel_summary,
             "errors": errors,
             "partial_reason": partial_reason,

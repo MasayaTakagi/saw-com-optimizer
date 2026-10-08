@@ -67,15 +67,17 @@ context only.
 
 Measure the fixed search-grid end-to-end Stage 4A evaluation with worker
 counts 1, 2, and 4. The default comparison includes Single, Dual, Quad, and
-Default BLAS. If the single-process results show no material latency change,
-the parallel matrix may be narrowed to Single and Default to keep total
-measurement time within the 15-minute cap; both settings remain mandatory.
-Record the reason and the omitted settings. These processes evaluate only the
-six saved finalists; they do not invoke optimizer code. Use 96 jobs per batch,
-assigned round-robin over those six candidates, two untimed warm-up calls per
-worker, and two batches per worker-count/BLAS combination. Shuffle the
-condition order with a recorded seed. Every worker is a fresh Python process
-with its BLAS environment set before import.
+Default BLAS. After reviewing single-process results, the parallel matrix may
+be narrowed to Single and Default if other settings show no material latency
+change. Retain any setting with a material single-process advantage for a
+parallel comparison; omit settings that are slower or otherwise unpromising.
+Single and Default remain mandatory. Record the reason and omitted settings.
+These processes evaluate only the six saved finalists; they do not invoke
+optimizer code. Use 96 jobs per batch, assigned round-robin over those six
+candidates, two untimed warm-up calls per worker, and two batches per
+worker-count/BLAS combination. Shuffle the condition order with a recorded
+seed. Every worker is a fresh Python process with its BLAS environment set
+before import.
 
 Measure process launch/context preparation separately from the synchronized
 evaluation window. Report total batch wall time, evaluation-window wall time,
@@ -86,9 +88,12 @@ production optimizer's total runtime. The parent samples Linux `/proc` while
 workers run; worker CPU time is measured with `time.process_time()`.
 
 First run a short worst-case pilot (four workers, default BLAS, 24 jobs) in a
-fresh process set. Do not begin the full matrix if its projected total runtime
-exceeds 15 minutes. Enforce a 15-minute overall limit and stop further
-conditions at the limit, retaining only completed results as PARTIAL.
+fresh process set. Project each full batch as its measured process/context
+setup time plus the pilot evaluation-window time scaled by the job-count
+ratio, then multiply by condition count and a 1.25 safety factor. Do not begin
+the full matrix if its projected total runtime exceeds the remaining
+15-minute allowance. Enforce that overall limit and stop further conditions
+at the limit, retaining only completed results as PARTIAL.
 
 ## Numerical comparison
 

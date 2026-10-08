@@ -7,6 +7,7 @@ from sawopt.studies.audits.stage5a1_blas_thread_benchmark import (
     BLAS_SETTINGS,
     blas_pool_signature,
     build_child_environment,
+    estimate_parallel_matrix_seconds,
     shuffled_single_order,
     summarize_single_profiles,
     summarize_throughput,
@@ -291,6 +292,15 @@ def test_parallel_condition_order_is_seeded_and_covers_every_worker_setting_pair
     assert {row["setting"] for row in narrowed} == {"single", "default"}
     with pytest.raises(ValueError, match="include Single and Default"):
         validate_parallel_settings(("quad",))
+
+
+def test_parallel_projection_scales_evaluation_and_charges_setup_once_per_batch():
+    projection = estimate_parallel_matrix_seconds(
+        {"setup_wall_s": 2.0, "evaluation_window_wall_s": 0.5},
+        jobs_per_batch=96, repetitions=2, settings=("single", "dual", "default"),
+    )
+
+    assert projection == pytest.approx(90.0)
 
 
 def test_parallel_job_results_check_all_candidates_and_existing_tolerance():
