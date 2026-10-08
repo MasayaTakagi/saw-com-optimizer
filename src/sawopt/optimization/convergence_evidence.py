@@ -59,28 +59,66 @@ def _trace_primary(
     return None
 
 
+def _trace_feasible(
+    row: Mapping[str, Any], *, legacy_comparator: str | None = None,
+) -> bool | None:
+    for field in ("primary_metric_feasible", "feasible"):
+        if field in row:
+            value = row.get(field)
+            return bool(value) if isinstance(value, (bool, np.bool_)) else None
+
+    comparator = row.get("comparator", legacy_comparator)
+    rank_key = row.get("rank_key")
+    if rank_key is None and "rank_tuple" in row:
+        # The legacy non-L-SHADE runner serialized FeasibilityFirstComparator
+        # keys as rank_tuple.
+        comparator = comparator or "FeasibilityFirstComparator"
+        rank_key = row.get("rank_tuple")
+    if not isinstance(rank_key, (list, tuple)):
+        return None
+
+    if (comparator == "FeasibilityFirstComparator"
+            and len(rank_key) == 5
+            and _number(rank_key[0]) in (0.0, 1.0)):
+        return _number(rank_key[0]) == 0.0
+    if (comparator == "GeometryFirstComparator"
+            and len(rank_key) == 7
+            and _number(rank_key[0]) == 0.0
+            and _number(rank_key[1]) == 0.0
+            and _number(rank_key[2]) in (0.0, 1.0)):
+        return _number(rank_key[2]) == 0.0
+    return None
+
+
 def _last_significant_fraction(
     trace: Any, budget: float, *, legacy_comparator: str | None = None,
 ) -> float | None:
     if not isinstance(trace, list) or not trace or budget <= 0:
         return None
     significant = []
-    previous = None
+    previous: tuple[bool, float] | None = None
     for row in trace:
         if not isinstance(row, Mapping):
             continue
         metric = _trace_primary(row, legacy_comparator=legacy_comparator)
+        feasible = _trace_feasible(row, legacy_comparator=legacy_comparator)
         evaluation = _number(row.get("unique_evaluation"))
         if metric is None or evaluation is None:
             continue
+        if feasible is None:
+            return None
         if previous is None:
             significant.append((evaluation, metric))
         else:
-            improvement = previous - metric
-            relative = improvement / max(abs(previous), np.finfo(float).tiny)
-            if improvement >= 0.02 or relative >= 0.01:
+            previous_feasible, previous_metric = previous
+            if not previous_feasible and feasible:
                 significant.append((evaluation, metric))
-        previous = metric
+            elif previous_feasible == feasible:
+                improvement = previous_metric - metric
+                relative = improvement / max(abs(previous_metric), np.finfo(float).tiny)
+                if improvement >= 0.02 or relative >= 0.01:
+                    significant.append((evaluation, metric))
+        previous = (feasible, metric)
     if not significant:
         return None
     return float(significant[-1][0] / budget)

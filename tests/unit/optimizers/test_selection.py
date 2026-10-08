@@ -84,3 +84,4 @@ def test_lshade_selection_and_trace_preserve_geometry_priority():
     assert backend.best_so_far_trace[-1]["primary_metric"] == comparator.primary_metric(
         backend.incumbent()
     )
+    assert backend.best_so_far_trace[-1]["primary_metric_feasible"] is False

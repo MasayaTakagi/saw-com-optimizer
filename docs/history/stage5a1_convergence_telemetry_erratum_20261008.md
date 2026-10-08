@@ -67,3 +67,20 @@ ranking, saved designs, and common-grid validation results are unchanged. The
 existing Stage 4C record shows significant improvement from 80k to 96k for all
 10 cells, so the topology-selection conclusion remains unresolved and no cell
 becomes mature because of this correction.
+
+## Metric-regime follow-up (2026-10-09)
+
+The active scalar metric depends on feasibility. While the incumbent is
+infeasible, `primary_metric` is `max_normalized_violation`; after it becomes
+feasible, `primary_metric` is `worst_il_db`. An infeasible-to-feasible
+transition is a significant improvement by itself, even if the new scalar is
+numerically larger. Within the same feasibility regime, the existing
+significance rule remains unchanged: absolute improvement of at least 0.02 or
+relative improvement of at least 1%. A row without a known feasibility regime
+cannot be compared across regimes and is left unavailable rather than
+interpreted by scalar value alone.
+
+This regime correction does not change the Stage 4C terminal diagnostics above:
+all saved incumbents in that run remained infeasible. The values still come
+from the optimizer search trace and do not measure improvement on the common
+validation grid.

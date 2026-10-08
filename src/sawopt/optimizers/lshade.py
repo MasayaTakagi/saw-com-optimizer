@@ -430,6 +430,11 @@ class LShadeBackend(OptimizerBackend):
             "primary_metric": (
                 primary_metric(self._incumbent) if callable(primary_metric) else None
             ),
+            "primary_metric_feasible": (
+                bool(self._incumbent["feasible"])
+                if isinstance(self._incumbent.get("feasible"), (bool, np.bool_))
+                else None
+            ),
         }
         previous_key = tuple(np.inf if value is None else value
                              for value in (self.best_so_far_trace[-1]["rank_key"]

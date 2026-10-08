@@ -48,8 +48,10 @@ def test_checkpoint_events_and_trace_fallback_have_fixed_output():
         "hard_bound_reached_by_variable": {"reflector_pitch": True},
         "best_candidate_polish": {"improvement": 0.125},
         "best_so_far_trace": [
-            {"unique_evaluation": 10, "primary_metric": 2.0},
-            {"unique_evaluation": 100, "primary_metric": 1.97},
+            {"unique_evaluation": 10, "primary_metric": 2.0,
+             "primary_metric_feasible": False},
+            {"unique_evaluation": 100, "primary_metric": 1.97,
+             "primary_metric_feasible": False},
         ],
     }
 
@@ -135,6 +137,20 @@ def _feasible_trace_record(worst_il=7.0):
         "metrics": {"worst_il_db": worst_il, "ripple_db": 2.0},
         "violations": {"filter": 0.0},
     }
+
+
+def _trace_row(record, comparator, unique_evaluation, *, new_format):
+    row = {
+        "unique_evaluation": unique_evaluation,
+        "rank_key": list(comparator.rank_key(record)),
+    }
+    if new_format:
+        row.update({
+            "comparator": type(comparator).__name__,
+            "primary_metric": comparator.primary_metric(record),
+            "primary_metric_feasible": bool(record["feasible"]),
+        })
+    return row
 
 
 def test_geometry_first_trace_uses_underlying_primary_rank_component():
@@ -245,6 +261,71 @@ def test_feasibility_first_trace_uses_its_primary_rank_component():
         "primary_metric": comparator.primary_metric(_infeasible_trace_record(0.4)),
     }
     assert canonical._trace_primary(infeasible_trace_row) == 0.4
+
+
+def test_feasibility_transition_and_within_regime_thresholds_for_old_and_new_traces():
+    infeasible = _infeasible_trace_record(0.4)
+    feasible_8 = _feasible_trace_record(8.0)
+    feasible_799 = _feasible_trace_record(7.99)
+    feasible_797 = _feasible_trace_record(7.97)
+    feasible_789 = _feasible_trace_record(7.89)
+
+    for comparator in (FeasibilityFirstComparator(), GeometryFirstComparator()):
+        for trace_format in ("rank_key_only", "primary_metric", "explicit_regime"):
+            new_format = trace_format != "rank_key_only"
+            trace = [
+                _trace_row(infeasible, comparator, 100, new_format=new_format),
+                _trace_row(feasible_8, comparator, 200, new_format=new_format),
+                _trace_row(feasible_799, comparator, 300, new_format=new_format),
+                _trace_row(feasible_797, comparator, 400, new_format=new_format),
+                _trace_row(feasible_789, comparator, 800, new_format=new_format),
+            ]
+            if trace_format == "primary_metric":
+                # Trace format emitted by the first PR commit: metric and
+                # comparator are present, while feasibility is inferred from
+                # the exact supported rank-key layout.
+                for row in trace:
+                    row.pop("primary_metric_feasible")
+            trace_comparator = None if new_format else type(comparator).__name__
+
+            # Infeasible -> feasible is significant despite a numerically
+            # larger scalar; a sub-threshold same-regime change is not.
+            assert canonical._last_significant_fraction(
+                trace[:2], 1000, legacy_comparator=trace_comparator,
+            ) == 0.2
+            assert canonical._last_significant_fraction(
+                trace[:3], 1000, legacy_comparator=trace_comparator,
+            ) == 0.2
+            # Same-regime absolute (0.03) and relative (>1%) improvements
+            # continue to use the existing thresholds.
+            assert canonical._last_significant_fraction(
+                trace[:4], 1000, legacy_comparator=trace_comparator,
+            ) == 0.4
+            assert canonical._last_significant_fraction(
+                trace, 1000, legacy_comparator=trace_comparator,
+            ) == 0.8
+
+
+def test_legacy_runner_rank_tuple_trace_detects_feasibility_transition():
+    comparator = FeasibilityFirstComparator()
+    trace = [
+        {
+            "unique_evaluation": 100,
+            "rank_tuple": list(comparator.rank_key(_infeasible_trace_record(0.4))),
+            "primary_metric": 0.4,
+        },
+        {
+            "unique_evaluation": 200,
+            "rank_tuple": list(comparator.rank_key(_feasible_trace_record(8.0))),
+            "primary_metric": 8.0,
+        },
+    ]
+
+    assert canonical._last_significant_fraction(trace, 1000) == 0.2
+    assert canonical._last_significant_fraction([
+        {"unique_evaluation": 100, "primary_metric": 0.4},
+        {"unique_evaluation": 200, "primary_metric": 8.0},
+    ], 1000) is None
 
 
 def test_ambiguous_or_unknown_legacy_trace_layouts_remain_unavailable():
