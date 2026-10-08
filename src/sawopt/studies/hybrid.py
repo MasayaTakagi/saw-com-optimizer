@@ -652,13 +652,17 @@ def _stage4a_y(candidate, provider, frequencies):
     return y, dms_simulation.diagnostics
 
 
-def _stage4a_evaluate(candidate, provider, cfg, frequencies, rs, rl, *, include_spectrum=False):
+def _stage4a_evaluate(candidate, provider, cfg, frequencies, rs, rl, *, include_spectrum=False,
+                      geometry_resonator_bounds=None):
+    """Evaluate one fixed candidate, with an opt-in geometry-bound override for diagnostics."""
     import math
     from ..core.metrics import measure
     from ..core.network import evaluate
     from ..problem.hybrid import hybrid_geometry
 
-    layout = hybrid_geometry(candidate, cfg)
+    geometry_options = ({} if geometry_resonator_bounds is None else
+                        {"resonator_bounds": geometry_resonator_bounds})
+    layout = hybrid_geometry(candidate, cfg, **geometry_options)
     gviolations = {
         **{f"dms_{key}": value for key, value in layout["dms"]["violations"].items()},
         **layout["resonator_violations"],
