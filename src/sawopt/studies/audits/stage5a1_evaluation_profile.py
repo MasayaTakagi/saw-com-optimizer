@@ -26,7 +26,7 @@ from ...core.metrics import measure
 from ...core.network import evaluate
 from ...problem.dms_topologies import T1, simulate_topology
 from ...problem.hybrid import hybrid_geometry
-from ...studies.hybrid import _stage4a_evaluate
+from ...studies.hybrid import stage4a_evaluate
 from ...studies.hybrid_stage4c import (
     COMMON_GRID_ID,
     COMMON_GRID_SHA256,
@@ -324,7 +324,7 @@ def capture_stage4a_reference(
         return result
 
     with patch.object(network_module, "evaluate", side_effect=capture):
-        record = _stage4a_evaluate(
+        record = stage4a_evaluate(
             candidate, context["provider"], context["cfg"], frequencies,
             context["source_impedance_ohm"], context["load_impedance_ohm"],
         )
@@ -341,7 +341,7 @@ def _timed_end_to_end(
     candidate = _candidate(vector, topology, context)
     decode_seconds = time.perf_counter() - decode_started
     evaluation_started = time.perf_counter()
-    record = _stage4a_evaluate(
+    record = stage4a_evaluate(
         candidate, context["provider"], context["cfg"], frequencies,
         context["source_impedance_ohm"], context["load_impedance_ohm"],
     )
