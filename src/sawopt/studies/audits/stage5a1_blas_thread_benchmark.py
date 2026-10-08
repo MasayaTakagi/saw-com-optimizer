@@ -458,11 +458,10 @@ def _single_worker_main(args: argparse.Namespace) -> int:
     import numpy  # imported only after the parent applied the child environment
     import scipy
     from threadpoolctl import threadpool_info
+    from sawopt.studies.audits.stage5a1_evaluation_profile import run_profile
 
     del numpy, scipy
-    pools = threadpool_info()
-    validation = validate_blas_pools(args.setting, os.environ, pools)
-    from sawopt.studies.audits.stage5a1_evaluation_profile import run_profile
+    validation = validate_blas_pools(args.setting, os.environ, threadpool_info())
 
     output_dir = Path(args.output_dir)
     run_profile(
@@ -478,10 +477,10 @@ def _parallel_worker_main(args: argparse.Namespace) -> int:
     import numpy  # imported only after the parent applied the child environment
     import scipy
     from threadpoolctl import threadpool_info
+    from sawopt.studies.audits import stage5a1_evaluation_profile as profile
 
     del numpy, scipy
     validation = validate_blas_pools(config["setting"], os.environ, threadpool_info())
-    from sawopt.studies.audits import stage5a1_evaluation_profile as profile
 
     setup_started = time.perf_counter()
     context = profile.load_stage4c_context(config["config"])
@@ -516,6 +515,9 @@ def _parallel_worker_main(args: argparse.Namespace) -> int:
         )
         if record.get("evaluation_status") != "PHYSICS_EVALUATED":
             raise RuntimeError("parallel worker warm-up evaluation failed")
+    # Evaluation imports may lazily load another library; verify every pool
+    # that will be active during the timed evaluation window.
+    validation = validate_blas_pools(config["setting"], os.environ, threadpool_info())
     setup_seconds = time.perf_counter() - setup_started
     thread_count = len(os.listdir("/proc/self/task")) if Path("/proc/self/task").exists() else None
     rss_kib = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
