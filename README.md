@@ -10,17 +10,29 @@ for historical results and decisions.
 See [`docs/project_roadmap.md`](docs/project_roadmap.md) for the long-term goal,
 sequencing, and phase exit gates.
 
-The current scientific baseline is after Stage 4A. Stage 4A qualified the
-hybrid implementation and protocol only; Stage 4B production comparison is
-still pending. See the [experiment register](docs/history/experiment_register.md)
-for evidence and limitations.
+The evidence baseline is after Stage 4C. Stage 4A qualified hybrid behavior,
+Stage 4B compared four topologies, and Stage 4C completed 10/10 cells with
+neither feasibility nor convergence/topology selection established. The
+2026-10-08 resonator-pair diagnostic is recorded separately. See the
+[experiment register](docs/history/experiment_register.md) for evidence.
+
+**Revised project targets:** (1) optimize filter designs under user-provided
+COM parameters, specification, area/geometry and impedance constraints,
+(2) draw Smith-chart performance heatmaps based on **independent design
+re-optimization at each sampled impedance**, and (3) make both workloads
+practical in time and resources. Physical COM calibration is optional, not
+a development gate. The next Stage 5A priority is to diagnose why existing
+50/50-ohm optimization has not met specification, quantify the generic
+high-dimensional optimizer's cost and quality, and evaluate classical
+SAW-design-guided search simplifications.
 
 ## Current workflows
 
 - DMS topology screening: `configs/studies/dms_topology_screening.yaml`
 - 50 Ω hybrid exploration: `configs/studies/hybrid_50ohm.yaml`
-- Prototype simulation, optimization, impedance sweep, and saved-run reports
-  through `uv run --locked python -m sawopt`
+- Existing prototype simulation, optimization, real-impedance sweep, and
+  saved-run reports through `uv run --locked python -m sawopt` (not yet the
+  planned re-optimized complex-impedance Smith heatmap workflow)
 
 Run from the worktree root in the WSL Ubuntu shell:
 
