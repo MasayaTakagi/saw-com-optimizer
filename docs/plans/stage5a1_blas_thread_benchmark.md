@@ -66,12 +66,16 @@ context only.
 ## Independent-process throughput protocol
 
 Measure the fixed search-grid end-to-end Stage 4A evaluation with worker
-counts 1, 2, and 4 and the same four BLAS settings. These processes evaluate
-only the six saved finalists; they do not invoke optimizer code. Use 96 jobs
-per batch, assigned round-robin over those six candidates, two untimed warm-up
-calls per worker, and two batches per worker-count/BLAS combination. Shuffle
-the condition order with a recorded seed. Every worker is a fresh Python
-process with its BLAS environment set before import.
+counts 1, 2, and 4. The default comparison includes Single, Dual, Quad, and
+Default BLAS. If the single-process results show no material latency change,
+the parallel matrix may be narrowed to Single and Default to keep total
+measurement time within the 15-minute cap; both settings remain mandatory.
+Record the reason and the omitted settings. These processes evaluate only the
+six saved finalists; they do not invoke optimizer code. Use 96 jobs per batch,
+assigned round-robin over those six candidates, two untimed warm-up calls per
+worker, and two batches per worker-count/BLAS combination. Shuffle the
+condition order with a recorded seed. Every worker is a fresh Python process
+with its BLAS environment set before import.
 
 Measure process launch/context preparation separately from the synchronized
 evaluation window. Report total batch wall time, evaluation-window wall time,
@@ -100,7 +104,12 @@ evaluation parity under their active BLAS setting before the timed window.
 
 Commit the protocol, runner, and tests before measuring. The measured runner
 must record its commit SHA, source SHA256, configuration, environment, grid
-and candidate identities. Write raw per-run CSV/JSON under a temporary
+and candidate identities. If an earlier committed run produced complete,
+parity-passing single-process profiles but its parallel phase failed, reuse
+those serial CSV/JSON files only after validating their source identity,
+candidate/grid identity, repetition counts, and effective BLAS settings; the
+parallel phase still runs from the current committed runner and its provenance
+is recorded separately. Write raw per-run CSV/JSON under a temporary
 directory outside the repository; never overwrite an existing output. After
 checking completeness and parity, copy only compact CSV/JSON evidence into
 `reports/benchmarks/stage5a1_blas_threads/` and commit it separately from the

@@ -121,11 +121,18 @@ def shuffled_single_order(seed: int) -> list[str]:
     return settings
 
 
-def shuffled_parallel_order(seed: int, repetitions: int) -> list[dict[str, Any]]:
+def shuffled_parallel_order(
+    seed: int, repetitions: int, settings: Sequence[str] | None = None,
+) -> list[dict[str, Any]]:
     if repetitions < 1:
         raise ValueError("at least one parallel repetition is required")
+    settings = tuple(BLAS_SETTINGS) if settings is None else tuple(settings)
+    if not settings or set(settings) - set(BLAS_SETTINGS):
+        raise ValueError("parallel settings must be a non-empty subset of BLAS settings")
+    if len(set(settings)) != len(settings):
+        raise ValueError("parallel settings may not be repeated")
     rng = random.Random(seed)
-    conditions = [(setting, workers) for setting in BLAS_SETTINGS for workers in WORKER_COUNTS]
+    conditions = [(setting, workers) for setting in settings for workers in WORKER_COUNTS]
     ordered = []
     for repetition in range(1, repetitions + 1):
         block = list(conditions)
@@ -136,6 +143,16 @@ def shuffled_parallel_order(seed: int, repetitions: int) -> list[dict[str, Any]]
             for setting, workers in block
         )
     return ordered
+
+
+def validate_parallel_settings(settings: Sequence[str]) -> tuple[str, ...]:
+    selected = tuple(settings)
+    if (not selected or set(selected) - set(BLAS_SETTINGS)
+            or len(set(selected)) != len(selected)):
+        raise ValueError("parallel settings must be a unique non-empty subset of BLAS settings")
+    if not {"single", "default"}.issubset(selected):
+        raise ValueError("parallel settings must include Single and Default")
+    return selected
 
 
 def validate_parallel_job_results(
@@ -160,6 +177,130 @@ def validate_parallel_job_results(
     if set(references) != {f"{topology}/{seed}" for topology, seed in CELL_IDENTITIES}:
         raise ValueError("parallel jobs did not cover all six saved finalists")
     return maximum_difference
+
+
+def blas_pool_signature(pools: Sequence[Mapping[str, Any]]) -> tuple[tuple[Any, ...], ...]:
+    """Canonicalize threadpoolctl results whose enumeration order can vary by process."""
+    return tuple(sorted(
+        (
+            str(pool.get("filepath", "")), str(pool.get("internal_api", "")),
+            str(pool.get("version", "")), int(pool["num_threads"]),
+        )
+        for pool in pools
+    ))
+
+
+def validate_reusable_single_results(
+    summary: Mapping[str, Any],
+    sample_rows: Sequence[Mapping[str, Any]],
+    single_summary_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Validate completed serial profiles from an earlier committed runner."""
+    if summary.get("status") not in ("COMPLETE", "PARTIAL"):
+        raise ValueError("reusable serial benchmark output has no completed run")
+    if summary.get("runner_tree_dirty") is not False or not summary.get("runner_commit_sha"):
+        raise ValueError("reusable serial benchmark source identity is invalid")
+    if not summary.get("runner_sha256") or not summary.get("base_main_commit_sha"):
+        raise ValueError("reusable serial benchmark provenance is incomplete")
+    records = list(summary.get("single_process_profiles", []))
+    if len(records) != len(BLAS_SETTINGS) or {row.get("setting") for row in records} != set(BLAS_SETTINGS):
+        raise ValueError("reusable serial results do not contain all four BLAS settings")
+    expected_candidates = {
+        f"cells/{topology}/{seed}_result.json" for topology, seed in CELL_IDENTITIES
+    }
+    expected_candidate_hashes = None
+    expected_grids = None
+    profile_commits = set()
+    profile_hashes = set()
+    for record in records:
+        setting = record["setting"]
+        if record.get("sample_count") != 84 or len(record.get("parity_results", [])) != 12:
+            raise ValueError(f"reusable {setting} profile is incomplete")
+        if any(result.get("status") != "PASS" for result in record["parity_results"]):
+            raise ValueError(f"reusable {setting} parity did not pass")
+        environment = record.get("environment", {})
+        thread_environment = {
+            key: value for key, value in environment.get("thread_environment", {}).items()
+            if value is not None
+        }
+        pool_evidence = validate_blas_pools(
+            setting, thread_environment, environment.get("threadpools"),
+        )
+        if pool_evidence.get("valid") is not True:
+            raise ValueError(f"reusable {setting} effective BLAS setting is invalid")
+        if record.get("blas_validation", {}).get("valid") is not True:
+            raise ValueError(f"reusable {setting} BLAS evidence is invalid")
+        current_candidates = record.get("candidate_input_files")
+        current_grids = record.get("grid_identities")
+        if set(current_candidates or {}) != expected_candidates:
+            raise ValueError("reusable serial profiles do not contain the six fixed candidates")
+        if any(not current_candidates.get(candidate) for candidate in expected_candidates):
+            raise ValueError("reusable serial profile has a missing candidate hash")
+        if expected_candidate_hashes is None:
+            expected_candidate_hashes, expected_grids = current_candidates, current_grids
+        elif current_candidates != expected_candidate_hashes or current_grids != expected_grids:
+            raise ValueError("reusable serial profiles do not share candidate/grid identities")
+        for grid, expected in GRID_IDENTITIES.items():
+            actual = (current_grids or {}).get(grid, {})
+            if any(actual.get(key) != value for key, value in expected.items()):
+                raise ValueError(f"reusable {setting} profile has the wrong {grid} grid")
+        profile_commits.add(record.get("profile_commit_sha"))
+        profile_hashes.add(record.get("profile_tool_sha256"))
+    if len(profile_commits) != 1 or None in profile_commits or len(profile_hashes) != 1 or None in profile_hashes:
+        raise ValueError("reusable serial profiles have inconsistent source identities")
+
+    setting_counts = {setting: 0 for setting in BLAS_SETTINGS}
+    sample_groups: dict[tuple[str, str, int, str], int] = {}
+    sample_repetitions: dict[tuple[str, str, int, str], set[int]] = {}
+    for row in sample_rows:
+        setting = str(row.get("setting"))
+        if setting not in setting_counts or row.get("stage4a_status") != "PHYSICS_EVALUATED":
+            raise ValueError("reusable serial sample has an invalid setting or evaluation status")
+        setting_counts[setting] += 1
+        topology, seed, grid = str(row.get("topology")), int(row.get("seed", -1)), str(row.get("grid"))
+        key = (setting, topology, seed, grid)
+        expected_grid = GRID_IDENTITIES.get(grid)
+        if (topology, seed) not in CELL_IDENTITIES or expected_grid is None:
+            raise ValueError("reusable serial sample has an unknown candidate or grid")
+        identity = expected_grid.get("sha256", expected_grid.get("grid_id"))
+        if (int(row.get("frequency_count", -1)) != expected_grid["frequency_count"]
+                or row.get("grid_identity") != identity):
+            raise ValueError("reusable serial sample has the wrong grid identity")
+        candidate_path = f"cells/{topology}/{seed}_result.json"
+        if row.get("candidate_evidence_sha256") != expected_candidate_hashes.get(candidate_path):
+            raise ValueError("reusable serial sample candidate hash differs from profile evidence")
+        sample_groups[key] = sample_groups.get(key, 0) + 1
+        sample_repetitions.setdefault(key, set()).add(int(row.get("repetition", -1)))
+    if any(count != 84 for count in setting_counts.values()):
+        raise ValueError("reusable serial sample rows are incomplete")
+    expected_sample_groups = {
+        (setting, topology, seed, grid)
+        for setting in BLAS_SETTINGS
+        for topology, seed in CELL_IDENTITIES
+        for grid in ("search", "common")
+    }
+    if (set(sample_groups) != expected_sample_groups
+            or any(count != 7 for count in sample_groups.values())
+            or any(repetitions != set(range(1, 8)) for repetitions in sample_repetitions.values())):
+        raise ValueError("reusable serial candidate/grid repetitions are incomplete")
+    if len(single_summary_rows) != len(BLAS_SETTINGS) * len(PROFILE_STAGES) * 2:
+        raise ValueError("reusable serial summary rows are incomplete")
+    summary_conditions = set()
+    for row in single_summary_rows:
+        setting = str(row.get("setting"))
+        if (int(row.get("candidate_count", -1)) != 6
+                or int(row.get("samples_per_candidate", -1)) != 7
+                or setting not in BLAS_SETTINGS
+                or row.get("grid") not in GRID_IDENTITIES or row.get("stage") not in PROFILE_STAGES):
+            raise ValueError("reusable serial summary has an incomplete condition")
+        summary_conditions.add((setting, row["grid"], row["stage"]))
+    expected_summary_conditions = {
+        (setting, grid, stage)
+        for setting in BLAS_SETTINGS for grid in GRID_IDENTITIES for stage in PROFILE_STAGES
+    }
+    if summary_conditions != expected_summary_conditions:
+        raise ValueError("reusable serial summary conditions are incomplete or duplicated")
+    return records
 
 
 def _profile_thread_environment(summary: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -258,15 +399,20 @@ def summarize_single_profiles(profiles: Mapping[str, Mapping[str, Any]]) -> list
 
 def summarize_throughput(
     rows: Sequence[Mapping[str, Any]], *, repetitions_per_condition: int = 2,
-    expected_jobs_per_batch: int = 96,
+    expected_jobs_per_batch: int = 96, settings: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     if repetitions_per_condition < 1:
         raise ValueError("at least one throughput repetition is required")
+    settings = tuple(BLAS_SETTINGS) if settings is None else tuple(settings)
+    if not settings or set(settings) - set(BLAS_SETTINGS):
+        raise ValueError("throughput settings must be a non-empty subset of BLAS settings")
+    if len(set(settings)) != len(settings):
+        raise ValueError("throughput settings may not be repeated")
     by_condition: dict[tuple[str, int], list[Mapping[str, Any]]] = {}
     seen: set[tuple[str, int, int]] = set()
     for row in rows:
         setting, workers, repetition = str(row["setting"]), int(row["workers"]), int(row["repetition"])
-        if setting not in BLAS_SETTINGS or workers not in WORKER_COUNTS:
+        if setting not in settings or workers not in WORKER_COUNTS:
             raise ValueError("unknown throughput condition")
         if repetition < 1 or repetition > repetitions_per_condition:
             raise ValueError("throughput repetition is outside the requested range")
@@ -288,7 +434,7 @@ def summarize_throughput(
 
     missing = [
         {"setting": setting, "workers": workers, "repetition": repetition}
-        for setting in BLAS_SETTINGS
+        for setting in settings
         for workers in WORKER_COUNTS
         for repetition in range(1, repetitions_per_condition + 1)
         if (setting, workers, repetition) not in seen
@@ -340,6 +486,7 @@ def summarize_throughput(
         )
     return {
         "status": "COMPLETE" if not missing else "PARTIAL",
+        "settings": list(settings),
         "expected_repetitions_per_condition": repetitions_per_condition,
         "missing_runs": missing,
         "conditions": summaries,
@@ -651,11 +798,14 @@ def _run_parallel_condition(
                for item in ready_data):
             raise ValueError("parallel workers did not pass preflight")
         pool_signatures = {
-            json.dumps(item["blas_validation"]["active_blas_libraries"], sort_keys=True)
+            blas_pool_signature(item["blas_validation"]["active_blas_libraries"])
             for item in ready_data
         }
         if len(pool_signatures) != 1:
-            raise ValueError("parallel workers loaded different BLAS libraries or thread counts")
+            raise ValueError(
+                "parallel workers loaded different BLAS libraries or thread counts: "
+                f"{sorted(pool_signatures)!r}"
+            )
         setup_wall = time.perf_counter() - started
         eval_started = time.perf_counter()
         _write_json(start_file, {"start": True})
@@ -727,6 +877,9 @@ def run_benchmark(
     repeats: int = 7, warmups: int = 2, parallel_repetitions: int = 2,
     jobs_per_batch: int = 96, order_seed: int = 20261009,
     max_runtime_seconds: float = 900.0,
+    parallel_settings: Sequence[str] = tuple(BLAS_SETTINGS),
+    reuse_single_process_results: str | Path | None = None,
+    prior_elapsed_seconds: float = 0.0,
 ) -> tuple[Path, Path, Path]:
     if repeats < 7 or warmups < 2 or parallel_repetitions < 1:
         raise ValueError("single profiles need 7 repeats/2 warm-ups and parallel runs need repetitions")
@@ -734,79 +887,140 @@ def run_benchmark(
         raise ValueError("parallel batch must have at least four jobs")
     if not 0 < max_runtime_seconds <= 900:
         raise ValueError("benchmark runtime limit must be positive and no more than 900 seconds")
+    parallel_settings = validate_parallel_settings(parallel_settings)
+    if not math.isfinite(prior_elapsed_seconds) or prior_elapsed_seconds < 0:
+        raise ValueError("prior elapsed seconds must be finite and non-negative")
     output_dir = Path(output_dir).resolve()
     if output_dir == ROOT or ROOT in output_dir.parents:
         raise ValueError("benchmark output must be outside the repository")
     if output_dir.exists():
         raise FileExistsError(f"refusing to overwrite benchmark output: {output_dir}")
-    deadline = time.monotonic() + max_runtime_seconds
     run_started = time.perf_counter()
     parent_environment = {name: os.environ.get(name) for name in THREAD_VARIABLES}
     single_profiles: dict[str, Mapping[str, Any]] = {}
     profile_records = []
     single_rows = []
+    single_summary_rows = []
     throughput_rows = []
     errors = []
     partial_reason = None
     setting_order = shuffled_single_order(order_seed)
+    single_process_source = None
+    prior_elapsed = prior_elapsed_seconds
+
+    if reuse_single_process_results is not None:
+        source_dir = Path(reuse_single_process_results).resolve()
+        if source_dir == ROOT or ROOT in source_dir.parents:
+            raise ValueError("reused serial results must be outside the repository")
+        source_summary = json.loads(
+            (source_dir / "benchmark_summary.json").read_text(encoding="utf-8")
+        )
+        with (source_dir / "single_process_samples.csv").open(newline="", encoding="utf-8") as stream:
+            source_samples = list(csv.DictReader(stream))
+        with (source_dir / "single_process_summary.csv").open(newline="", encoding="utf-8") as stream:
+            single_summary_rows = list(csv.DictReader(stream))
+        profile_records = validate_reusable_single_results(
+            source_summary, source_samples, single_summary_rows,
+        )
+        if source_summary.get("base_main_commit_sha") != _git_output("rev-parse", "origin/main"):
+            raise ValueError("reusable serial results were measured against a different main commit")
+        if source_summary.get("config") != config:
+            raise ValueError("reusable serial results use a different configuration")
+        if source_summary.get("parent_thread_environment") != parent_environment:
+            raise ValueError("reusable serial results have a different parent thread environment")
+        if prior_elapsed < float(source_summary.get("elapsed_wall_s", 0.0)):
+            prior_elapsed = float(source_summary["elapsed_wall_s"])
+        single_rows = source_samples
+        setting_order = list(source_summary.get("single_process_setting_order", []))
+        single_process_source = {
+            "output_id": source_dir.name,
+            "status": source_summary.get("status"),
+            "runner_commit_sha": source_summary["runner_commit_sha"],
+            "runner_sha256": source_summary["runner_sha256"],
+            "profile_tool_sha256": profile_records[0]["profile_tool_sha256"],
+            "metadata_json_sha256": hashlib.sha256(
+                (source_dir / "benchmark_summary.json").read_bytes()
+            ).hexdigest(),
+            "samples_csv_sha256": hashlib.sha256(
+                (source_dir / "single_process_samples.csv").read_bytes()
+            ).hexdigest(),
+            "summary_csv_sha256": hashlib.sha256(
+                (source_dir / "single_process_summary.csv").read_bytes()
+            ).hexdigest(),
+            "elapsed_wall_s": source_summary["elapsed_wall_s"],
+            "profile_setting_order": setting_order,
+        }
+        if source_summary.get("partial_reason"):
+            raise ValueError("reusable serial results contain a partial serial phase")
+        if any(error.get("phase") != "parallel_pilot"
+               for error in source_summary.get("errors", [])):
+            raise ValueError("reusable serial source has errors outside its parallel pilot")
+
+    if prior_elapsed >= max_runtime_seconds:
+        raise ValueError("prior benchmark time already reaches the 15-minute limit")
+    deadline = time.monotonic() + max_runtime_seconds - prior_elapsed
 
     with tempfile.TemporaryDirectory(prefix="stage5a1-blas-raw-") as temp_name:
         scratch = Path(temp_name)
-        for order_index, setting in enumerate(setting_order, start=1):
-            try:
-                _remaining(deadline)
-                child_output = scratch / f"single-{setting}"
-                command = [
-                    sys.executable, str(Path(__file__).resolve()), "--single-worker",
-                    "--setting", setting, "--config", config,
-                    "--output-dir", str(child_output), "--repeats", str(repeats),
-                    "--warmups", str(warmups), "--measurement-order-seed", str(order_seed),
-                ]
-                process, wall_seconds, peak_rss, peak_threads = _spawn_monitored(
-                    command, build_child_environment(setting), deadline,
-                )
-                del process
-                summary = json.loads((child_output / "profile_summary.json").read_text(encoding="utf-8"))
-                pool_validation = validate_profile_summary(setting, summary)
-                profile = {
-                    "setting": setting, "run_order": order_index,
-                    "process_wall_s": wall_seconds,
-                    "peak_rss_kib": peak_rss,
-                    "peak_process_threads": peak_threads,
-                    "blas_validation": pool_validation,
-                    "profile_commit_sha": summary["benchmark_commit_sha"],
-                    "profile_tool_sha256": summary["benchmark_utility_sha256"],
-                    "context_load_seconds": summary["context_load_seconds"],
-                    "candidate_evidence_read_seconds": summary["candidate_evidence_total_read_seconds"],
-                    "parity_validation_seconds": summary["parity_validation_seconds"],
-                    "candidate_input_files": summary["candidate_input_files"],
-                    "grid_identities": summary["grid_identities"],
-                    "parity_results": summary["parity_results"],
-                    "environment": summary["environment"],
-                    "sample_count": summary["sample_count"],
-                }
-                profile_records.append(profile)
-                single_profiles[setting] = summary
-                with (child_output / "measurements.csv").open(newline="", encoding="utf-8") as stream:
-                    for row in csv.DictReader(stream):
-                        single_rows.append({
-                            "setting": setting, "setting_run_order": order_index,
-                            "effective_blas_libraries": json.dumps(
-                                pool_validation["active_blas_libraries"], sort_keys=True,
-                            ),
-                            **row,
-                        })
-            except TimeoutError as exc:
-                partial_reason = str(exc)
-                errors.append({"phase": "single", "setting": setting, "error": str(exc)})
-                break
-            except Exception as exc:
-                errors.append({"phase": "single", "setting": setting, "error": f"{type(exc).__name__}: {exc}"})
+        if reuse_single_process_results is None:
+            for order_index, setting in enumerate(setting_order, start=1):
+                try:
+                    _remaining(deadline)
+                    child_output = scratch / f"single-{setting}"
+                    command = [
+                        sys.executable, str(Path(__file__).resolve()), "--single-worker",
+                        "--setting", setting, "--config", config,
+                        "--output-dir", str(child_output), "--repeats", str(repeats),
+                        "--warmups", str(warmups), "--measurement-order-seed", str(order_seed),
+                    ]
+                    process, wall_seconds, peak_rss, peak_threads = _spawn_monitored(
+                        command, build_child_environment(setting), deadline,
+                    )
+                    del process
+                    summary = json.loads(
+                        (child_output / "profile_summary.json").read_text(encoding="utf-8")
+                    )
+                    pool_validation = validate_profile_summary(setting, summary)
+                    profile = {
+                        "setting": setting, "run_order": order_index,
+                        "process_wall_s": wall_seconds,
+                        "peak_rss_kib": peak_rss,
+                        "peak_process_threads": peak_threads,
+                        "blas_validation": pool_validation,
+                        "profile_commit_sha": summary["benchmark_commit_sha"],
+                        "profile_tool_sha256": summary["benchmark_utility_sha256"],
+                        "context_load_seconds": summary["context_load_seconds"],
+                        "candidate_evidence_read_seconds": summary["candidate_evidence_total_read_seconds"],
+                        "parity_validation_seconds": summary["parity_validation_seconds"],
+                        "candidate_input_files": summary["candidate_input_files"],
+                        "grid_identities": summary["grid_identities"],
+                        "parity_results": summary["parity_results"],
+                        "environment": summary["environment"],
+                        "sample_count": summary["sample_count"],
+                    }
+                    profile_records.append(profile)
+                    single_profiles[setting] = summary
+                    with (child_output / "measurements.csv").open(newline="", encoding="utf-8") as stream:
+                        for row in csv.DictReader(stream):
+                            single_rows.append({
+                                "setting": setting, "setting_run_order": order_index,
+                                "effective_blas_libraries": json.dumps(
+                                    pool_validation["active_blas_libraries"], sort_keys=True,
+                                ),
+                                **row,
+                            })
+                except TimeoutError as exc:
+                    partial_reason = str(exc)
+                    errors.append({"phase": "single", "setting": setting, "error": str(exc)})
+                    break
+                except Exception as exc:
+                    errors.append({"phase": "single", "setting": setting,
+                                   "error": f"{type(exc).__name__}: {exc}"})
 
-        single_summary_rows = summarize_single_profiles(single_profiles) if single_profiles else []
+            single_summary_rows = summarize_single_profiles(single_profiles) if single_profiles else []
         pilot = None
         parallel_order = []
-        if len(single_profiles) == len(BLAS_SETTINGS) and not partial_reason:
+        if len(profile_records) == len(BLAS_SETTINGS) and not partial_reason:
             try:
                 pilot = _run_parallel_condition(
                     setting="default", workers=4, repetition=0, jobs=24,
@@ -816,7 +1030,7 @@ def run_benchmark(
                 throughput_rows.append(pilot)
                 projected_matrix_seconds = pilot["total_batch_wall_s"] * (
                     jobs_per_batch / 24.0 * parallel_repetitions
-                    * len(BLAS_SETTINGS) * len(WORKER_COUNTS) * 1.25
+                    * len(parallel_settings) * len(WORKER_COUNTS) * 1.25
                 )
                 if projected_matrix_seconds > max(0.0, deadline - time.monotonic()):
                     partial_reason = (
@@ -830,7 +1044,9 @@ def run_benchmark(
                 errors.append({"phase": "parallel_pilot", "error": f"{type(exc).__name__}: {exc}"})
 
         if pilot and not partial_reason and not errors:
-            parallel_order = shuffled_parallel_order(order_seed + 1, parallel_repetitions)
+            parallel_order = shuffled_parallel_order(
+                order_seed + 1, parallel_repetitions, settings=parallel_settings,
+            )
             for condition in parallel_order:
                 setting, workers, repetition = (
                     condition["setting"], condition["workers"], condition["repetition"]
@@ -861,16 +1077,16 @@ def run_benchmark(
         measurement_rows = [row for row in throughput_rows if row.get("kind") == "measurement"]
         parallel_summary = summarize_throughput(
             measurement_rows, repetitions_per_condition=parallel_repetitions,
-            expected_jobs_per_batch=jobs_per_batch,
+            expected_jobs_per_batch=jobs_per_batch, settings=parallel_settings,
         )
         complete = (
-            len(single_profiles) == len(BLAS_SETTINGS)
+            len(profile_records) == len(BLAS_SETTINGS)
             and parallel_summary["status"] == "COMPLETE"
             and not errors and not partial_reason
         )
         summary = {
             "schema_version": 1,
-            "status": "COMPLETE" if complete else ("PARTIAL" if single_profiles or throughput_rows else "BLOCKED"),
+            "status": "COMPLETE" if complete else ("PARTIAL" if profile_records or throughput_rows else "BLOCKED"),
             "base_main_commit_sha": _git_output("rev-parse", "origin/main"),
             "runner_commit_sha": _git_output("rev-parse", "HEAD"),
             "runner_tree_dirty": bool(_git_output("status", "--porcelain")),
@@ -882,6 +1098,7 @@ def run_benchmark(
             "single_process_repetitions": repeats,
             "single_process_warmups": warmups,
             "parallel_condition_order": parallel_order,
+            "parallel_settings": parallel_settings,
             "parallel_repetitions": parallel_repetitions,
             "parallel_jobs_per_batch": jobs_per_batch,
             "parallel_worker_counts": list(WORKER_COUNTS),
@@ -890,11 +1107,13 @@ def run_benchmark(
             "environment": _environment_metadata(),
             "single_process_profiles": profile_records,
             "single_process_summary": single_summary_rows,
+            "single_process_source": single_process_source,
             "parallel_pilot": pilot,
             "parallel_summary": parallel_summary,
             "errors": errors,
             "partial_reason": partial_reason,
-            "elapsed_wall_s": time.perf_counter() - run_started,
+            "elapsed_wall_s": prior_elapsed + time.perf_counter() - run_started,
+            "prior_elapsed_seconds": prior_elapsed,
             "max_runtime_seconds": max_runtime_seconds,
             "input_evidence_root": REVIEW_RELATIVE.as_posix(),
         }
@@ -915,6 +1134,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--jobs-per-batch", type=int, default=96)
     parser.add_argument("--order-seed", type=int, default=20261009)
     parser.add_argument("--max-runtime-seconds", type=float, default=900.0)
+    parser.add_argument("--parallel-settings", nargs="+", choices=tuple(BLAS_SETTINGS),
+                        default=list(BLAS_SETTINGS))
+    parser.add_argument("--reuse-single-process-results", type=Path)
+    parser.add_argument("--prior-elapsed-seconds", type=float, default=0.0)
     parser.add_argument("--single-worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--parallel-worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--setting", choices=tuple(BLAS_SETTINGS))
@@ -936,6 +1159,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         warmups=args.warmups, parallel_repetitions=args.parallel_repetitions,
         jobs_per_batch=args.jobs_per_batch, order_seed=args.order_seed,
         max_runtime_seconds=args.max_runtime_seconds,
+        parallel_settings=args.parallel_settings,
+        reuse_single_process_results=args.reuse_single_process_results,
+        prior_elapsed_seconds=args.prior_elapsed_seconds,
     )
     print(json.dumps({"outputs": [str(path) for path in paths]}))
     return 0

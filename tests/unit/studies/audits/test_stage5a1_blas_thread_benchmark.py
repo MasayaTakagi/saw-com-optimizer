@@ -5,6 +5,7 @@ import pytest
 
 from sawopt.studies.audits.stage5a1_blas_thread_benchmark import (
     BLAS_SETTINGS,
+    blas_pool_signature,
     build_child_environment,
     shuffled_single_order,
     summarize_single_profiles,
@@ -12,7 +13,9 @@ from sawopt.studies.audits.stage5a1_blas_thread_benchmark import (
     shuffled_parallel_order,
     validate_blas_pools,
     validate_parallel_job_results,
+    validate_parallel_settings,
     validate_profile_summary,
+    validate_reusable_single_results,
     write_benchmark_outputs,
 )
 
@@ -77,6 +80,62 @@ def _profile_summary(setting):
     }
 
 
+def _reusable_single_results():
+    grid_metadata = {
+        "search": {"frequency_count": 1001, "sha256": GRID_IDENTITIES["search"]},
+        "common": {"frequency_count": 9113, "grid_id": GRID_IDENTITIES["common"]},
+    }
+    candidate_hashes = {
+        f"cells/{topology}/{seed}_result.json": f"sha-{topology}-{seed}"
+        for topology, seed in CELL_IDENTITIES
+    }
+    profiles = []
+    samples = []
+    for setting, requested in BLAS_SETTINGS.items():
+        effective = int(requested or 16)
+        pools = [_pool("numpy-openblas", effective), _pool("scipy-openblas", effective)]
+        child_env = build_child_environment(setting, {})
+        profiles.append({
+            "setting": setting, "sample_count": 84,
+            "parity_results": [{"status": "PASS"} for _ in range(12)],
+            "blas_validation": {"valid": True},
+            "profile_commit_sha": "profile-commit", "profile_tool_sha256": "profile-hash",
+            "candidate_input_files": candidate_hashes,
+            "grid_identities": {
+                "search": {"frequency_count": 1001, "sha256": GRID_IDENTITIES["search"]},
+                "common": {"frequency_count": 9113, "grid_id": GRID_IDENTITIES["common"]},
+            },
+            "environment": {
+                "thread_environment": {name: child_env.get(name) for name in THREAD_VARIABLES},
+                "threadpools": pools,
+            },
+        })
+        for topology, seed in CELL_IDENTITIES:
+            path = f"cells/{topology}/{seed}_result.json"
+            for grid, identity in grid_metadata.items():
+                for repetition in range(1, 8):
+                    samples.append({
+                        "setting": setting, "topology": topology, "seed": seed,
+                        "grid": grid, "frequency_count": identity["frequency_count"],
+                        "grid_identity": identity.get("sha256", identity.get("grid_id")),
+                        "candidate_evidence_sha256": candidate_hashes[path],
+                        "stage4a_status": "PHYSICS_EVALUATED", "repetition": repetition,
+                    })
+    summaries = [
+        {"setting": setting, "candidate_count": 6, "samples_per_candidate": 7,
+         "grid": grid, "stage": stage}
+        for setting in BLAS_SETTINGS
+        for grid in GRID_IDENTITIES
+        for stage in PROFILE_STAGES
+    ]
+    summary = {
+        "status": "PARTIAL", "runner_tree_dirty": False,
+        "runner_commit_sha": "runner-commit", "runner_sha256": "runner-hash",
+        "base_main_commit_sha": "main-commit", "single_process_profiles": profiles,
+    }
+    return summary, samples, summaries
+
+
 def test_child_environment_applies_setting_before_import_and_clears_default():
     inherited = {"OPENBLAS_NUM_THREADS": "8", "OMP_NUM_THREADS": "3", "PATH": "/bin"}
 
@@ -114,6 +173,24 @@ def test_default_pool_validation_requires_unset_variable_and_reports_all_pools()
         validate_blas_pools("default", {**env, "OPENBLAS_NUM_THREADS": "9"}, [_pool(threads=64)])
     with pytest.raises(ValueError, match="no active BLAS pools"):
         validate_blas_pools("single", build_child_environment("single", {}), [])
+
+
+def test_blas_pool_signature_ignores_per_process_enumeration_order():
+    first = [_pool("numpy-openblas", 1), _pool("scipy-openblas", 1)]
+
+    assert blas_pool_signature(first) == blas_pool_signature(list(reversed(first)))
+
+
+def test_reusable_serial_results_require_exact_candidates_grids_and_all_samples():
+    summary, samples, summaries = _reusable_single_results()
+
+    assert len(validate_reusable_single_results(summary, samples, summaries)) == 4
+    bad_grid = [*samples]
+    bad_grid[0] = {**bad_grid[0], "grid_identity": "wrong-grid"}
+    with pytest.raises(ValueError, match="wrong grid identity"):
+        validate_reusable_single_results(summary, bad_grid, summaries)
+    with pytest.raises(ValueError, match="sample rows are incomplete"):
+        validate_reusable_single_results(summary, samples[:-1], summaries)
 
 
 def test_setting_order_is_reproducible_and_covers_all_settings():
@@ -189,6 +266,14 @@ def test_throughput_summary_compares_worker_speedup_and_marks_missing_conditions
     with pytest.raises(ValueError, match="incomplete job count"):
         summarize_throughput(incomplete_batch, repetitions_per_condition=2)
 
+    selected = [row for row in rows if row["setting"] in {"single", "default"}]
+    subset = summarize_throughput(
+        selected, repetitions_per_condition=2, settings=("single", "default"),
+    )
+    assert subset["status"] == "COMPLETE"
+    with pytest.raises(ValueError, match="unknown throughput condition"):
+        summarize_throughput(rows, repetitions_per_condition=2, settings=("single", "default"))
+
 
 def test_parallel_condition_order_is_seeded_and_covers_every_worker_setting_pair():
     first = shuffled_parallel_order(41, 2)
@@ -199,6 +284,13 @@ def test_parallel_condition_order_is_seeded_and_covers_every_worker_setting_pair
         (setting, workers) for setting in BLAS_SETTINGS for workers in (1, 2, 4)
     }
     assert [row["run_order"] for row in first] == list(range(1, len(first) + 1))
+
+    selected = validate_parallel_settings(("single", "default"))
+    narrowed = shuffled_parallel_order(41, 2, settings=selected)
+    assert len(narrowed) == 12
+    assert {row["setting"] for row in narrowed} == {"single", "default"}
+    with pytest.raises(ValueError, match="include Single and Default"):
+        validate_parallel_settings(("quad",))
 
 
 def test_parallel_job_results_check_all_candidates_and_existing_tolerance():
