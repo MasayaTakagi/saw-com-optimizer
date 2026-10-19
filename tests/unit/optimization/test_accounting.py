@@ -31,7 +31,7 @@ def test_checkpoint_lattice_rejects_negative_evaluation_counter():
     ]
 
 
-@pytest.mark.parametrize("invalid_counter", [1.5, True])
+@pytest.mark.parametrize("invalid_counter", [1.5, True, float("inf"), float("-inf"), float("nan")])
 def test_checkpoint_lattice_rejects_non_integer_counters(invalid_counter):
     row = {
         "material": "M0",
