@@ -423,11 +423,13 @@ def _paired_at_checkpoint(checkpoints: Sequence[Mapping[str, Any]], budget: int)
         {"feasible": by_key.get(("P_D", seed), {}).get("selected_feasible"),
          "max_violation": by_key.get(("P_D", seed), {}).get("selected_max_violation"),
          "sum_violation": by_key.get(("P_D", seed), {}).get("selected_sum_violation"),
-         "metrics": {"worst_il_db": by_key.get(("P_D", seed), {}).get("selected_worst_il_db")}},
+         "metrics": {"worst_il_db": by_key.get(("P_D", seed), {}).get("selected_worst_il_db"),
+                     "ripple_db": by_key.get(("P_D", seed), {}).get("selected_ripple_db")}},
         {"feasible": by_key.get(("D_P", seed), {}).get("selected_feasible"),
          "max_violation": by_key.get(("D_P", seed), {}).get("selected_max_violation"),
          "sum_violation": by_key.get(("D_P", seed), {}).get("selected_sum_violation"),
-         "metrics": {"worst_il_db": by_key.get(("D_P", seed), {}).get("selected_worst_il_db")}},
+         "metrics": {"worst_il_db": by_key.get(("D_P", seed), {}).get("selected_worst_il_db"),
+                     "ripple_db": by_key.get(("D_P", seed), {}).get("selected_ripple_db")}},
     ) for seed in SEEDS}
 
 

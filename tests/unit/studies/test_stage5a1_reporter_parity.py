@@ -141,3 +141,25 @@ def test_frozen_stage4c_matched_seed_winners_unchanged_on_each_grid():
 
     common_grid_report = paired_comparisons(list(records.values()))
     assert tuple(row["lexicographic_winner"] for row in common_grid_report) == expected
+
+
+def test_checkpoint_ranking_uses_feasible_ripple_tiebreak():
+    """Checkpoint ranking must carry the same fields as terminal comparison."""
+    from sawopt.reporting.hybrid_stage4c import _paired_at_checkpoint
+
+    checkpoint_rows = []
+    for seed in SEEDS:
+        for topology in TOPOLOGIES:
+            checkpoint_rows.append({
+                "seed": seed, "topology": topology, "checkpoint_budget": 96000,
+                "selected_feasible": True,
+                "selected_max_violation": 0.0,
+                "selected_sum_violation": 0.0,
+                "selected_worst_il_db": 2.0,
+                "selected_ripple_db": 0.5 if topology == "P_D" else 1.0,
+            })
+    result = _paired_at_checkpoint(checkpoint_rows, 96000)
+    assert result == {seed: "P_D" for seed in SEEDS}
+
+    checkpoint_rows[0].pop("selected_ripple_db")
+    assert _paired_at_checkpoint(checkpoint_rows, 96000)[SEEDS[0]] == "INDETERMINATE"
