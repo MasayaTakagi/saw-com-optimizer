@@ -697,6 +697,7 @@ def _mature_classification_fixture(*, winner_component="max_violation", max_delt
                     "selected_max_violation": base["max_violation"],
                     "selected_sum_violation": base["sum_violation"],
                     "selected_worst_il_db": base["metrics"]["worst_il_db"],
+                    "selected_ripple_db": base["metrics"]["ripple_db"],
                     "significant_improvement_80k_to_96k": False,
                     "maturity_classification": "MATURE" if budget == 96000 else "NOT_TERMINAL",
                 })
@@ -723,7 +724,11 @@ def test_stage4c_model_materiality_threshold_and_feasibility_equivalence_rules()
         winner_component="ripple", ripple_delta=5.0,
     )
     ripple_only = classify_stage4c(ripple_cells, ripple_checkpoints, ripple_pairs)
-    assert ripple_only["classification"] == "STAGE4C_PRACTICALLY_EQUIVALENT"
+    # Canonical ranking breaks equal max/sum/IL candidates by ripple, so
+    # this synthetic case has a stable D_P direction but no material max-gap.
+    assert ripple_only["classification"] == "STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED"
+    assert ripple_only["stable_winner"] == "D_P"
+    assert ripple_only["material_terminal_winning_pairs"] == 0
 
     feasibility_cells, feasibility_checkpoints, _ = _mature_classification_fixture(
         winner_component="max_violation", max_delta=0.0,
