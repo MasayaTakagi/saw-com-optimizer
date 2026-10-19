@@ -90,7 +90,7 @@ def validate_checkpoint_lattice(
                 failures.append("physics attempt identity values disagree")
             if unique != key[3]:
                 failures.append("checkpoint budget differs from unique evaluation count")
-        except (KeyError, TypeError, ValueError):
+        except (KeyError, TypeError, ValueError, OverflowError):
             failures.append("missing or invalid numeric counter value")
         if failures:
             invalid_rows.append({"row": index, "key": list(key), "failures": failures})
