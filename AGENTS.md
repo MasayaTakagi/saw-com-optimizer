@@ -2,22 +2,22 @@
 
 ## Project objective
 
-Build a computational tool based on Coupling-of-Modes (COM) theory for
-SAW filter analysis and optimization.
+Follow [`docs/project_roadmap.md`](docs/project_roadmap.md), revision
+2026-10-08, as the authoritative product roadmap. Build a reusable SAW filter
+design flow for user-provided COM parameters, frequency-domain specifications,
+topology/design variables, geometry or area limits, source/load impedances,
+and computing budgets. Report the best-found constrained design and its
+feasibility, violations, and convergence limitations; never imply a finite
+search proves a global optimum.
 
-The main objective is to investigate how the optimum achievable filter
-performance changes as the real-valued input/output port impedance is
-varied.
-
-For each candidate impedance, the SAW filter itself must be re-optimized.
-
-The initial impedance sweep range is:
-
-20 ohm <= Zport <= 200 ohm
-
-Do not simply renormalize one fixed filter design to different
-impedances. Each impedance point represents a separate optimization
-problem.
+The long-term impedance deliverable is a Smith-chart heatmap of validated
+performance from **independent filter re-optimization at each sampled source/
+load impedance condition**. A fixed-design termination sweep is not a
+user-facing substitute. B28 Rx at 50/50 ohm is a regression/diagnostic case.
+Physical COM calibration is optional, not a project gate; numerical correctness,
+units, COM conventions, modeled-constraint consistency, and reproducibility
+remain mandatory. Preserve the roadmap's staged gates and do not infer that
+infeasibility proves mathematical impossibility.
 
 ---
 
@@ -379,11 +379,11 @@ Initial evaluation metrics should include:
 - transition behavior
 - optional group-delay ripple
 
-Where a single optimization objective is required, construct a weighted
-penalty function from these metrics.
-
-Prefer retaining the individual metrics as well so that results can be
-compared using Pareto analysis later.
+Use the explicitly declared feasibility-first objective and candidate ranking
+for the active study, consistent with the project roadmap and study
+configuration. Do not silently substitute a weighted penalty that changes the
+feasibility or ranking semantics. Retain individual metrics for comparison and
+later Pareto analysis.
 
 ---
 
