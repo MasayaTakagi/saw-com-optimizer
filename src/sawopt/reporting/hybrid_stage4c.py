@@ -13,6 +13,7 @@ import numpy as np
 
 from ..optimization.convergence_evidence import apply_checkpoint_evidence
 from ..optimizers.selection import DEFAULT_COMPARATOR
+from .candidate_integrity import validated_hybrid_rank_key
 from ..studies.hybrid_stage4c import (
     BUDGET, CHECKPOINTS, COMMON_GRID_ID, COMMON_GRID_SHA256, PROTOCOL_REVISION,
     SEARCH_GRID_SHA256, SEEDS, SHAKEDOWN_BUDGET, SHAKEDOWN_CHECKPOINTS,
@@ -87,13 +88,18 @@ def _violation(selected: Mapping[str, Any] | None, key: str) -> float | None:
 def _score(selected: Mapping[str, Any] | None) -> tuple[float, ...] | None:
     """Use the optimizer's canonical candidate key for comparable finalists.
 
-    The optimizer comparator supports legacy/incomplete records; reporting
-    must return INDETERMINATE when required ranking evidence is unavailable.
+    Full hybrid candidate records require internally coherent physics, filter,
+    and geometry evidence. Sparse checkpoint projections retain their limited
+    compatibility path. Neither path uses a scalar optimization objective.
     """
     if not isinstance(selected, Mapping):
         return None
-    if selected.get("evaluation_status", "PHYSICS_EVALUATED") != "PHYSICS_EVALUATED":
-        return None
+    # Rich hybrid records have a stronger schema and must fail closed. Sparse
+    # checkpoint projections omit physics/geometry fields by construction.
+    if any(field in selected for field in
+           ("evaluation_status", "geometry_violations", "geometry_max_violation",
+            "candidate_vector")):
+        return validated_hybrid_rank_key(selected)
     if not isinstance(selected.get("feasible"), bool):
         return None
     if not isinstance(selected.get("metrics"), Mapping):
