@@ -111,5 +111,24 @@ First have the authoritative feasible-candidate tie-break contract reviewed and 
 - `uv sync --locked --extra test` — completed in the dedicated audit worktree.
 - `uv run --locked pytest tests/unit/optimizers/test_selection.py tests/unit/studies/test_hybrid_stage4c.py tests/unit/studies/test_hybrid_stage4b.py` — **46 passed**.
 - `uv run --locked pytest tests/unit/optimization/test_search_primitives.py tests/unit/problem/test_stage4a_hybrid_design_space.py tests/unit/problem/test_dms_topologies.py tests/unit/core/test_stage4a_hybrid_composition.py` — **20 passed**.
-- `git diff --check` — to be run before commit.
+- `git diff --check` — **PASS**, as reported by the pi execution before commit.
 - No GitHub Actions workflow was requested or run.
+
+## Independent GitHub review (2026-10-20)
+
+The reviewer independently read all 10 committed Stage 4C cell result JSON files
+at `main` and recomputed `max_violation`, `sum_violation`, the Boolean
+feasibility condition, geometry status and violation counts for the 20 saved
+search/common-grid candidates. No mismatches were found. Comparator order was
+independently reconstructed within each grid for the five matched seed pairs;
+both grids reproduce P_D 3 wins / D_P 2 wins. The reviewer also confirmed the
+feasible-candidate ordering discrepancy by inspecting
+`src/sawopt/reporting/hybrid_stage4c.py::_score` against the canonical
+`FeasibilityFirstComparator`.
+
+This external check does **not** independently repeat the audit's 160
+per-constraint recomputations, scalar objective reconstructions, physics
+evaluations, or local pytest runs. The potential defects in feasible-candidate
+report ordering and permissive comparator input handling remain follow-up
+tasks; they were **not** fixed as part of this read-only audit.
+
