@@ -8,6 +8,16 @@ def _record_flag_is_true(value: Any) -> bool:
     return value is True or str(value).strip().lower() == "true"
 
 
+def _evaluation_counter(row: Mapping[str, Any], name: str) -> int:
+    raw = row[name]
+    if isinstance(raw, bool):
+        raise ValueError(f"{name} must be an integer, not bool")
+    value = int(raw)
+    if not isinstance(raw, str) and raw != value:
+        raise ValueError(f"{name} must be an integer")
+    return value
+
+
 def validate_checkpoint_lattice(
     rows: Sequence[Mapping[str, Any]],
     *,
@@ -55,12 +65,21 @@ def validate_checkpoint_lattice(
         failures = [name for name in required_flags
                     if not _record_flag_is_true(row.get(name))]
         try:
-            unique = int(row["unique_decoded_evaluations"])
-            rejected = int(row["geometry_rejections"])
-            geometry_valid = int(row["geometry_valid_candidates"])
-            valid_physics = int(row["valid_physics_evaluations"])
-            physics_failures = int(row["physics_failures"])
-            physics_attempted = int(row["physics_attempted_evaluations"])
+            counter_names = (
+                "unique_decoded_evaluations", "geometry_rejections",
+                "geometry_valid_candidates", "valid_physics_evaluations",
+                "physics_failures", "physics_attempted_evaluations",
+            )
+            counters = {name: _evaluation_counter(row, name) for name in counter_names}
+            for name, value in counters.items():
+                if value < 0:
+                    failures.append(f"{name} must be non-negative")
+            unique = counters["unique_decoded_evaluations"]
+            rejected = counters["geometry_rejections"]
+            geometry_valid = counters["geometry_valid_candidates"]
+            valid_physics = counters["valid_physics_evaluations"]
+            physics_failures = counters["physics_failures"]
+            physics_attempted = counters["physics_attempted_evaluations"]
             if unique != rejected + geometry_valid:
                 failures.append("counter identity values disagree")
             if geometry_valid != valid_physics + physics_failures:
@@ -71,7 +90,7 @@ def validate_checkpoint_lattice(
                 failures.append("physics attempt identity values disagree")
             if unique != key[3]:
                 failures.append("checkpoint budget differs from unique evaluation count")
-        except (KeyError, TypeError, ValueError):
+        except (KeyError, TypeError, ValueError, OverflowError):
             failures.append("missing or invalid numeric counter value")
         if failures:
             invalid_rows.append({"row": index, "key": list(key), "failures": failures})
