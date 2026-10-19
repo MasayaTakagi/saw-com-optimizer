@@ -60,9 +60,14 @@ take 30 minutes or longer. Follow
 [`docs/guides/async_orchestration.md`](docs/guides/async_orchestration.md)
 for session capture, detached launch, and recovery.
 
-Review bundles belong under `artifacts/review_bundles/`. Build one from a saved
-run with `ReviewBundleSpec` and `sawopt.reporting.review_bundle`; see
-[`docs/guides/review_bundles.md`](docs/guides/review_bundles.md).
+For **new production studies**, publish canonical lightweight GitHub review
+evidence under `reports/experiment_reviews/<stage>/<run_id>/`; keep raw runs,
+checkpoints, populations, dense arrays, and full logs in the external persistent
+run root. `artifacts/review_bundles/` and
+`sawopt.reporting.review_bundle` remain available only for historical/ad-hoc
+saved-run packaging. See the
+[storage, logging, and review policy](docs/guides/data_storage_logging_review_policy.md)
+and [review bundle guide](docs/guides/review_bundles.md).
 
 ## Repository review
 
