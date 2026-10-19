@@ -5,6 +5,8 @@ import copy
 import json
 from pathlib import Path
 
+from sawopt.optimizers.selection import GeometryFirstComparator
+from sawopt.reporting.candidate_integrity import validated_hybrid_rank_key
 from sawopt.studies.audits.stage5a1_raw_finalist_provenance import (
     audit_checkpoint, audit_raw_run, main,
 )
@@ -114,3 +116,10 @@ def test_missing_raw_run_never_claims_success(tmp_path):
     assert result["checkpoints_checked"] == 0
     assert main(["--optimizer-run", str(tmp_path / "missing-run"),
                  "--review-package", str(ROOT)]) == 1
+
+
+def test_rank_key_agrees_with_geometry_comparator_after_constant_prefix():
+    row, _compact = _fixture()
+    comparator = GeometryFirstComparator()
+    for candidate in row["validated_finalists"]:
+        assert comparator.rank_key(candidate)[2:] == validated_hybrid_rank_key(candidate)

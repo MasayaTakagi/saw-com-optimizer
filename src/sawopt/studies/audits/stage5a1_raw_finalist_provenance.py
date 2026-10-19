@@ -12,7 +12,6 @@ import math
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from ...optimizers.selection import GeometryFirstComparator
 from ...reporting.candidate_integrity import validated_hybrid_rank_key
 from ..hybrid_stage4c import (
     BUDGET, CHECKPOINTS, COMMON_GRID_ID, COMMON_GRID_SHA256, FINALIST_COUNT,
@@ -21,7 +20,6 @@ from ..hybrid_stage4c import (
 
 _ALLOWED_STATUSES = {"PHYSICS_EVALUATED", "PHYSICS_FAILED", "GEOMETRY_REJECTED"}
 _PROJECTION_OMIT = {"search_source_rank", "search_source_rank_key"}
-_COMPARATOR = GeometryFirstComparator()
 
 
 def _json_object(path: Path) -> dict[str, Any]:
@@ -120,7 +118,9 @@ def audit_checkpoint(
         elif selected is None:
             errors.append("selected.missing")
         else:
-            expected = min(valid, key=_COMPARATOR.rank_key)
+            # For PHYSICS_EVALUATED the GeometryFirstComparator adds only
+            # constant (0, 0) prefixes to the validated feasibility key.
+            expected = min(valid, key=validated_hybrid_rank_key)
             check("selected.canonical_min", _projection(expected) == selected)
             check("selected.valid", validated_hybrid_rank_key(selected) is not None)
         counters = row["counters"]
