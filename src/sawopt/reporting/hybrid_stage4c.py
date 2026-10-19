@@ -12,6 +12,7 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 
 from ..optimization.convergence_evidence import apply_checkpoint_evidence
+from ..optimizers.selection import DEFAULT_COMPARATOR
 from ..studies.hybrid_stage4c import (
     BUDGET, CHECKPOINTS, COMMON_GRID_ID, COMMON_GRID_SHA256, PROTOCOL_REVISION,
     SEARCH_GRID_SHA256, SEEDS, SHAKEDOWN_BUDGET, SHAKEDOWN_CHECKPOINTS,
@@ -84,13 +85,23 @@ def _violation(selected: Mapping[str, Any] | None, key: str) -> float | None:
 
 
 def _score(selected: Mapping[str, Any] | None) -> tuple[float, ...] | None:
-    """Existing feasibility-first comparator, with no scalar score."""
+    """Use the optimizer's canonical candidate key for comparable finalists.
+
+    The optimizer comparator supports legacy/incomplete records; reporting
+    must return INDETERMINATE when required ranking evidence is unavailable.
+    """
     if not isinstance(selected, Mapping):
         return None
-    values = tuple(_metric(selected, key) for key in ("max_violation", "sum_violation", "worst_il_db"))
-    if any(value is None for value in values):
+    if selected.get("evaluation_status", "PHYSICS_EVALUATED") != "PHYSICS_EVALUATED":
         return None
-    return (0.0 if selected.get("feasible") is True else 1.0, *values)  # type: ignore[arg-type]
+    if not isinstance(selected.get("feasible"), bool):
+        return None
+    if not isinstance(selected.get("metrics"), Mapping):
+        return None
+    if any(_metric(selected, key) is None for key in
+           ("max_violation", "sum_violation", "worst_il_db", "ripple_db")):
+        return None
+    return DEFAULT_COMPARATOR.rank_key(selected)
 
 
 def _winner(left: Mapping[str, Any] | None, right: Mapping[str, Any] | None) -> str:
