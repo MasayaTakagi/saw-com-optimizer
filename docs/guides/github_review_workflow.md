@@ -164,12 +164,17 @@ If review requires information absent from the compact package, derive a bounded
 summary from the raw run or request an explicit exception. Do not silently upload
 the raw data lake.
 
-## Git handling
+## Development environment and Git handling
 
-The Windows-native Codex workflow remains the project default. Perform normal
-work in the standard sandbox. When Git metadata writes require permission
-escalation, use only the smallest on-request operation needed for the requested
-branch, commit, worktree, fetch, or push.
+The official development environment is WSL2 Ubuntu 24.04 with VS Code Remote
+WSL, Codex CLI running inside Ubuntu, Ubuntu system Python 3.12, and uv. Keep
+checkouts/worktrees under `/home/...`; do not use Windows-native project
+commands or place active worktrees under `/mnt/c/...`. Follow the
+[development environment guide](development_environment.md) for setup and
+locked project commands. This workflow documentation does not change the
+official development environment during any tool pilot.
 
-Do not use standing Full Access, change `.git` ACLs, force-push, or discard
-existing work.
+When Git metadata writes require permission escalation, use only the smallest
+on-request operation needed for the requested branch, commit, worktree, fetch,
+or push. Do not use standing Full Access, change `.git` ACLs, force-push, or
+discard existing work.
