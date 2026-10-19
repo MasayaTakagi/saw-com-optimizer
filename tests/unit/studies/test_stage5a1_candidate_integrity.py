@@ -115,3 +115,38 @@ def test_invalid_pair_blocks_scientific_equivalence_classification():
     result = classify_stage4c(cells, checkpoints, pairs)
     assert result["terminal_ranking_complete"] is False
     assert result["classification"] == "STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED"
+
+
+def test_missing_checkpoint_ripple_blocks_equivalence_classification():
+    from sawopt.reporting.hybrid_stage4c import classify_stage4c, paired_comparisons
+
+    cells, checkpoints = [], []
+    for seed in SEEDS:
+        for topology in TOPOLOGIES:
+            cells.append({
+                "seed": seed, "topology": topology, "status": "COMPLETED",
+                "common_grid_selected_finalist": {
+                    "feasible": False, "max_violation": 0.1, "sum_violation": 1.0,
+                    "metrics": {"worst_il_db": 4.0, "ripple_db": 1.0},
+                },
+            })
+            for budget in (64000, 80000, 96000):
+                checkpoints.append({
+                    "seed": seed, "topology": topology, "checkpoint_budget": budget,
+                    "selected_feasible": False, "selected_max_violation": 0.1,
+                    "selected_sum_violation": 1.0, "selected_worst_il_db": 4.0,
+                    "selected_ripple_db": 1.0,
+                    "significant_improvement_80k_to_96k": False,
+                    "maturity_classification": "MATURE" if budget == 96000 else "NOT_TERMINAL",
+                })
+    pairs = paired_comparisons(cells)
+    assert all(row["lexicographic_winner"] == "TIE" for row in pairs)
+    complete = classify_stage4c(cells, checkpoints, pairs)
+    assert complete["classification"] == "STAGE4C_PRACTICALLY_EQUIVALENT"
+    assert complete["late_checkpoint_ranking_complete"] is True
+
+    checkpoints[0].pop("selected_ripple_db")
+    incomplete = classify_stage4c(cells, checkpoints, pairs)
+    assert incomplete["terminal_ranking_complete"] is True
+    assert incomplete["late_checkpoint_ranking_complete"] is False
+    assert incomplete["classification"] == "STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED"

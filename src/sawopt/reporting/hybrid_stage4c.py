@@ -491,6 +491,11 @@ def classify_stage4c(
     all_mature = all(maturity.values())
     late_directions = {budget: _paired_at_checkpoint(checkpoints, budget)
                        for budget in (64000, 80000, 96000)}
+    late_ranking_complete = all(
+        len(directions) == len(SEEDS)
+        and all(winner in {"P_D", "D_P", "TIE"} for winner in directions.values())
+        for directions in late_directions.values()
+    )
     stable_winner = None
     for topology in TOPOLOGIES:
         win_seed_sets = [{seed for seed, winner in directions.items() if winner == topology}
@@ -520,10 +525,11 @@ def classify_stage4c(
     )
     terminal_wins = 0 if stable_winner is None else final_wins[stable_winner]
     equivalent = _terminal_equivalence_conditions(component_pairs)
-    if (ranking_complete and all_mature and stable_winner and final_wins[stable_winner] >= 4
+    if (ranking_complete and late_ranking_complete and all_mature and stable_winner and final_wins[stable_winner] >= 4
             and terminal_wins >= 4 and not late_improvement and material_terminal_wins >= 4):
         classification = "STAGE4C_CLEAR_CONFIRMATORY_WINNER"
-    elif ranking_complete and all_mature and stable_winner is None and not late_improvement and equivalent:
+    elif (ranking_complete and late_ranking_complete and all_mature
+          and stable_winner is None and not late_improvement and equivalent):
         classification = "STAGE4C_PRACTICALLY_EQUIVALENT"
     else:
         classification = "STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED"
@@ -533,6 +539,7 @@ def classify_stage4c(
         "mature_cells_by_topology": maturity,
         "terminal_matched_wins": {key: int(final_wins.get(key, 0)) for key in ("P_D", "D_P", "TIE", "INDETERMINATE")},
         "terminal_ranking_complete": ranking_complete,
+        "late_checkpoint_ranking_complete": late_ranking_complete,
         "late_checkpoint_direction_by_seed": {str(k): {str(seed): winner for seed, winner in v.items()} for k, v in late_directions.items()},
         "stable_winner": stable_winner,
         "significant_80k_to_96k_improvement_present": late_improvement,
@@ -562,14 +569,25 @@ def write_stage4c_reports(
     runtime = runtime_rows(cells, checkpoint_data)
     stopbands = stopband_rows(cells)
     completed = len(cells) == 10 and all(cell.get("status") == "COMPLETED" for cell in cells)
+    expected_finalists = len(SEEDS) * len(TOPOLOGIES)
     rankable_finalists = sum(_score(_selected(cell)) is not None for cell in cells)
+    search_records = [cell["search_incumbent"] for cell in cells if "search_incumbent" in cell]
+    # Historical minimalist report fixtures lack this field. In production,
+    # if any search incumbent is supplied, all ten must be present and rankable.
+    rankable_search = sum(_score(record) is not None for record in search_records)
+    search_rank_integrity = (
+        not search_records or
+        (len(search_records) == expected_finalists and rankable_search == expected_finalists)
+    )
+    candidate_rank_integrity = (
+        rankable_finalists == expected_finalists and search_rank_integrity
+    )
     integrity = {
-        "status": "PASS" if completed and rankable_finalists == len(SEEDS) * len(TOPOLOGIES) else "FAIL",
+        "status": "PASS" if completed and candidate_rank_integrity else "FAIL",
         "complete": completed,
         "rankable_common_grid_finalists": rankable_finalists,
-        "candidate_rank_integrity": (
-            "PASS" if rankable_finalists == len(SEEDS) * len(TOPOLOGIES) else "FAIL"
-        ),
+        "rankable_search_incumbents": rankable_search,
+        "candidate_rank_integrity": "PASS" if candidate_rank_integrity else "FAIL",
         "cells_expected": 10,
         "cells_present": len(cells),
         "cells_completed": sum(cell.get("status") == "COMPLETED" for cell in cells),
