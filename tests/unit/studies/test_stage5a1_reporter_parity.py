@@ -15,8 +15,23 @@ def _candidate(
     feasible: bool, max_violation: float, sum_violation: float,
     worst_il_db: float, ripple_db: float,
 ) -> dict:
+    constraint_names = (
+        "il", "ripple", "input_vswr", "output_vswr",
+        "stop_0", "stop_1", "stop_2", "stop_3",
+    )
+    remaining = sum_violation
+    violations = {}
+    for name in constraint_names:
+        value = min(max_violation, max(0.0, remaining))
+        violations[name] = value
+        remaining -= value
+    assert remaining <= 1e-12
     return {
         "evaluation_status": "PHYSICS_EVALUATED",
+        "failure_stage": None,
+        "geometry_max_violation": 0.0,
+        "geometry_violations": {"synthetic_geometry": 0.0},
+        "violations": violations,
         "feasible": feasible,
         "max_violation": max_violation,
         "sum_violation": sum_violation,
