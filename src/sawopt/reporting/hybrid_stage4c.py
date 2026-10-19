@@ -479,6 +479,10 @@ def classify_stage4c(
 ) -> dict[str, Any]:
     """Apply only the frozen Stage 4C post-run closeout classes."""
     final_wins = Counter(row.get("lexicographic_winner") for row in pairs)
+    ranking_complete = (
+        len(pairs) == len(SEEDS)
+        and all(row.get("lexicographic_winner") in {"P_D", "D_P", "TIE"} for row in pairs)
+    )
     maturity = {}
     for topology in TOPOLOGIES:
         rows = [row for row in checkpoints if row.get("topology") == topology
@@ -516,10 +520,10 @@ def classify_stage4c(
     )
     terminal_wins = 0 if stable_winner is None else final_wins[stable_winner]
     equivalent = _terminal_equivalence_conditions(component_pairs)
-    if (all_mature and stable_winner and final_wins[stable_winner] >= 4
+    if (ranking_complete and all_mature and stable_winner and final_wins[stable_winner] >= 4
             and terminal_wins >= 4 and not late_improvement and material_terminal_wins >= 4):
         classification = "STAGE4C_CLEAR_CONFIRMATORY_WINNER"
-    elif all_mature and stable_winner is None and not late_improvement and equivalent:
+    elif ranking_complete and all_mature and stable_winner is None and not late_improvement and equivalent:
         classification = "STAGE4C_PRACTICALLY_EQUIVALENT"
     else:
         classification = "STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED"
@@ -528,6 +532,7 @@ def classify_stage4c(
         "all_cells_mature": all_mature,
         "mature_cells_by_topology": maturity,
         "terminal_matched_wins": {key: int(final_wins.get(key, 0)) for key in ("P_D", "D_P", "TIE", "INDETERMINATE")},
+        "terminal_ranking_complete": ranking_complete,
         "late_checkpoint_direction_by_seed": {str(k): {str(seed): winner for seed, winner in v.items()} for k, v in late_directions.items()},
         "stable_winner": stable_winner,
         "significant_80k_to_96k_improvement_present": late_improvement,
@@ -556,9 +561,15 @@ def write_stage4c_reports(
     bounds = _boundary_rows(cells, checkpoint_data)
     runtime = runtime_rows(cells, checkpoint_data)
     stopbands = stopband_rows(cells)
+    completed = len(cells) == 10 and all(cell.get("status") == "COMPLETED" for cell in cells)
+    rankable_finalists = sum(_score(_selected(cell)) is not None for cell in cells)
     integrity = {
-        "status": "PASS" if len(cells) == 10 and all(cell.get("status") == "COMPLETED" for cell in cells) else "FAIL",
-        "complete": len(cells) == 10 and all(cell.get("status") == "COMPLETED" for cell in cells),
+        "status": "PASS" if completed and rankable_finalists == len(SEEDS) * len(TOPOLOGIES) else "FAIL",
+        "complete": completed,
+        "rankable_common_grid_finalists": rankable_finalists,
+        "candidate_rank_integrity": (
+            "PASS" if rankable_finalists == len(SEEDS) * len(TOPOLOGIES) else "FAIL"
+        ),
         "cells_expected": 10,
         "cells_present": len(cells),
         "cells_completed": sum(cell.get("status") == "COMPLETED" for cell in cells),
