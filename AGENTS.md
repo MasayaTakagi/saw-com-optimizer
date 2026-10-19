@@ -2,22 +2,22 @@
 
 ## Project objective
 
-Build a computational tool based on Coupling-of-Modes (COM) theory for
-SAW filter analysis and optimization.
+Follow [`docs/project_roadmap.md`](docs/project_roadmap.md), revision
+2026-10-08, as the authoritative product roadmap. Build a reusable SAW filter
+design flow for user-provided COM parameters, frequency-domain specifications,
+topology/design variables, geometry or area limits, source/load impedances,
+and computing budgets. Report the best-found constrained design and its
+feasibility, violations, and convergence limitations; never imply a finite
+search proves a global optimum.
 
-The main objective is to investigate how the optimum achievable filter
-performance changes as the real-valued input/output port impedance is
-varied.
-
-For each candidate impedance, the SAW filter itself must be re-optimized.
-
-The initial impedance sweep range is:
-
-20 ohm <= Zport <= 200 ohm
-
-Do not simply renormalize one fixed filter design to different
-impedances. Each impedance point represents a separate optimization
-problem.
+The long-term impedance deliverable is a Smith-chart heatmap of validated
+performance from **independent filter re-optimization at each sampled source/
+load impedance condition**. A fixed-design termination sweep is not a
+user-facing substitute. B28 Rx at 50/50 ohm is a regression/diagnostic case.
+Physical COM calibration is optional, not a project gate; numerical correctness,
+units, COM conventions, modeled-constraint consistency, and reproducibility
+remain mandatory. Preserve the roadmap's staged gates and do not infer that
+infeasibility proves mathematical impossibility.
 
 ---
 
@@ -326,38 +326,35 @@ implemented without rewriting the core solver.
 
 # Port impedance study
 
-The primary independent variable is real port impedance.
+Source and load impedances are user-specified inputs, not the sole or primary
+independent variable of the design tool. Constrained optimization for a single
+specified Zs/Zl pair is a first-class workflow.
 
-Initial range:
+The historical real-impedance prototype may sweep 20–200 ohm and, when explicitly
+configured, use Zs = Zl = Zport. Neither this range nor equal terminations are
+universal design requirements. Keep Zs and Zl independently configurable.
 
-Zport = 20 to 200 ohm
+The roadmap's Smith-chart workflow will allow complex passive Zs/Zl only after
+Stage 5C establishes the required numerical, power, and reference conventions;
+the current real-port evaluator must not be represented as complex-capable.
 
-An explicitly configured initial one-dimensional study may use equal
-source and load impedances:
+For every sampled source/load impedance pair in an impedance-sensitivity map:
+1. Independently optimize the filter design for that pair under the declared
+   COM inputs, specification, topology, geometry constraints, and budget.
+2. Validate the best-found design on the declared validation grid.
+3. Record the geometry, feasibility, constraint violations, performance,
+   evaluation budget, and convergence limitations.
 
-Zs = Zl = Zport
-
-Keep source and load impedances independently configurable. Do not assume
-they are equal unless the study configuration says so; final impedance
-comparisons must preserve independent control and re-optimize the filter
-for each impedance pair.
-
-For every impedance value:
-
-1. Set the source and load impedance.
-2. Optimize the SAW design variables for that impedance.
-3. Calculate the resulting filter response.
-4. Evaluate the specification metrics.
-5. Store the optimum design and metrics.
-6. Compare the optimum achievable result against other impedances.
-
-Never compare port impedances using only a fixed geometry.
+A fixed-design termination sweep is valid for internal diagnostics, not as the
+user-facing re-optimized impedance map. Do not call a finite-budget solution a
+proven optimum.
 
 ---
 
 # Initial RF target
 
-Use a representative LTE Band 28 receive-band filter target.
+For the B28 Rx regression/diagnostic case, use a representative LTE
+Band 28 receive-band filter target.
 
 Use approximately the following passband:
 
@@ -379,11 +376,11 @@ Initial evaluation metrics should include:
 - transition behavior
 - optional group-delay ripple
 
-Where a single optimization objective is required, construct a weighted
-penalty function from these metrics.
-
-Prefer retaining the individual metrics as well so that results can be
-compared using Pareto analysis later.
+Use the explicitly declared feasibility-first objective and candidate ranking
+for the active study, consistent with the project roadmap and study
+configuration. Do not silently substitute a weighted penalty that changes the
+feasibility or ranking semantics. Retain individual metrics for comparison and
+later Pareto analysis.
 
 ---
 
@@ -415,39 +412,24 @@ Avoid embedding bounds directly inside optimization code.
 
 # Optimization strategy
 
-Separate the optimization into two levels.
+A single filter design is a constrained optimization problem with explicit
+COM inputs, frequency-domain specifications, topology/design variables,
+bounds and area/geometry constraints, independent source/load terminations,
+and a finite computing budget. Respect the study's declared feasibility-first
+ranking and report best-found performance, violations, and uncertainty.
 
-Outer loop:
+When an impedance map is requested, add an outer sampling loop over declared
+Zs/Zl pairs, with an independent inner design optimization at each pair.
+Initial coarse sampling, adaptive refinement, and parallel workers may reduce
+cost but must preserve the re-optimization and validation contract. For
+Smith-chart slices, name the fixed and varied port and distinguish evaluated,
+interpolated, infeasible, and incomplete points.
 
-port impedance sweep
-
-Inner loop:
-
-SAW filter optimization for the selected impedance
-
-Conceptually:
-
-for Zport in impedance_grid:
-
-    optimum_design = optimize_filter(
-        port_impedance=Zport
-    )
-
-    evaluate optimum_design
-
-    store results
-
-The outer impedance sweep should be parallelizable.
-
-Start with a coarse impedance grid and allow refinement near promising
-regions.
-
-Example initial grid:
-
-20, 30, 40, ..., 200 ohm
-
-Later allow interpolation/refinement such as 1-5 ohm spacing around the
-best region.
+Do not treat a 20–200 ohm real-port sweep as the tool's required outer loop;
+it is an optional historical diagnostic. Complex-port studies require the
+separate numerical qualification in Stage 5C. Follow the stage gates and
+obtain explicit approval before large production runs or changed budgets,
+bounds, constraints, or optimizer behavior.
 
 ---
 
