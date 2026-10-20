@@ -39,7 +39,7 @@ Because prior child calls requested `openai-codex`, **do not treat them as a com
 
 ## Completed exact-request qualification (read-only)
 
-From the existing Pi Web session, start **one** child with these supported `agent_spawn` fields:
+The completed read-only Pi Web check used these supported `agent_spawn` fields:
 
 ```text
 prompt: "Read-only routing check. Reply SOL_MEDIUM_OK only. Do not modify files."
@@ -78,7 +78,7 @@ Stage 5A-2 Q0 design judgment remains pending.
 
 `agent_spawn` does not accept `run_in_background` or the Codex-only `fork_context`. Consult the live extension schema before issuing tool arguments; do not set unsupported fields.
 
-After completion, record:
+For any **future** requalification, record:
 
 1. Requested provider, model, thinking level and actual child session path.
 2. Actual provider `openai`, API `openai-responses`, model `gpt-6.1-sol`, recorded `thinkingLevel=medium`, normal completion and expected reply.
