@@ -1,6 +1,6 @@
 # Pi Sol review routing (Stage 5A-2 and later)
 
-**Status:** Corrected provider route documented; exact-request read-only recheck pending; Stage 5A-2 Q0 still unreviewed.
+**Status:** Pi Sol routing QUALIFIED (recorded provider/model/medium and normal child completion); Stage 5A-2 Q0 design review NOT STARTED.
 **As of:** 2026-10-20.
 **Scope:** model selection and bounded high-risk design review. No Q0 freeze, Q1 implementation approval, or COM/production authorization.
 
@@ -37,7 +37,7 @@ Upstream references:
 
 Because prior child calls requested `openai-codex`, **do not treat them as a completed exact-request qualification for the corrected `openai` route**. The child record nevertheless verifies that `openai/gpt-6.1-sol` executes with recorded `medium` under the installed environment.
 
-## Final short qualification (read-only)
+## Completed exact-request qualification (read-only)
 
 From the existing Pi Web session, start **one** child with these supported `agent_spawn` fields:
 
@@ -49,6 +49,32 @@ thinking: "medium"
 tools: ["read"]
 persistent: false
 ```
+
+**Qualification evidence (user-reported Pi session, 2026-10-20):**
+
+| Field | Requested / recorded result |
+|---|---|
+| Requested target | `openai/gpt-6.1-sol` |
+| Recorded provider and API | `openai`, `openai-responses` |
+| Recorded model | `gpt-6.1-sol` |
+| Recorded thinking level | `medium` |
+| Child response | `SOL_MEDIUM_OK`, completed, no recorded errors |
+| Session evidence | Local JSONL under `~/.pi/agent/subagent-sessions/`, readable in read-only inspection |
+| Stored credential type | `openai: oauth` |
+| Credential overrides | No `OPENAI_API_KEY` detected; no runtime override reported |
+| Route decision | **PASS** for exact provider/model and recorded `medium` |
+
+The JSONL and local credential settings were inspected by the user's Pi session;
+they were not independently accessed from this GitHub-only review. Session
+files and credentials remain local. Absence of detected overrides plus stored
+OAuth is consistent with subscription sign-in but not cryptographic proof of
+the effective token or billing path. Recorded `medium` does not prove
+internal inference effort.
+
+**Do not re-run the qualification as a prerequisite solely because this
+document's earlier version instructed it.** Requalify only after a relevant
+Pi version, extension, authentication, or model-route change. The separate
+Stage 5A-2 Q0 design judgment remains pending.
 
 `agent_spawn` does not accept `run_in_background` or the Codex-only `fork_context`. Consult the live extension schema before issuing tool arguments; do not set unsupported fields.
 
