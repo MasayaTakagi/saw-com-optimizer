@@ -32,13 +32,15 @@ Under one frozen COM/network/spec/bounds problem, does an alternative generic **
 **Stage 5A-2 Q0 reviewer routing:** use the [Pi Sol review procedure](../guides/pi_sol_review_routing.md).
 The pinned design-judgment request is `openai/gpt-6.1-sol` with
 `thinking=medium`, using Pi's current `openai` provider (which supports
-ChatGPT OAuth). Earlier child runs established an effective `openai` /
-`gpt-6.1-sol` / recorded `medium` execution route, but they had incorrectly
-requested the legacy `openai-codex` provider; perform a short exact-request
-recheck and keep effective credential provenance separate from stored
-`openai: oauth` metadata. Connectivity does **not** constitute Q0 design
-approval. Do not freeze Q0 or start Q1 on its basis alone. Log a separate
-bounded Sol judgment and respect normal user authorization gates.
+ChatGPT OAuth). The 2026-10-20 exact-request read-only subagent qualification is **PASS**
+for recorded `openai` / `gpt-6.1-sol` / `medium`, a successful child response
+and a persisted session. Stored `openai: oauth` and no detected API-key
+override are consistent with ChatGPT sign-in; the effective token/billing
+path is not independently proven. The prior legacy-`openai-codex` request
+mismatch is historical, not a remaining route gate. Connectivity does
+**not** constitute Q0 design approval. Do not freeze Q0 or start Q1 on its
+basis alone. Log the separate bounded Sol judgment and respect normal user
+authorization gates.
 
 Before any empirical optimizer run, perform docs-first review and synthetic/unit qualification that both arms: (a) charge only new canonical designs to the unique budget, (b) use the identical feasibility/geometry comparator and fail-closed candidate schema, (c) respect exact integer canonicalization, DMS/resonator bounds and dense-grid identities, (d) use auditable initialization and final 16 candidate history, (e) stop at exact 4,096 unique designs or report justified exhaustion, and (f) record time/evaluation traces and checkpoint state without altering existing Stage 4C evidence.
 
