@@ -856,6 +856,10 @@ def audit_run(run_dir: str | Path, output_dir: str | Path) -> dict[str, Any]:
     run = Path(run_dir)
     output = Path(output_dir)
     _require(run.is_dir(), "external Stage 4C run directory does not exist")
+    # A reporting path inside the raw run would violate the read-only audit
+    # contract. Resolve symlinks as well as ordinary relative paths.
+    _require(not output.resolve().is_relative_to(run.resolve()),
+             "audit output directory must be outside the raw Stage 4C run")
     run_manifest = _read_json(run / "run_manifest.json")
     protocol_manifest = _read_json(run / "optimizer/metadata/stage4c_run_manifest.json")
     _require(run_manifest.get("run_id") == RUN_ID and protocol_manifest.get("run_id") == RUN_ID,

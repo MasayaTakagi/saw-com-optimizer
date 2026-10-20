@@ -33,6 +33,10 @@ uv run --locked python -m sawopt.studies.audits.stage5a1_cache_trajectory \
   --run-dir "$RUN_DIR" --output-dir "$OUTPUT_DIR"
 ```
 
+The output directory must be outside the external raw run. The auditor rejects
+an output directory at or below the raw run root (including symlink aliases)
+before reading its manifests or creating output files.
+
 The source opens raw files read-only. Processing is serial by cell: one final
 optimizer-state JSON is parsed at a time, followed by one `B*.json` record at a
 time. Only the compact per-cell summary is retained for the final report. The

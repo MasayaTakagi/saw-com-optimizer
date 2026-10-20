@@ -14,6 +14,7 @@ from sawopt.studies.audits.stage5a1_cache_trajectory import (
     _geometry_rank_key,
     _stable_top,
     audit_state,
+    audit_run,
 )
 
 
@@ -305,3 +306,20 @@ def test_malformed_rng_population_trace_and_repair_state_are_rejected(corrupt, m
 
     with pytest.raises(AuditError, match=message):
         _audit(state)
+
+
+def test_audit_output_inside_raw_run_is_rejected_without_writes(tmp_path):
+    raw_run = tmp_path / "raw_run"
+    raw_run.mkdir()
+    prohibited = raw_run / "reports"
+    with pytest.raises(AuditError, match="outside the raw Stage 4C run"):
+        audit_run(raw_run, prohibited)
+    assert not prohibited.exists()
+
+
+def test_audit_output_at_raw_run_root_is_rejected(tmp_path):
+    raw_run = tmp_path / "raw_run"
+    raw_run.mkdir()
+    with pytest.raises(AuditError, match="outside the raw Stage 4C run"):
+        audit_run(raw_run, raw_run)
+    assert list(raw_run.iterdir()) == []
