@@ -1,89 +1,68 @@
 # Pi Sol review routing (Stage 5A-2 and later)
 
-**Status:** REVIEW ROUTING DOCUMENTED — `medium` route not yet requalified.  
-**As of:** 2026-10-20.  
-**Scope:** model selection and bounded high-risk design review. This is not a
-Stage 5A-2 Q0 freeze, Q1 implementation approval, or COM/production authorization.
+**Status:** Corrected provider route documented; exact-request read-only recheck pending; Stage 5A-2 Q0 still unreviewed.
+**As of:** 2026-10-20.
+**Scope:** model selection and bounded high-risk design review. No Q0 freeze, Q1 implementation approval, or COM/production authorization.
 
-## Pinned review target
+## Pinned Pi review target
 
 | Field | Value |
 |---|---|
-| Pi provider/model | `openai-codex/gpt-6.1-sol` |
+| Pi provider/model | `openai/gpt-6.1-sol` |
 | Thinking level | `medium` (exact Pi spelling) |
-| Tool | `agent_spawn` from the installed Pi subagent extension |
+| Credential expected | `openai: oauth` (ChatGPT subscription sign-in) |
+| Tool | Pi extension `agent_spawn` |
 | Parallelism | One Sol reviewer at a time |
-| Fallback | Never silently change provider, model, or thinking level |
-| Scope | Bounded judgment on escalation packet, not implementation |
+| Fallback | Verify actual child provider/model/effort; fail closed on mismatch |
+| Scope | Bounded judgment only; no implementation |
 
-Pin the explicit identifier above rather than an implicit `latest` alias.
-Check Pi's model registry and consciously revise this document when upgrading
-to a newer qualified model. The older `gpt-6-sol` is historical.
+Do not use an implicit `latest` alias. Revise the pinned model deliberately when a newer version has been qualified. `gpt-6-sol` is historical.
 
-The installed extension's `agent_spawn` interface documents `prompt`,
-`label`, `model`, `thinking`, `tools`, `resume`, `timeoutMs`, and
-`persistent`. It does **not** accept `run_in_background`. Pi's
-`agent_spawn` also does not accept the Codex-specific `fork_context`
-parameter. Use actual tool schema at runtime; stop on mismatch.
+**Provider correction:** In current Pi, `openai` supports both OpenAI API keys and ChatGPT-subscription OAuth; `openai-codex` is labeled **OpenAI Codex (legacy)**. PR #45 had incorrectly pinned the legacy provider. The user confirmed only `openai` appears in Pi `/model`; a local metadata-only check returned `openai: oauth` from `~/.pi/agent/auth.json`. This establishes **stored** OAuth mode, not proof of the effective credential used by a particular request. Explicit command-line `--api-key` can override saved credentials; do not infer billing solely from the provider ID or this stored file.
 
-References:
-- Pi model catalogue: https://pi.dev/models/openai-codex/gpt-6-1-sol
-- Pi extension tool contract: https://github.com/everyx/pi-extensions/blob/master/packages/pi-subagent/README.md
-- Project gate: [Stage 5A-2 minimum comparison](../plans/stage5a2_minimum_fair_comparison.md)
+Upstream references:
+- Current Pi `openai` provider source: https://github.com/earendil-works/pi/blob/main/packages/ai/src/providers/openai.ts
+- Legacy `openai-codex` provider source: https://github.com/earendil-works/pi/blob/main/packages/ai/src/providers/openai-codex.ts
+- Pi model authentication and selection: https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/models.md
+- Pi subagent extension resolver: https://github.com/everyx/pi-extensions/blob/master/packages/pi-subagent/model.ts
+- Pi subagent supported parameters: https://github.com/everyx/pi-extensions/blob/master/packages/pi-subagent/README.md
+- Project gate: [Stage 5A-2 comparison](../plans/stage5a2_minimum_fair_comparison.md)
 
-## Reported connectivity evidence and limitation
+## Observed read-only connectivity history
 
-On 2026-10-20, a Pi parent reportedly requested a child with
-`openai-codex/gpt-6.1-sol`, label `sol-connectivity-test`, and
-`thinking=high`. The child returned `SOL_SUBAGENT_OK`, and Pi reported
-a saved session under `~/.pi/agent/subagent-sessions/*.jsonl`.
+1. The 2026-10-20 `high`-effort request for `openai-codex/gpt-6.1-sol` completed with `SOL_SUBAGENT_OK`, but its display showed `openai/gpt-6.1-sol`. The requested and effective provider did not match.
+2. A subsequent `medium` request still specified `openai-codex/gpt-6.1-sol`; the saved child events contained `provider=openai`, `api=openai-responses`, `model=gpt-6.1-sol`, and `thinkingLevel=medium`. The child returned `SOL_MEDIUM_OK` without a reported tool error; its JSONL session could be read. Thus model/version, **recorded** medium effort and execution/persistence passed, but the **requested** provider did not.
+3. Inspection of the subagent extension `resolveModel()` explains the mismatch: it prefers a provider match and then performs loose model-only lookup across providers. Its documented `no fallback` claim must not be treated as an exact-provider guarantee. There is no need to modify the extension merely to use the now-correct `openai` provider, provided the resolved child identity is checked.
+4. The user checked `~/.pi/agent/auth.json` without printing secrets: `openai: oauth`. Under standard Pi credential resolution this is consistent with ChatGPT sign-in, but the stored type does not independently prove the credential chosen for any given request.
 
-The displayed completion label was `openai/gpt-6.1-sol · high` even though
-the requested provider was `openai-codex`. Therefore the run demonstrates
-that a Sol 6.1-named child responded; it does **not** independently establish
-which provider executed the request. It also does **not** validate
-`thinking=medium`, which was not requested in that test.
+Because prior child calls requested `openai-codex`, **do not treat them as a completed exact-request qualification for the corrected `openai` route**. The child record nevertheless verifies that `openai/gpt-6.1-sol` executes with recorded `medium` under the installed environment.
 
-Before claiming the standard route qualified, run one read-only test at the
-new settings. Use `agent_spawn` with these **supported fields**:
+## Final short qualification (read-only)
+
+From the existing Pi Web session, start **one** child with these supported `agent_spawn` fields:
 
 ```text
-prompt: "Read-only routing check. Reply SOL_MEDIUM_OK only."
-label: "sol-medium-routing-test"
-model: "openai-codex/gpt-6.1-sol"
+prompt: "Read-only routing check. Reply SOL_MEDIUM_OK only. Do not modify files."
+label: "sol-openai-oauth-medium-check"
+model: "openai/gpt-6.1-sol"
 thinking: "medium"
 tools: ["read"]
 persistent: false
 ```
 
-Do not add `run_in_background`. Do not run optimization, tests involving
-COM physics, Git writes, or unrelated project work during this check.
+`agent_spawn` does not accept `run_in_background` or the Codex-only `fork_context`. Consult the live extension schema before issuing tool arguments; do not set unsupported fields.
 
-After completion:
-1. Record requested model and thinking; capture status and session location.
-2. Inspect the saved child session's metadata and any provider/model/thinking
-   fields actually exposed by the Pi runtime. Never publish OAuth tokens, raw
-   session contents, or other credentials.
-3. Reconcile the `openai` versus `openai-codex` completion-label difference.
-   If the actual provider remains unverified, mark it `UNVERIFIED`, not
-   `openai-codex verified`. If there is a real route mismatch, fail closed.
-4. Verify whether `medium` was actually selected in available metadata.
-   If the runtime does not expose effective effort, log requested `medium`
-   separately from unverified effective effort.
-5. Commit only a redacted summary (and references as appropriate) to the
-   review packet / `reports/escalation_log.md`. Keep raw session files local.
+After completion, record:
 
-Do not infer model, provider, or effort from `SOL_MEDIUM_OK` alone.
+1. Requested provider, model, thinking level and actual child session path.
+2. Actual provider `openai`, API `openai-responses`, model `gpt-6.1-sol`, recorded `thinkingLevel=medium`, normal completion and expected reply.
+3. Whether any explicit `--api-key`/runtime override was present in the launching workflow **without printing keys**, and that `auth.json` stores `openai: oauth`. If effective credential provenance cannot be proven, mark **EFFECTIVE_CREDENTIAL_UNVERIFIED**, not API-billing or OAuth definitively.
+4. Redacted proof only, with no OAuth token, API key, or full raw session in Git.
 
-## Real Stage 5A-2 Q0 Sol review
+Require the **requested and recorded provider/model** to match. Treat recorded `medium` as an observable runtime setting, not proof of internal reasoning depth. If any required field mismatches, stop and investigate; do not silently reroute.
 
-Once the routing gate has passed, supply the self-contained, current Q0
-escalation packet and ask Sol to judge the DE comparison protocol, initialization
-and lexicographic selection contracts, exact unique-evaluation accounting,
-checkpoint/history semantics, and qualification/authorization gates. Restrict
-child tools as appropriate for read-only review.
+## Stage 5A-2 Q0 review remains separate
 
-Record a distinct Sol decision in `reports/escalation_log.md`; do not count
-the routing connectivity check as a Q0 design review. The Pi child must not
-implement or approve production experiments. Q1 stays blocked until the Q0
-review and normal project acceptance gates have been satisfied.
+After this route check, use a **new** Sol child with the exact pinned target and send the self-contained Stage 5A-2 Q0 escalation packet. Ask for a bounded judgment on DE comparison/initialization, lexicographic comparator, exact unique-evaluation budgets and history/checkpoint semantics, qualification requirements and user authorization gates. The reviewer must not implement anything.
+
+Record the separate Sol decision and evidence in `reports/escalation_log.md`. A connection test is **not** a Q0 design review. Q1 implementation and any COM or production experiment remain prohibited until the actual project gates authorize them.
