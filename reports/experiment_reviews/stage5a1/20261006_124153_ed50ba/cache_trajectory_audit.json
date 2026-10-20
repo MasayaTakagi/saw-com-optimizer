@@ -1,0 +1,932 @@
+{
+  "schema_version": 1,
+  "audit": "stage5a1_lshade_cache_identity_and_trajectory",
+  "run_id": "20261006_124153_ed50ba",
+  "status": "PASS",
+  "read_only": true,
+  "optimizer_or_com_rerun": false,
+  "original_source_sha": "65e1815db1cc18d74ff0dcee20ffd5e9098709df",
+  "computation_fingerprint": "fdff19b63739efe1022092aa21e2ba3651c82a3344d54721522e5e0fc5cef9dd",
+  "search_grid_points": 1001,
+  "search_grid_sha256": "212dd2b0b71ddeffb7a8865937d132ee596870f25c989ac7d90c5dab6fd7faa0",
+  "expected_cells": 10,
+  "passed_cells": 10,
+  "failed_cells": 0,
+  "evidence_limited_cells": 0,
+  "expected_checkpoint_pools": 80,
+  "reconstructed_checkpoint_pools": 80,
+  "reconstructed_finalist_candidates": 1280,
+  "validation": {
+    "focused_synthetic_tests": "18 passed",
+    "full_pytest_suite": "493 passed, 1 skipped",
+    "raw_read_only_audit": "PASS"
+  },
+  "existing_pr42_audit": {
+    "url": "https://github.com/MasayaTakagi/saw-com-optimizer/pull/42",
+    "result": "80/80 checkpoint pools; 1,280/1,280 saved finalist records passed",
+    "relationship": "This audit adds final-state cache-index rank reconstruction and trajectory checks."
+  },
+  "scientific_disposition": "STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED",
+  "cells": [
+    {
+      "topology": "P_D",
+      "seed": 20261007,
+      "final_checkpoint_exists": true,
+      "latest_exists": false,
+      "previous_exists": false,
+      "pinned_directory_exists": false,
+      "pinned_count": 0,
+      "b_record_count": 8,
+      "checkpoint_ranks_reconstructed": 8,
+      "status": "PASS",
+      "state_sha256": "00477ce0c0f88dfa41f741b001b355cde133bdb7bdab58e49ef1cfae3281e229",
+      "checkpoint_schema_version": 4,
+      "state_version": 4,
+      "compact_history_cache": true,
+      "compact_history_index_count": 96000,
+      "retained_results_count": 16,
+      "canonical_keys_unique": true,
+      "candidate_key_identity": "exact",
+      "insertion_orders_complete": true,
+      "frequency_grid_version": 1,
+      "design_space_version": 1,
+      "search_grid_points": 1001,
+      "search_grid_sha256": "212dd2b0b71ddeffb7a8865937d132ee596870f25c989ac7d90c5dab6fd7faa0",
+      "best_so_far_trace_count": 83,
+      "population_trace_count": 95767,
+      "archive_trace_count": 95767,
+      "population_size": 4,
+      "archive_size": 4,
+      "unique_evaluations": 96000,
+      "proposals_total": 100078,
+      "raw_offspring_count": 99844,
+      "duplicate_count": 4078,
+      "cache_hits": 4078,
+      "generations": 95766,
+      "boundary_repairs": 107732,
+      "search_counter_partition": "PASS",
+      "checkpoints": [
+        {
+          "budget": 8000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 16000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 24000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 32000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 48000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 64000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 80000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 96000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        }
+      ],
+      "finalist_pools_passed": 8,
+      "finalist_candidates_checked": 128
+    },
+    {
+      "topology": "P_D",
+      "seed": 20261008,
+      "final_checkpoint_exists": true,
+      "latest_exists": false,
+      "previous_exists": false,
+      "pinned_directory_exists": false,
+      "pinned_count": 0,
+      "b_record_count": 8,
+      "checkpoint_ranks_reconstructed": 8,
+      "status": "PASS",
+      "state_sha256": "e3ea4b4ed060450ec812e9a657f25da5645b633283e8b7e7d5ab450b00a6d3b1",
+      "checkpoint_schema_version": 4,
+      "state_version": 4,
+      "compact_history_cache": true,
+      "compact_history_index_count": 96000,
+      "retained_results_count": 16,
+      "canonical_keys_unique": true,
+      "candidate_key_identity": "exact",
+      "insertion_orders_complete": true,
+      "frequency_grid_version": 1,
+      "design_space_version": 1,
+      "search_grid_points": 1001,
+      "search_grid_sha256": "212dd2b0b71ddeffb7a8865937d132ee596870f25c989ac7d90c5dab6fd7faa0",
+      "best_so_far_trace_count": 76,
+      "population_trace_count": 95767,
+      "archive_trace_count": 95767,
+      "population_size": 4,
+      "archive_size": 4,
+      "unique_evaluations": 96000,
+      "proposals_total": 100622,
+      "raw_offspring_count": 100388,
+      "duplicate_count": 4622,
+      "cache_hits": 4622,
+      "generations": 95766,
+      "boundary_repairs": 115993,
+      "search_counter_partition": "PASS",
+      "checkpoints": [
+        {
+          "budget": 8000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 16000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 24000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 32000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 48000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 64000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 80000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 96000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        }
+      ],
+      "finalist_pools_passed": 8,
+      "finalist_candidates_checked": 128
+    },
+    {
+      "topology": "P_D",
+      "seed": 20261009,
+      "final_checkpoint_exists": true,
+      "latest_exists": false,
+      "previous_exists": false,
+      "pinned_directory_exists": false,
+      "pinned_count": 0,
+      "b_record_count": 8,
+      "checkpoint_ranks_reconstructed": 8,
+      "status": "PASS",
+      "state_sha256": "fb865960c4295ed740c18d7a169c3d9e7765aa1d03cfa77c96ea130172806dee",
+      "checkpoint_schema_version": 4,
+      "state_version": 4,
+      "compact_history_cache": true,
+      "compact_history_index_count": 96000,
+      "retained_results_count": 16,
+      "canonical_keys_unique": true,
+      "candidate_key_identity": "exact",
+      "insertion_orders_complete": true,
+      "frequency_grid_version": 1,
+      "design_space_version": 1,
+      "search_grid_points": 1001,
+      "search_grid_sha256": "212dd2b0b71ddeffb7a8865937d132ee596870f25c989ac7d90c5dab6fd7faa0",
+      "best_so_far_trace_count": 79,
+      "population_trace_count": 95767,
+      "archive_trace_count": 95767,
+      "population_size": 4,
+      "archive_size": 4,
+      "unique_evaluations": 96000,
+      "proposals_total": 100251,
+      "raw_offspring_count": 100017,
+      "duplicate_count": 4251,
+      "cache_hits": 4251,
+      "generations": 95766,
+      "boundary_repairs": 89093,
+      "search_counter_partition": "PASS",
+      "checkpoints": [
+        {
+          "budget": 8000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 16000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 24000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 32000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 48000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 64000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 80000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 96000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        }
+      ],
+      "finalist_pools_passed": 8,
+      "finalist_candidates_checked": 128
+    },
+    {
+      "topology": "P_D",
+      "seed": 20261010,
+      "final_checkpoint_exists": true,
+      "latest_exists": false,
+      "previous_exists": false,
+      "pinned_directory_exists": false,
+      "pinned_count": 0,
+      "b_record_count": 8,
+      "checkpoint_ranks_reconstructed": 8,
+      "status": "PASS",
+      "state_sha256": "488cd3a7a24a6dcfe6b42241043ce54308e67a5c687c637232af897ea06dcd66",
+      "checkpoint_schema_version": 4,
+      "state_version": 4,
+      "compact_history_cache": true,
+      "compact_history_index_count": 96000,
+      "retained_results_count": 16,
+      "canonical_keys_unique": true,
+      "candidate_key_identity": "exact",
+      "insertion_orders_complete": true,
+      "frequency_grid_version": 1,
+      "design_space_version": 1,
+      "search_grid_points": 1001,
+      "search_grid_sha256": "212dd2b0b71ddeffb7a8865937d132ee596870f25c989ac7d90c5dab6fd7faa0",
+      "best_so_far_trace_count": 71,
+      "population_trace_count": 95767,
+      "archive_trace_count": 95767,
+      "population_size": 4,
+      "archive_size": 4,
+      "unique_evaluations": 96000,
+      "proposals_total": 100340,
+      "raw_offspring_count": 100106,
+      "duplicate_count": 4340,
+      "cache_hits": 4340,
+      "generations": 95766,
+      "boundary_repairs": 116460,
+      "search_counter_partition": "PASS",
+      "checkpoints": [
+        {
+          "budget": 8000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 16000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 24000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 32000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 48000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 64000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 80000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 96000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        }
+      ],
+      "finalist_pools_passed": 8,
+      "finalist_candidates_checked": 128
+    },
+    {
+      "topology": "P_D",
+      "seed": 20261011,
+      "final_checkpoint_exists": true,
+      "latest_exists": false,
+      "previous_exists": false,
+      "pinned_directory_exists": false,
+      "pinned_count": 0,
+      "b_record_count": 8,
+      "checkpoint_ranks_reconstructed": 8,
+      "status": "PASS",
+      "state_sha256": "2b5274ba2d4a6696656e9664d495998e0699600dab958f7f02670a6207a7c30b",
+      "checkpoint_schema_version": 4,
+      "state_version": 4,
+      "compact_history_cache": true,
+      "compact_history_index_count": 96000,
+      "retained_results_count": 16,
+      "canonical_keys_unique": true,
+      "candidate_key_identity": "exact",
+      "insertion_orders_complete": true,
+      "frequency_grid_version": 1,
+      "design_space_version": 1,
+      "search_grid_points": 1001,
+      "search_grid_sha256": "212dd2b0b71ddeffb7a8865937d132ee596870f25c989ac7d90c5dab6fd7faa0",
+      "best_so_far_trace_count": 57,
+      "population_trace_count": 95767,
+      "archive_trace_count": 95767,
+      "population_size": 4,
+      "archive_size": 4,
+      "unique_evaluations": 96000,
+      "proposals_total": 100301,
+      "raw_offspring_count": 100067,
+      "duplicate_count": 4301,
+      "cache_hits": 4301,
+      "generations": 95766,
+      "boundary_repairs": 128070,
+      "search_counter_partition": "PASS",
+      "checkpoints": [
+        {
+          "budget": 8000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 16000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 24000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 32000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 48000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 64000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 80000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 96000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        }
+      ],
+      "finalist_pools_passed": 8,
+      "finalist_candidates_checked": 128
+    },
+    {
+      "topology": "D_P",
+      "seed": 20261007,
+      "final_checkpoint_exists": true,
+      "latest_exists": false,
+      "previous_exists": false,
+      "pinned_directory_exists": false,
+      "pinned_count": 0,
+      "b_record_count": 8,
+      "checkpoint_ranks_reconstructed": 8,
+      "status": "PASS",
+      "state_sha256": "9bd3ec8baf6145944e3ba6f717ca6cd3d6b32bdf06486018c5cc037aa654962d",
+      "checkpoint_schema_version": 4,
+      "state_version": 4,
+      "compact_history_cache": true,
+      "compact_history_index_count": 96000,
+      "retained_results_count": 16,
+      "canonical_keys_unique": true,
+      "candidate_key_identity": "exact",
+      "insertion_orders_complete": true,
+      "frequency_grid_version": 1,
+      "design_space_version": 1,
+      "search_grid_points": 1001,
+      "search_grid_sha256": "212dd2b0b71ddeffb7a8865937d132ee596870f25c989ac7d90c5dab6fd7faa0",
+      "best_so_far_trace_count": 70,
+      "population_trace_count": 95767,
+      "archive_trace_count": 95767,
+      "population_size": 4,
+      "archive_size": 4,
+      "unique_evaluations": 96000,
+      "proposals_total": 100444,
+      "raw_offspring_count": 100210,
+      "duplicate_count": 4444,
+      "cache_hits": 4444,
+      "generations": 95766,
+      "boundary_repairs": 100057,
+      "search_counter_partition": "PASS",
+      "checkpoints": [
+        {
+          "budget": 8000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 16000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 24000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 32000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 48000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 64000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 80000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 96000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        }
+      ],
+      "finalist_pools_passed": 8,
+      "finalist_candidates_checked": 128
+    },
+    {
+      "topology": "D_P",
+      "seed": 20261008,
+      "final_checkpoint_exists": true,
+      "latest_exists": false,
+      "previous_exists": false,
+      "pinned_directory_exists": false,
+      "pinned_count": 0,
+      "b_record_count": 8,
+      "checkpoint_ranks_reconstructed": 8,
+      "status": "PASS",
+      "state_sha256": "c6a567ff959243eea55adf61d8309efa3a7d8cc56b5d60d207144dffb5b3393b",
+      "checkpoint_schema_version": 4,
+      "state_version": 4,
+      "compact_history_cache": true,
+      "compact_history_index_count": 96000,
+      "retained_results_count": 16,
+      "canonical_keys_unique": true,
+      "candidate_key_identity": "exact",
+      "insertion_orders_complete": true,
+      "frequency_grid_version": 1,
+      "design_space_version": 1,
+      "search_grid_points": 1001,
+      "search_grid_sha256": "212dd2b0b71ddeffb7a8865937d132ee596870f25c989ac7d90c5dab6fd7faa0",
+      "best_so_far_trace_count": 72,
+      "population_trace_count": 95767,
+      "archive_trace_count": 95767,
+      "population_size": 4,
+      "archive_size": 4,
+      "unique_evaluations": 96000,
+      "proposals_total": 100296,
+      "raw_offspring_count": 100062,
+      "duplicate_count": 4296,
+      "cache_hits": 4296,
+      "generations": 95766,
+      "boundary_repairs": 108332,
+      "search_counter_partition": "PASS",
+      "checkpoints": [
+        {
+          "budget": 8000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 16000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 24000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 32000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 48000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 64000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 80000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 96000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        }
+      ],
+      "finalist_pools_passed": 8,
+      "finalist_candidates_checked": 128
+    },
+    {
+      "topology": "D_P",
+      "seed": 20261009,
+      "final_checkpoint_exists": true,
+      "latest_exists": false,
+      "previous_exists": false,
+      "pinned_directory_exists": false,
+      "pinned_count": 0,
+      "b_record_count": 8,
+      "checkpoint_ranks_reconstructed": 8,
+      "status": "PASS",
+      "state_sha256": "1d82d0aa2bddc1768466aa571e9f4d14a177488ffdcb1fb02546494befd11322",
+      "checkpoint_schema_version": 4,
+      "state_version": 4,
+      "compact_history_cache": true,
+      "compact_history_index_count": 96000,
+      "retained_results_count": 16,
+      "canonical_keys_unique": true,
+      "candidate_key_identity": "exact",
+      "insertion_orders_complete": true,
+      "frequency_grid_version": 1,
+      "design_space_version": 1,
+      "search_grid_points": 1001,
+      "search_grid_sha256": "212dd2b0b71ddeffb7a8865937d132ee596870f25c989ac7d90c5dab6fd7faa0",
+      "best_so_far_trace_count": 45,
+      "population_trace_count": 95767,
+      "archive_trace_count": 95767,
+      "population_size": 4,
+      "archive_size": 4,
+      "unique_evaluations": 96000,
+      "proposals_total": 100357,
+      "raw_offspring_count": 100123,
+      "duplicate_count": 4357,
+      "cache_hits": 4357,
+      "generations": 95766,
+      "boundary_repairs": 124216,
+      "search_counter_partition": "PASS",
+      "checkpoints": [
+        {
+          "budget": 8000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 16000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 24000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 32000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 48000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 64000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 80000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 96000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        }
+      ],
+      "finalist_pools_passed": 8,
+      "finalist_candidates_checked": 128
+    },
+    {
+      "topology": "D_P",
+      "seed": 20261010,
+      "final_checkpoint_exists": true,
+      "latest_exists": false,
+      "previous_exists": false,
+      "pinned_directory_exists": false,
+      "pinned_count": 0,
+      "b_record_count": 8,
+      "checkpoint_ranks_reconstructed": 8,
+      "status": "PASS",
+      "state_sha256": "5cc194197a42815af3cd2197c7f5394cff52e33c2c8a3846eccea46331e0c7cb",
+      "checkpoint_schema_version": 4,
+      "state_version": 4,
+      "compact_history_cache": true,
+      "compact_history_index_count": 96000,
+      "retained_results_count": 16,
+      "canonical_keys_unique": true,
+      "candidate_key_identity": "exact",
+      "insertion_orders_complete": true,
+      "frequency_grid_version": 1,
+      "design_space_version": 1,
+      "search_grid_points": 1001,
+      "search_grid_sha256": "212dd2b0b71ddeffb7a8865937d132ee596870f25c989ac7d90c5dab6fd7faa0",
+      "best_so_far_trace_count": 74,
+      "population_trace_count": 95767,
+      "archive_trace_count": 95767,
+      "population_size": 4,
+      "archive_size": 4,
+      "unique_evaluations": 96000,
+      "proposals_total": 100637,
+      "raw_offspring_count": 100403,
+      "duplicate_count": 4637,
+      "cache_hits": 4637,
+      "generations": 95766,
+      "boundary_repairs": 119293,
+      "search_counter_partition": "PASS",
+      "checkpoints": [
+        {
+          "budget": 8000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 16000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 24000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 32000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 48000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 64000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 80000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 96000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        }
+      ],
+      "finalist_pools_passed": 8,
+      "finalist_candidates_checked": 128
+    },
+    {
+      "topology": "D_P",
+      "seed": 20261011,
+      "final_checkpoint_exists": true,
+      "latest_exists": false,
+      "previous_exists": false,
+      "pinned_directory_exists": false,
+      "pinned_count": 0,
+      "b_record_count": 8,
+      "checkpoint_ranks_reconstructed": 8,
+      "status": "PASS",
+      "state_sha256": "4892e2cfdd7b2e8937459d31ea0554efe599905100a97ca3c3424c89a2933b00",
+      "checkpoint_schema_version": 4,
+      "state_version": 4,
+      "compact_history_cache": true,
+      "compact_history_index_count": 96000,
+      "retained_results_count": 16,
+      "canonical_keys_unique": true,
+      "candidate_key_identity": "exact",
+      "insertion_orders_complete": true,
+      "frequency_grid_version": 1,
+      "design_space_version": 1,
+      "search_grid_points": 1001,
+      "search_grid_sha256": "212dd2b0b71ddeffb7a8865937d132ee596870f25c989ac7d90c5dab6fd7faa0",
+      "best_so_far_trace_count": 48,
+      "population_trace_count": 95767,
+      "archive_trace_count": 95767,
+      "population_size": 4,
+      "archive_size": 4,
+      "unique_evaluations": 96000,
+      "proposals_total": 100351,
+      "raw_offspring_count": 100117,
+      "duplicate_count": 4351,
+      "cache_hits": 4351,
+      "generations": 95766,
+      "boundary_repairs": 126697,
+      "search_counter_partition": "PASS",
+      "checkpoints": [
+        {
+          "budget": 8000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 16000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 24000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 32000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 48000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 64000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 80000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        },
+        {
+          "budget": 96000,
+          "status": "PASS",
+          "finalists_checked": 16,
+          "trace_prefixes_match": true
+        }
+      ],
+      "finalist_pools_passed": 8,
+      "finalist_candidates_checked": 128
+    }
+  ]
+}
