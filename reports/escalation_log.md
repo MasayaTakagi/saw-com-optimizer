@@ -1,5 +1,57 @@
 # Luna → Sol Escalation Log
 
+## 2026-10-21 — Stage 5A-2 Q0 L-SHADE vs controlled DE design review
+
+- Prepared the bounded, read-only design packet at
+  `reports/escalation_packets/stage5a2_de_protocol_sol_review_20261021.md`
+  against confirmed main `a1cbd9eab3999fb18ca3e0683ddfbabe21ea0559` (PR #46).
+  The Stage 5A-1 closeout, Stage 5A-2 proposal, and qualified routing guide
+  were confirmed present at that base; the earlier local note claiming they
+  were missing was stale and is superseded.
+- **Routing/session verification:** requested `openai/gpt-6.1-sol`,
+  `thinking=medium`, read-only tools, non-persistent child. The saved child
+  record identifies `provider=openai`, `modelId=gpt-6.1-sol`, and
+  `thinkingLevel=medium`; it contains the expected completed review response
+  and normal `stop` completion. Session name:
+  `stage5a2-q0-sol-design-review`; session ID
+  `01a159d5-d230-71ea-818e-f9b077168d83`. Full session remains local and was
+  not added to Git. Recorded `medium` is a runtime setting, not proof of
+  internal reasoning effort.
+- **Sol decision: `REQUEST_Q0_REVISIONS`.** Sol judged the proposed comparison
+  defensible as an exploratory matched-budget comparison of complete algorithm
+  packages, but not sufficiently frozen for Q1. A new controlled DE is
+  justified; neither `ScipyDELegacyBackend` nor `FixedDEReferenceBackend` may
+  be relabelled as the requested standard DE arm.
+- Key findings: L-SHADE itself has offspring-wise immediate updates, latent
+  pre-canonical normalized genotypes, parent-midpoint boundary repair, and an
+  unseen-proposal fallback after duplicate retries; comparison therefore
+  measures complete algorithm packages. L-SHADE lacks a default duplicate
+  no-progress stop. Its existing state/trace does not yet establish exact
+  checkpoint replay, strict identity/schema validation, per-unique-FE tracing,
+  or lossless infinity serialization. 4,096 FEs × 3 seeds supports exploratory
+  evidence only, not convergence or general superiority.
+- Sol endorsed as **design choices only** fixed DE population 234, `F=0.5`,
+  `CR=0.9`, reflection, canonical phenotype remapping, synchronous parent
+  snapshots, no DE shrink/adaptation/archive/polish/fallback, exact-budget
+  partial generation; the provisional 4,096/234/three-seed envelope; and a
+  cold L-SHADE 4,096 horizon. These are not Q0 freeze or run authorization.
+- Required before Q1: freeze exact L-SHADE settings/fallback and comparison
+  estimand; DE donor/target/RNG/retry/survivor order; exact initializer stream,
+  representation, cap and partial-failure recovery; bounded retry/stall and
+  infrastructure-failure semantics for both arms; strict record schema,
+  stable tie and lossless key/infinity encoding plus missing-identity rejection;
+  per-unique-FE search-only trace; and timing/counter/resource/cell-order
+  contracts. Q1 qualification must cover these, including L-SHADE fallback,
+  partial initialization, pending DE generation checkpoint, ties, serialization,
+  failure boundaries and trajectory-neutral tracing.
+- Updated the Q0 packet and plan draft to record this conditional disposition
+  and outstanding work. **Q0 remains OPEN / REVISIONS REQUIRED; Q1 NOT STARTED.**
+  The packet requires a future consolidated revision and separate Sol
+  re-review, then independent GitHub review and user acceptance before Q1
+  implementation permission can be considered. This one-review task launched
+  no second reviewer, test, synthetic qualification, COM evaluation,
+  optimization, DMS acceleration, production run, or Stage 4C data change.
+
 ## 2026-09-29 — Stage 4A hybrid protocol pre-implementation judgment
 
 - C2C PLAN `c2c_0b52`, iteration 0, classified pre-edit Sol judgment as
