@@ -40,7 +40,7 @@ The Q0 packet §13 matrix records each prior Sol/PR #47 finding as `RESOLVED_WIT
 ## Review and implementation gates
 
 1. The one authorized read-only Sol review was completed using the pinned `openai/gpt-6.1-sol` route and returned `REQUEST_Q0_REVISIONS`; the recorded child route is documented in §14. No second Sol agent is launched by this task.
-2. Publish the revised packet, finding matrix, this plan, Q1 qualification matrix, escalation log and Sol result on the dedicated review branch as a **Draft PR**. Obtain independent GitHub review and explicit user acceptance. Do not merge or close Q0 without that acceptance.
+2. The revised packet, finding matrix, this plan, Q1 qualification matrix, escalation log and Sol result are published on branch `codex/stage5a2-q0-protocol-revision` in [Draft PR #48](https://github.com/MasayaTakagi/saw-com-optimizer/pull/48). Obtain independent GitHub review and explicit user acceptance. Do not merge or close Q0 without that acceptance.
 3. Q1 implementation remains blocked until the Q0 blockers in §14 have been explicitly resolved in an accepted protocol, then independent GitHub review and explicit user implementation permission are recorded. Q1 must pass the synthetic/unit-only matrix with proof that no COM/provider or production orchestration path is called.
 4. Q1 pass does not authorize any pilot. A future launch still requires a frozen implementation/source SHA and preflight, external persistent storage, exact run contract, resource/abort policy, and separate explicit user authorization through the qualified workflow.
 
