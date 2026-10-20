@@ -1,6 +1,6 @@
 # Pi Sol review routing (Stage 5A-2 and later)
 
-**Status:** Pi Sol routing QUALIFIED (recorded provider/model/medium and normal child completion); Stage 5A-2 Q0 design review NOT STARTED.
+**Status:** Pi Sol routing QUALIFIED based on the user-reported, locally inspected child record (provider/model/medium and normal completion); Stage 5A-2 Q0 design review NOT STARTED.
 **As of:** 2026-10-20.
 **Scope:** model selection and bounded high-risk design review. No Q0 freeze, Q1 implementation approval, or COM/production authorization.
 
@@ -35,7 +35,7 @@ Upstream references:
 3. Inspection of the subagent extension `resolveModel()` explains the mismatch: it prefers a provider match and then performs loose model-only lookup across providers. Its documented `no fallback` claim must not be treated as an exact-provider guarantee. There is no need to modify the extension merely to use the now-correct `openai` provider, provided the resolved child identity is checked.
 4. The user checked `~/.pi/agent/auth.json` without printing secrets: `openai: oauth`. Under standard Pi credential resolution this is consistent with ChatGPT sign-in, but the stored type does not independently prove the credential chosen for any given request.
 
-Because prior child calls requested `openai-codex`, **do not treat them as a completed exact-request qualification for the corrected `openai` route**. The child record nevertheless verifies that `openai/gpt-6.1-sol` executes with recorded `medium` under the installed environment.
+The two historical requests above did **not** qualify the exact-request route because they specified the legacy provider. The **subsequent** explicitly requested `openai/gpt-6.1-sol` / `medium` test documented below completed that qualification. Do not interpret the earlier provider mismatch as an unresolved blocker for the now-correct route.
 
 ## Completed exact-request qualification (read-only)
 
@@ -89,6 +89,6 @@ Require the **requested and recorded provider/model** to match. Treat recorded `
 
 ## Stage 5A-2 Q0 review remains separate
 
-After this route check, use a **new** Sol child with the exact pinned target and send the self-contained Stage 5A-2 Q0 escalation packet. Ask for a bounded judgment on DE comparison/initialization, lexicographic comparator, exact unique-evaluation budgets and history/checkpoint semantics, qualification requirements and user authorization gates. The reviewer must not implement anything.
+With routing qualified, use a **separate** Sol child with the exact pinned target to review the current, self-contained Stage 5A-2 Q0 escalation packet. Before delegating, ensure that the packet and the Stage 5A-1 closeout / Stage 5A-2 proposal are accessible at the correct checkout or Git revision. Ask for a bounded judgment on DE comparison/initialization, lexicographic comparator, exact unique-evaluation budgets and history/checkpoint semantics, qualification requirements and user authorization gates. The reviewer must not implement anything.
 
 Record the separate Sol decision and evidence in `reports/escalation_log.md`. A connection test is **not** a Q0 design review. Q1 implementation and any COM or production experiment remain prohibited until the actual project gates authorize them.
