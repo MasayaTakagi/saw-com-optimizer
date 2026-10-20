@@ -162,9 +162,14 @@ You are the Luna root implementation agent.
 Perform routine implementation, tests, experiment execution, logging,
 reporting, and clearly specified changes yourself.
 
-Active Sol review target: `gpt-6-sol`.
+Active Sol review target (pinned 2026-10-20): `openai-codex/gpt-6.1-sol`,
+with Pi thinking level `medium`. Specify **both** in each Pi `agent_spawn`
+request. Do not silently fall back to a different model, provider, or
+thinking level. The older `gpt-6-sol` designation is historical, not the
+current review target. See [Pi Sol review routing](docs/guides/pi_sol_review_routing.md)
+for tool parameters, recorded connectivity evidence, and verification limits.
 
-Use GPT-6 Sol only for bounded high-risk judgment tasks.
+Use GPT-6.1 Sol only for bounded high-risk judgment tasks.
 
 You MUST escalate before changing:
 
@@ -193,12 +198,20 @@ formatting, simple refactoring, or changes whose behavior is fully specified.
 When escalating:
 
 1. Create a self-contained Escalation Packet.
-2. Prefer `fork_context=false`.
-3. Explicitly request `gpt-6-sol`.
+2. In a Pi session, use the qualified `agent_spawn` extension with explicit
+   `model="openai-codex/gpt-6.1-sol"` and `thinking="medium"`. For
+   Codex-specific escalation, prefer `fork_context=false` only if supported;
+   it is **not** a Pi `agent_spawn` parameter.
+3. Restrict child tools to the least privilege the review requires and permit
+   no fallback. Do not pass unsupported `run_in_background` to `agent_spawn`.
 4. Use one Sol agent at a time.
 5. Ask Sol for judgment/review, not full implementation.
-6. Resume implementation yourself after receiving the decision.
-7. Record the escalation and outcome in `reports/escalation_log.md`.
+6. Inspect the child session record and distinguish requested routing from
+   observed provider/model/thinking metadata; a successful textual response
+   is insufficient to assert all three were verified.
+7. Resume implementation only after a recorded review decision and applicable
+   project gates; log routing, evidence, judgment, and outcome in
+   `reports/escalation_log.md`.
 
 Never claim that the backend model identity or actual internal reasoning effort
 was verified unless the runtime explicitly exposes that information.
