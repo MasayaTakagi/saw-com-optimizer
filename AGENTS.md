@@ -162,12 +162,16 @@ You are the Luna root implementation agent.
 Perform routine implementation, tests, experiment execution, logging,
 reporting, and clearly specified changes yourself.
 
-Active Sol review target (pinned 2026-10-20): `openai-codex/gpt-6.1-sol`,
-with Pi thinking level `medium`. Specify **both** in each Pi `agent_spawn`
-request. Do not silently fall back to a different model, provider, or
-thinking level. The older `gpt-6-sol` designation is historical, not the
-current review target. See [Pi Sol review routing](docs/guides/pi_sol_review_routing.md)
-for tool parameters, recorded connectivity evidence, and verification limits.
+Active Pi Sol review target (pinned 2026-10-20):
+`openai/gpt-6.1-sol` with Pi thinking level `medium`.
+In current Pi, the `openai` provider supports ChatGPT OAuth;
+`openai-codex` is the legacy provider. Specify **both** model and
+thinking in each Pi `agent_spawn` request; inspect the actual child
+session record and fail closed on provider/model/thinking mismatch.
+Do not assume the extension's model lookup enforces exact provider identity.
+The earlier `openai-codex/gpt-6.1-sol` configuration was superseded.
+See [Pi Sol review routing](docs/guides/pi_sol_review_routing.md) for evidence
+and remaining credential-verification limits.
 
 Use GPT-6.1 Sol only for bounded high-risk judgment tasks.
 
@@ -199,7 +203,7 @@ When escalating:
 
 1. Create a self-contained Escalation Packet.
 2. In a Pi session, use the qualified `agent_spawn` extension with explicit
-   `model="openai-codex/gpt-6.1-sol"` and `thinking="medium"`. For
+   `model="openai/gpt-6.1-sol"` and `thinking="medium"`. For
    Codex-specific escalation, prefer `fork_context=false` only if supported;
    it is **not** a Pi `agent_spawn` parameter.
 3. Restrict child tools to the least privilege the review requires and permit
