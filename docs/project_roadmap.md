@@ -61,7 +61,9 @@ Prior studies remain immutable historical evidence; see [current baseline](histo
 
 **Performance measurement starts at 5A and runs through all stages.** Stage 5F is the final integrated performance gate, not permission to postpone obvious optimizations.
 
-### Stage 5A-1 — Read-only numerical/optimizer and cost audit
+### Stage 5A-1 — Read-only numerical/optimizer and cost audit (**CLOSED 2026-10-20; evidence-limited**)
+
+**Closeout:** [Stage 5A-1 audit decision](history/stage5a1_closeout_20261020.md) accepts saved-candidate/comparator integrity, all 10 L-SHADE compact states, 80 historical top-16 search pools, 80 dense-validation selection pools, evaluation accounting and the measured baseline cost envelope. It does **not** establish convergence, an algorithm winner, per-proposal replay or independently recomputed COM results for all historical candidates. Stage 4C scientific disposition remains unchanged. [Stage 5A-2 fair-pilot design](plans/stage5a2_minimum_fair_comparison.md) is planning-only and does not authorize new optimization.
 
 Start with existing Stage 4C evidence and current source. Verify feasibility-first comparator/objective behavior, search versus dense-validation ranking, mixed-integer canonicalization, geometry gates, initializer, cache identity, population behavior, late convergence, and run accounting. Distinguish implementation bugs from legitimate infeasible designs. Profile or reconstruct COM/network, metric, optimizer, validation and storage time. Estimate scaling by evaluations × seeds × topologies × impedance points and memory.
 
@@ -128,4 +130,4 @@ A user can supply **COM parameters, performance spec, topology/variables, area/g
 
 The tool need not prove actual-device accuracy, find a universally feasible design or demonstrate that non-50-ohm ports always win.
 
-**NEXT:** Stage 5A-1 **read-only audit of optimizer integrity and full-space cost/quality feasibility**, followed by classical-SAW synthesis method investigation and the smallest fair comparison study. No automatic 192k/256k extension or COM calibration track.
+**NEXT:** Stage 5A-2 **qualification and explicit approval of a small controlled full-space L-SHADE-versus-DE pilot**, in parallel with low-risk classical-SAW synthesis research. Stage 5A-1 is closed as a read-only, evidence-limited audit; no new optimizer/COM run is authorized by the closeout. No automatic 192k/256k extension or COM calibration track.
