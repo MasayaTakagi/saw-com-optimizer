@@ -29,6 +29,13 @@ Under one frozen COM/network/spec/bounds problem, does an alternative generic **
 
 ## Pre-execution engineering qualification
 
+**Stage 5A-2 Q0 reviewer routing:** use the [Pi Sol review procedure](../guides/pi_sol_review_routing.md).
+The pinned design-judgment request is `openai-codex/gpt-6.1-sol` with
+`thinking=medium`. The prior `high`-effort connectivity reply is not the
+new `medium`-route qualification and does not constitute Q0 design approval.
+Do not freeze Q0 or start Q1 on the basis of connection success alone. Log a
+separate bounded Sol judgment and respect the normal user authorization gate.
+
 Before any empirical optimizer run, perform docs-first review and synthetic/unit qualification that both arms: (a) charge only new canonical designs to the unique budget, (b) use the identical feasibility/geometry comparator and fail-closed candidate schema, (c) respect exact integer canonicalization, DMS/resonator bounds and dense-grid identities, (d) use auditable initialization and final 16 candidate history, (e) stop at exact 4,096 unique designs or report justified exhaustion, and (f) record time/evaluation traces and checkpoint state without altering existing Stage 4C evidence.
 
 Where the Legacy-DE implementation cannot satisfy a condition without substantial new code, **stop and report the limitation** rather than quietly changing the problem or replacing it with a different comparison. Unit tests/synthetic objective checks are permitted without initiating COM search or production work.
