@@ -1,11 +1,11 @@
-# Stage 5A-2 Q0-R1 — frozen minimum-fair comparison protocol
+# Stage 5A-2 Q0-R1 — proposed minimum-fair comparison protocol (not approved)
 
 **Status after independent re-review:** `REQUEST_Q0_REVISIONS`; Q0 remains open and Q1 is blocked. The review below did not authorize implementation or execution.
 **Revision:** Q0-R1, 2026-10-21
 **Purpose:** resolve the first Sol review and PR #47 findings before Q1. The first revision was independently re-reviewed once; Sol found additional unresolved protocol defects recorded in §14. This is the final Sol review for this work unit; no automatic second re-review will be started.
 **Not authorized:** Q1 implementation, tests, synthetic evaluation, COM/network calculations, optimization, run launch, or Stage 4C data changes.
 **Source baseline:** current publication base is `origin/main` `daa646ba7c9fab0d5d1b6c3e3054213fdb9ab10e`. The read-only source audit began at local `c2f002c00da0339c4f43fe1ac9e50d7793cdb233`; its tree is identical to the current base despite a different commit history. PR #47 is merged. This revision preserves its prior packet and findings.
-**Authority:** this document freezes a proposed Q0 protocol only. Sol re-review, independent GitHub review, and user acceptance are separate gates; none authorizes an experiment.
+**Authority:** this document records candidate Q0-R1 specifications only; the Q0 protocol is **not frozen or approved**. Sol re-review, independent GitHub review, and user acceptance are separate gates; none authorizes an experiment.
 
 ## 1. Decision and estimand
 
@@ -16,7 +16,7 @@ The future Stage 5A-2 comparison is an **exploratory matched-budget comparison o
 
 The frozen model, COM inputs, topology definitions, specification, geometry constraints, bounds, port conditions, and frequency grids remain exactly those in the Stage 4C frozen contract. No method may change them. The experimental question is short-budget quality and efficiency on this one fixed problem; it is not feasibility proof, convergence, global optimality, or general algorithm superiority.
 
-| Item | Frozen Q0-R1 decision |
+| Item | Proposed Q0-R1 choice (not approved) |
 |---|---|
 | Topologies | `P_D`, `D_P`; independent searches, 13 variables each |
 | Root seeds | `20261012`, `20261013`, `20261014`; matched by topology and seed across methods; fresh relative to Stage 4B/4C seeds |
