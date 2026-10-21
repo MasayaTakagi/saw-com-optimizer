@@ -12,6 +12,7 @@ MODULES = (
     "sawopt.design.canonicalization",
     "sawopt.studies.stage5a2.codec",
     "sawopt.studies.stage5a2.identity",
+    "sawopt.studies.stage5a2.production_identity",
     "sawopt.studies.stage5a2.journal",
     "sawopt.studies.stage5a2.rng",
     "sawopt.studies.stage5a2.initialization",

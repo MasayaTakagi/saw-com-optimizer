@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import uuid
 from dataclasses import dataclass
@@ -64,6 +65,8 @@ class PairIdentity:
     sampler_version: str
     arm_config_hashes: tuple[tuple[str, str], ...]
     cell_journal_uuids: tuple[tuple[str, str], ...]
+    identity_scope: Literal["synthetic_test", "q0_production"]
+    production_manifest_json: bytes | None
     schema: str = PAIR_SCHEMA
 
     def __post_init__(self) -> None:
@@ -81,6 +84,19 @@ class PairIdentity:
             _sha256(getattr(self, name), name)
         if self.topology not in {"D", "P_D", "D_P", "P_D_P"}:
             raise IdentityError("topology must be one of the four supported Stage 4A designs")
+        if self.identity_scope not in ("synthetic_test", "q0_production"):
+            raise IdentityError("pair identity scope must be explicit synthetic_test or q0_production")
+        if self.identity_scope == "synthetic_test":
+            if self.production_manifest_json is not None:
+                raise IdentityError("synthetic pair identities cannot carry a production manifest")
+        else:
+            try:
+                from .production_identity import Q0ProductionIdentityManifest
+
+                manifest = Q0ProductionIdentityManifest.from_bytes(self.production_manifest_json)
+                manifest.verify_pair_fields(self)
+            except (TypeError, ValueError) as exc:
+                raise IdentityError(f"Q0 production pair identity is not backed by a valid manifest: {exc}") from exc
         if self.sampler_version != "independent_uniform_rejection_lshade_image_v2":
             raise IdentityError("sampler version differs from the frozen Q0 contract")
         if type(self.root_seed) is not int or self.root_seed < 0:
@@ -107,6 +123,40 @@ class PairIdentity:
         if self.pair_journal_uuid in cell_uuids:
             raise IdentityError("pair and cell journal UUIDs must be distinct")
 
+    @classmethod
+    def from_q0_production_manifest(
+        cls,
+        *,
+        pair_journal_uuid: str,
+        cell_journal_uuids: tuple[tuple[str, str], ...],
+        production_manifest_json: bytes,
+    ) -> "PairIdentity":
+        """Build the pair's aggregate hashes from the complete frozen preimage."""
+        from .production_identity import Q0ProductionIdentityManifest
+
+        manifest = Q0ProductionIdentityManifest.from_bytes(production_manifest_json)
+        record = manifest.record
+        return cls(
+            pair_journal_uuid=pair_journal_uuid,
+            protocol_id=record["protocol_id"],
+            source_commit_sha=record["source"]["source_commit_sha"],
+            config_sha256=hashlib.sha256(canonical_json_bytes(record["configuration"])).hexdigest(),
+            evaluator_sha256=hashlib.sha256(canonical_json_bytes(record["evaluator"])).hexdigest(),
+            grid_sha256=hashlib.sha256(canonical_json_bytes(record["grids"])).hexdigest(),
+            environment_sha256=hashlib.sha256(canonical_json_bytes(record["environment"])).hexdigest(),
+            topology=record["topology"],
+            root_seed=record["root_seed"],
+            design_space_sha256=record["design_space"]["design_space_sha256"],
+            sampler_version=record["sampler"]["version"],
+            arm_config_hashes=tuple(
+                (role, hashlib.sha256(canonical_json_bytes(record["arms"][role])).hexdigest())
+                for role in ARM_ROLES
+            ),
+            cell_journal_uuids=cell_journal_uuids,
+            identity_scope="q0_production",
+            production_manifest_json=manifest.canonical_bytes,
+        )
+
     def record(self) -> dict[str, object]:
         return {
             "schema": self.schema,
@@ -123,6 +173,11 @@ class PairIdentity:
             "sampler_version": self.sampler_version,
             "arm_config_hashes": [[role, value] for role, value in self.arm_config_hashes],
             "cell_journal_uuids": [[role, value] for role, value in self.cell_journal_uuids],
+            "identity_scope": self.identity_scope,
+            "production_manifest": (
+                None if self.production_manifest_json is None
+                else json.loads(self.production_manifest_json.decode("utf-8"))
+            ),
         }
 
     @property
@@ -288,9 +343,14 @@ class GenesisCoordinator:
         self,
         pair_path: str | Path,
         cell_paths: tuple[str | Path, str | Path],
+        *,
+        identity_scope: Literal["synthetic_test", "q0_production"] = "q0_production",
     ) -> None:
         self.pair_path = Path(pair_path)
         self.cell_paths = tuple(Path(path) for path in cell_paths)
+        if identity_scope not in ("synthetic_test", "q0_production"):
+            raise ValueError("genesis identity_scope must be synthetic_test or q0_production")
+        self.identity_scope = identity_scope
         if len(self.cell_paths) != 2:
             raise ValueError("exactly two cell journal paths are required")
         resolved_paths = {self.pair_path.resolve(), *(path.resolve() for path in self.cell_paths)}
@@ -304,6 +364,19 @@ class GenesisCoordinator:
 
         return SQLiteJournal.inspect(path, journal_uuid=journal_uuid, owner_kind=owner_kind)
 
+    def _validate_pair_scope(self, pair: PairIdentity) -> None:
+        if pair.identity_scope != self.identity_scope:
+            raise GenesisError(
+                f"{self.identity_scope} genesis cannot accept {pair.identity_scope} pair identities"
+            )
+        if pair.identity_scope == "q0_production":
+            try:
+                from .production_identity import Q0ProductionIdentityManifest
+
+                Q0ProductionIdentityManifest.from_bytes(pair.production_manifest_json).verify_pair_fields(pair)
+            except (TypeError, ValueError) as exc:
+                raise GenesisError(f"Q0 production identity manifest validation failed: {exc}") from exc
+
     def reconcile(
         self,
         pair: PairIdentity,
@@ -312,6 +385,7 @@ class GenesisCoordinator:
     ) -> GenesisResult:
         from .journal import SQLiteJournal
 
+        self._validate_pair_scope(pair)
         if pair.pair_journal_uuid == dict(pair.cell_journal_uuids)["lshade"] or pair.pair_journal_uuid == dict(pair.cell_journal_uuids)["controlled_de"]:
             raise GenesisError("pair and cell journal UUIDs must be distinct")
         cell_ids = tuple(dict(pair.cell_journal_uuids)[role] for role in ARM_ROLES)
@@ -510,6 +584,7 @@ class GenesisCoordinator:
         """Re-read and validate the committed barrier and its full identity set."""
         from .journal import SQLiteJournal
 
+        self._validate_pair_scope(pair)
         cells = tuple(
             CellIdentity(
                 cell_journal_uuid=dict(pair.cell_journal_uuids)[role],

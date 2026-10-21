@@ -314,7 +314,9 @@ class PreflightCertificate:
 
 
 @dataclass(frozen=True, slots=True)
-class BothArmPreflightReady:
+class SyntheticPreflightEvidence:
+    """Non-authoritative synthetic evidence; it can never authorize an FE."""
+
     pair_identity_id: str
     population_sha256: str
     representation_sha256: str
@@ -373,6 +375,31 @@ def _seal(
     )
 
 
+def _verify_metadata_scope(metadata: DesignSpaceMetadata, pair: PairIdentity, genesis: GenesisCoordinator) -> None:
+    if pair.identity_scope != genesis.identity_scope:
+        raise InitializationGateError("design-space/pair identity scope differs from the genesis path")
+    if pair.identity_scope == "synthetic_test":
+        return
+    try:
+        from .production_identity import Q0ProductionIdentityManifest
+
+        manifest = Q0ProductionIdentityManifest.from_bytes(pair.production_manifest_json)
+        expected = manifest.metadata_record()
+    except (TypeError, ValueError) as exc:
+        raise InitializationGateError(f"Q0 production design-space identity is invalid: {exc}") from exc
+    actual_bounds = np.asarray(metadata.bounds, dtype="<f8").tobytes().hex()
+    if (
+        metadata.topology != expected["topology"]
+        or metadata.variable_names != tuple(expected["variable_names"])
+        or actual_bounds != expected["bounds_le_f64_hex"]
+        or metadata.integer_indices != tuple(expected["integer_indices"])
+        or metadata.units != tuple(expected["units"])
+        or metadata.design_space_sha256 != expected["design_space_sha256"]
+        or metadata.dimension != expected["dimension"]
+    ):
+        raise InitializationGateError("production metadata differs from the complete frozen Q0 design-space identity")
+
+
 def _check_ready(readiness: GenesisReady | None, pair_identity_id: str) -> None:
     if not isinstance(readiness, GenesisReady):
         raise InitializationGateError("sampler RNG is forbidden before verified G4 readiness")
@@ -395,17 +422,20 @@ def sample_initial_population(
     after_draw_commit: Callable[[int], None] | None = None,
 ) -> PopulationSeal:
     """Construct the exact 234-member L-SHADE-image seal; never use fitness."""
-    try:
-        readiness = genesis.require_ready(pair_identity)
-    except (GenesisError, JournalError) as exc:
-        raise InitializationGateError("sampler RNG is forbidden before verified durable G4 readiness") from exc
-    _check_ready(readiness, pair_identity.identity_id)  # checked before any sampler call
+    # Reject wrong production dimensions/bounds/grids before touching genesis
+    # journals or making any sampler RNG call.
+    _verify_metadata_scope(metadata, pair_identity, genesis)
     if (
         pair_identity.topology != metadata.topology
         or pair_identity.design_space_sha256 != metadata.design_space_sha256
         or pair_identity.sampler_version != SAMPLER_VERSION
     ):
         raise InitializationGateError("sampler metadata does not match the immutable pair identity")
+    try:
+        readiness = genesis.require_ready(pair_identity)
+    except (GenesisError, JournalError) as exc:
+        raise InitializationGateError("sampler RNG is forbidden before verified durable G4 readiness") from exc
+    _check_ready(readiness, pair_identity.identity_id)  # checked before any sampler call
     if rng.journal.journal_uuid != pair_identity.pair_journal_uuid or rng.journal.owner_kind != "pair":
         raise InitializationGateError("common sampler RNG must be owned by the pair journal")
     seed = derive_seed32(
@@ -685,8 +715,8 @@ def persist_both_preflight_certificates(
     journals: tuple[SQLiteJournal, SQLiteJournal],
     lshade_certificate: PreflightCertificate,
     controlled_de_certificate: PreflightCertificate,
-) -> BothArmPreflightReady:
-    """Validate and separately persist both certificates before any initial FE."""
+) -> SyntheticPreflightEvidence:
+    """Persist synthetic-only preflight evidence; it is not FE authorization."""
     if type(cells) is not tuple or len(cells) != 2 or tuple(cell.role for cell in cells) != ("lshade", "controlled_de"):
         raise InitializationError("cells must be ordered L-SHADE then controlled DE")
     if type(journals) is not tuple or len(journals) != 2:
@@ -720,8 +750,9 @@ def persist_both_preflight_certificates(
             _verify_population_attachment(cell=cell, journal=journal, seal=seal)
         except InitializationError as exc:
             raise InitializationError(f"{role} certificate lacks verified Phase-I/II records: {exc}") from exc
-    # Compute and compare complete ordered actual-input certificates before
-    # writing either arm's certificate; they must match the same seal exactly.
+    # Compare the supplied synthetic claims before recording them. This only
+    # proves consistency with the seal; it does not prove either real optimizer
+    # transformation ran or authorize any evaluator call.
     if lshade_certificate.ordered_vector_key_sha256 != controlled_de_certificate.ordered_vector_key_sha256:
         raise InitializationError("the two arm preflight inputs differ; both arms remain blocked before FE")
     for role in ("lshade", "controlled_de"):
@@ -752,8 +783,8 @@ def require_both_preflight_certificates(
     pair_identity_id: str,
     cells: tuple[CellIdentity, CellIdentity],
     journals: tuple[SQLiteJournal, SQLiteJournal],
-) -> BothArmPreflightReady:
-    """Return an evaluator gate only if both durable certificates match exactly."""
+) -> SyntheticPreflightEvidence:
+    """Read back matching synthetic evidence without authorizing evaluation."""
     found: dict[str, dict[str, Any]] = {}
     if pair_identity_id != seal.pair_identity_id:
         raise InitializationGateError("population seal belongs to a different pair identity")
@@ -797,14 +828,14 @@ def require_both_preflight_certificates(
     lshade, controlled = found["lshade"], found["controlled_de"]
     if lshade["ordered_vector_key_sha256"] != controlled["ordered_vector_key_sha256"]:
         raise InitializationGateError("durable arm evaluator-input certificates disagree")
-    return BothArmPreflightReady(
+    return SyntheticPreflightEvidence(
         pair_identity_id, seal.population_sha256, seal.representation_sha256,
         lshade["certificate_sha256"], controlled["certificate_sha256"],
     )
 
 
 def dispatch_initial_evaluation(
-    readiness: BothArmPreflightReady,
+    readiness: SyntheticPreflightEvidence,
     *,
     role: Literal["lshade", "controlled_de"],
     seal: PopulationSeal,
@@ -813,37 +844,24 @@ def dispatch_initial_evaluation(
     journals: tuple[SQLiteJournal, SQLiteJournal],
     evaluator: Callable[[np.ndarray], Any],
 ) -> Any:
-    """Guard the future first-FE call behind both durable certificates."""
-    if not isinstance(readiness, BothArmPreflightReady):
-        raise InitializationGateError("initial evaluator is blocked until both preflight certificates are durable")
-    durable = require_both_preflight_certificates(
-        seal=seal, pair_identity_id=seal.pair_identity_id, cells=cells, journals=journals,
+    """Disable Q1-A FE dispatch until the actual B/C paths are integrated.
+
+    Seal-derived synthetic certificates cannot prove execution of either real
+    optimizer transformation path, so this API intentionally has no evaluator
+    authorization capability in Q1-A.
+    """
+    del readiness, role, seal, member, cells, journals, evaluator
+    raise InitializationGateError(
+        "Q1-A synthetic preflight evidence cannot authorize evaluator calls; actual B/C path qualification is pending"
     )
-    if readiness != durable:
-        raise InitializationGateError("initial evaluator token differs from the durable both-arm certificate set")
-    if role not in ("lshade", "controlled_de"):
-        raise InitializationGateError("unsupported initialization evaluator role")
-    if (
-        readiness.pair_identity_id != seal.pair_identity_id
-        or readiness.population_sha256 != seal.population_sha256
-        or readiness.representation_sha256 != seal.representation_sha256
-        or member.ordinal >= len(seal.members)
-        or seal.members[member.ordinal] != member
-    ):
-        raise InitializationGateError("evaluation authorization does not match this sealed member")
-    raw = (
-        member.sealed_physical_le_f64
-        if role == "lshade"
-        else member.de_initial_physical_le_f64
-    )
-    return evaluator(_vector_from_bytes(raw, member.dimension).copy())
 
 
 __all__ = [
-    "BothArmPreflightReady", "DesignSpaceMetadata", "InitializationError",
+    "DesignSpaceMetadata", "InitializationError",
     "InitializationGateError", "POPULATION_SIZE", "PopulationAttachment", "PopulationMember",
     "PopulationSeal", "PreflightCertificate", "SAMPLER_VERSION", "attach_population",
     "canonical_key_tokens", "dispatch_initial_evaluation", "persist_both_preflight_certificates",
     "preflight_controlled_de", "preflight_lshade", "require_both_preflight_certificates",
+    "SyntheticPreflightEvidence",
     "sample_initial_population",
 ]

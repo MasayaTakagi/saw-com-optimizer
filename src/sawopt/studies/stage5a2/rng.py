@@ -51,25 +51,36 @@ def pcg64_state(generator: np.random.Generator) -> dict[str, Any]:
     return {
         "schema": PCG64_STATE_SCHEMA,
         "bit_generator": "PCG64",
-        "state": {"state": inner["state"], "inc": inner["inc"]},
+        "state_128_be_hex": f"{inner['state']:032x}",
+        "increment_128_be_hex": f"{inner['inc']:032x}",
         "has_uint32": state["has_uint32"],
-        "uinteger": state["uinteger"],
+        "cached_uint32_be_hex": f"{state['uinteger']:08x}",
     }
 
 
 def restore_pcg64_state(generator: np.random.Generator, encoded: dict[str, Any]) -> None:
     pcg64_state(generator)
     if not isinstance(encoded, dict) or set(encoded) != {
-        "schema", "bit_generator", "state", "has_uint32", "uinteger",
+        "schema", "bit_generator", "state_128_be_hex", "increment_128_be_hex",
+        "has_uint32", "cached_uint32_be_hex",
     }:
         raise RNGProtocolError("malformed versioned PCG64 state")
     if encoded["schema"] != PCG64_STATE_SCHEMA or encoded["bit_generator"] != "PCG64":
         raise RNGProtocolError("unsupported PCG64 state schema or generator")
+    for name, width in (("state_128_be_hex", 32), ("increment_128_be_hex", 32), ("cached_uint32_be_hex", 8)):
+        token = encoded[name]
+        if type(token) is not str or len(token) != width or any(c not in "0123456789abcdef" for c in token):
+            raise RNGProtocolError(f"invalid PCG64 {name} hexadecimal field")
+    if type(encoded["has_uint32"]) is not int or encoded["has_uint32"] not in (0, 1):
+        raise RNGProtocolError("invalid PCG64 cached uint32 flag")
     state = {
         "bit_generator": "PCG64",
-        "state": dict(encoded["state"]),
+        "state": {
+            "state": int(encoded["state_128_be_hex"], 16),
+            "inc": int(encoded["increment_128_be_hex"], 16),
+        },
         "has_uint32": encoded["has_uint32"],
-        "uinteger": encoded["uinteger"],
+        "uinteger": int(encoded["cached_uint32_be_hex"], 16),
     }
     # Validate through the same strict rules before assigning into NumPy.
     temporary = np.random.Generator(np.random.PCG64())
@@ -363,6 +374,8 @@ class RNGCallService:
         *,
         genesis: GenesisCoordinator | None = None,
         pair_identity: PairIdentity | None = None,
+        synthetic_test: bool = False,
+        synthetic_test_seed: int | None = None,
     ) -> None:
         initial_state = pcg64_state(generator)
         self.initial_state = decode_typed(encode_typed(initial_state))
@@ -370,9 +383,19 @@ class RNGCallService:
         self.journal = journal
         self.genesis = genesis
         self.pair_identity = pair_identity
-        self._verified_common_pair_id: str | None = None
-        if (genesis is None) != (pair_identity is None):
-            raise RNGProtocolError("common-sampler genesis coordinator and pair identity must be supplied together")
+        self.synthetic_test = synthetic_test
+        self.synthetic_test_seed = synthetic_test_seed
+        if type(synthetic_test) is not bool:
+            raise RNGProtocolError("synthetic_test must be an explicit boolean")
+        if synthetic_test:
+            if type(synthetic_test_seed) is not int or synthetic_test_seed < 0:
+                raise RNGProtocolError("synthetic-only RNG service requires its explicit test seed")
+        elif pair_identity is None:
+            raise RNGProtocolError("production RNG service requires an immutable pair identity")
+        if genesis is not None and pair_identity is None:
+            raise RNGProtocolError("a genesis coordinator requires its immutable pair identity")
+        if pair_identity is not None and pair_identity.identity_scope != ("synthetic_test" if synthetic_test else "q0_production"):
+            raise RNGProtocolError("RNG service scope differs from its pair identity scope")
         self._journal_sequence = 0
         self._journal_head_hash = ""
         self._rng_starts: dict[str, dict[str, Any]] = {}
@@ -410,6 +433,26 @@ class RNGCallService:
         except (TypeError, ValueError) as exc:
             raise RNGProtocolError("malformed RNG call identity fields") from exc
 
+    def _expected_initial_state(self, identity: RNGCallIdentity) -> dict[str, Any]:
+        if self.synthetic_test:
+            seed = self.synthetic_test_seed
+        else:
+            pair = self.pair_identity
+            if pair is None or pair.identity_scope != "q0_production":
+                raise RNGProtocolError("production RNG stream lacks a validated Q0 pair identity")
+            seed_role = {
+                "common_sampler": "common_init",
+                "lshade": "optimizer_lshade",
+                "controlled_de": "optimizer_controlled_de",
+            }[identity.role]
+            seed = derive_seed32(
+                role=seed_role,
+                root_seed=pair.root_seed,
+                topology=pair.topology,
+                design_space_hash=pair.design_space_sha256,
+            )
+        return pcg64_state(np.random.Generator(np.random.PCG64(seed)))
+
     def _accept_rng_start(self, event) -> None:
         payload = event.payload
         if type(payload) is not dict or set(payload) != self._START_FIELDS:
@@ -440,6 +483,15 @@ class RNGCallService:
             raise RNGProtocolError("RNG journal ordinals are skipped, repeated, or out of order")
         if stream_key in self._pending_streams:
             raise RNGProtocolError("RNG journal starts a later call before resolving its predecessor")
+        if not stream_calls:
+            expected_pre_state = self._expected_initial_state(identity)
+        else:
+            previous_commit = self._rng_commits.get(stream_calls[-1])
+            if previous_commit is None:
+                raise RNGProtocolError("RNG stream predecessor has no committed post-state")
+            expected_pre_state = previous_commit["post_state"]
+        if payload["pre_state"] != expected_pre_state:
+            raise RNGProtocolError("RNG STARTED pre-state breaks identity-seeded stream continuity")
         self._rng_starts[call_id] = payload
         stream_calls.append(call_id)
         self._pending_streams[stream_key] = call_id
@@ -497,20 +549,24 @@ class RNGCallService:
                 or identity.owner_identity_id != pair.identity_id
             ):
                 raise RNGProtocolError("common-sampler RNG owner is not the immutable pair identity")
-            if self._verified_common_pair_id != pair.identity_id:
-                try:
-                    self.genesis.require_ready(pair)
-                except (GenesisError, JournalError) as exc:
-                    raise RNGProtocolError("common-sampler RNG is forbidden before verified durable G4") from exc
-                if self.journal.get_immutable_record("pair_identity", pair.identity_id) != pair.canonical_bytes:
-                    raise RNGProtocolError("common-sampler pair identity record differs from the expected bytes")
-                self._verified_common_pair_id = pair.identity_id
+            try:
+                # Q0-R3 requires a fresh full three-journal G4 verification on
+                # every logical sampler operation, including replay/recovery.
+                self.genesis.require_ready(pair)
+            except (GenesisError, JournalError) as exc:
+                raise RNGProtocolError("common-sampler RNG is forbidden before verified durable G4") from exc
+            if self.journal.get_immutable_record("pair_identity", pair.identity_id) != pair.canonical_bytes:
+                raise RNGProtocolError("common-sampler pair identity record differs from the expected bytes")
             return
         role = identity.role
         if self.journal.owner_kind != role:
             raise RNGProtocolError("optimizer RNG role does not match its private arm journal")
         if identity.owner_identity_id == "" or not self.journal.journal_uuid:
             raise RNGProtocolError("optimizer RNG owner identity is empty")
+        if not self.synthetic_test:
+            pair = self.pair_identity
+            if pair is None or pair.identity_scope != "q0_production":
+                raise RNGProtocolError("optimizer RNG requires its validated production pair identity")
         rows = [record for record in self.journal.immutable_records() if record[0] == "cell_identity"]
         matching = [record for record in rows if record[1] == identity.owner_identity_id]
         if len(rows) != 1 or len(matching) != 1:
@@ -527,6 +583,13 @@ class RNGCallService:
             or record.get("cell_journal_uuid") != self.journal.journal_uuid
         ):
             raise RNGProtocolError("optimizer RNG owner identity does not match its arm journal")
+        if not self.synthetic_test and (
+            record.get("pair_identity_id") != self.pair_identity.identity_id
+            or record.get("pair_identity_sha256") != self.pair_identity.identity_sha256
+            or record.get("arm_config_sha256") != dict(self.pair_identity.arm_config_hashes)[role]
+            or record.get("environment_sha256") != self.pair_identity.environment_sha256
+        ):
+            raise RNGProtocolError("optimizer RNG cell does not bind the validated pair identity")
 
     def _invoke(self, method: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
         return getattr(self.generator, method)(*args, **kwargs)
@@ -548,6 +611,13 @@ class RNGCallService:
             if identity.ordinal != len(call_ids):
                 raise RNGProtocolError("RNG ordinal is skipped, repeated, or out of order")
             pre_state = pcg64_state(self.generator)
+            expected_pre_state = (
+                self._expected_initial_state(identity)
+                if identity.ordinal == 0
+                else self._rng_commits[call_ids[-1]]["post_state"]
+            )
+            if pre_state != expected_pre_state:
+                raise RNGProtocolError("live PCG64 state drifted from the identity-bound stream predecessor")
             start_payload = {
                 "schema": RNG_CALL_SCHEMA,
                 "call_id": call_id,
