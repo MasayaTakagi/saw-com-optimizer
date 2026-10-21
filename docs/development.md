@@ -1,0 +1,91 @@
+# Development and review workflow
+
+## Working principles
+
+Use **Docs-first → risk-based RED → minimum GREEN → REFACTOR**. Record the
+intended behavior/contract before code. Add a focused test when it protects
+observable behavior or risk; do not maximize test count or blanket-run expensive
+numerical tests for a documentation-only change. Keep changes coherent and
+small; apply KISS/YAGNI, avoid compatibility layers that are not an explicit
+current requirement, and do not refactor unrelated code.
+
+Separate these activities:
+
+1. **Plan / owner decision — ChatGPT and user:** define scope and decide
+   scientific-contract changes, experiment permissions, and project transitions.
+2. **Implement / self-validation — Pi Code:** make the scoped change, run
+   relevant local checks, and publish the exact branch/commit and evidence.
+3. **Independent review — ChatGPT:** inspect the pushed GitHub diff, source and
+   committed evidence; request focused corrections where needed.
+4. **Accept / merge — user:** decide whether reviewed work is accepted and may
+   merge or advance to another stage.
+
+Implementation self-validation is not external review. A passing test is not scientific
+acceptance. Keep PRs focused; do not merge or start follow-up work without the
+applicable owner decision.
+
+## Scientific risk gates
+
+- **Docs / low-risk cleanup:** check links, terminology, statuses, rendered
+  Markdown, and `git diff --check`; no numerical test is needed if no code or
+  scientific condition changed.
+- **Normal code:** write a focused behavioral RED test, implement the minimum
+  GREEN change, run the focused tests and relevant smoke/integration checks.
+- **Scientific core or comparison validity:** changes to COM equations/units,
+  S-parameter or power conventions, ranking/objectives/constraints, mixed
+  variable semantics, budget/accounting, RNG/replay, grids, checkpoint
+  integrity, or experiment conditions require explicit owner review before
+  changing behavior. Use analytic limits, relevant numerical regressions,
+  parity/change analysis, and integration tests proportionate to risk. Preserve
+  exact equality where identity, canonical keys, counts, or ordering are part
+  of the contract; justify numerical tolerances before use.
+
+The current CI is one locked full-pytest job, not the planned risk-lane system.
+Do not disable or weaken that job as a documentation or cleanup shortcut. CI
+lane definitions and measured test cost belong to a separately reviewed
+migration task. The observed main baseline failure is the stale agent/model
+routing assertion in `tests/unit/test_sol_review_routing_policy.py`, recorded
+as `KNOWN_BASELINE_FAILURE` by the R0 inventory; a docs-only PR must neither
+rewrite nor delete that test. Track a focused CI/test follow-up separately.
+
+## Environment and commands
+
+The official environment is Ubuntu/WSL2 with project-locked uv and Python 3.12
+(`/usr/bin/python3.12`). Do not install Node. Keep worktrees under `/home/...`;
+track `.python-version` and `uv.lock`, never `.venv/`.
+
+```bash
+# New worktree setup
+uv sync --locked --extra test
+
+# Relevant validation
+uv run --locked pytest tests/unit/<focused-path>
+uv run --locked pytest
+uv run --locked python -m sawopt --help
+```
+
+Use `uv run --locked` for project commands. Run the full suite when required by
+the risk or release gate and avoid repeated full-suite runs without a reason.
+The exact selected commands and skipped tests must be reported. See the
+[development environment record](guides/development_environment.md) for
+historical host details; this page owns current development policy.
+
+## GitHub handoff
+
+For meaningful work, push a focused branch and report branch, HEAD SHA, PR or
+commit URL, changed files, checks run, known failures, assumptions, and open
+issues. Docs-only work should stop at a Draft PR for independent review. Record
+changes to scientific meaning as proposals until the user decides. Production
+study implementation/config/preflight/source identity/review spec must be
+available for review before a run, but this is not run authorization. For the
+R1-A documentation cutover, stop at the Draft PR pending independent review and
+user acceptance; do not start R1-B or R2 until that review and any applicable
+owner contract decision are complete.
+
+## CI direction (not yet implemented)
+
+The agreed future CI direction has separate documented checks for docs/static
+consistency, focused normal-code behavior, scientific-core regressions, and
+full-suite milestone/release gates. It must retain current assurance and should
+be introduced only after duration/flakiness are measured and the change is
+reviewed. Existing workflows remain authoritative until that migration lands.
