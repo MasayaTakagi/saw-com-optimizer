@@ -53,7 +53,9 @@ def canonical_key_tokens(key: Sequence[float]) -> tuple[str, ...]:
         number = float(value)
         if not np.isfinite(number):
             raise InitializationError("canonical key values must be finite")
-        tokens.append(struct.pack(">d", number).hex())
+        # Q0-R1 §6.3: canonical cache/database keys collapse signed zeros,
+        # while physical/genotype vectors preserve their original IEEE-754 bits.
+        tokens.append(struct.pack(">d", 0.0 if number == 0.0 else number).hex())
     return tuple(tokens)
 
 
