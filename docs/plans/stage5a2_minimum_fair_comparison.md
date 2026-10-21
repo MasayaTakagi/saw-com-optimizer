@@ -1,14 +1,14 @@
 # Stage 5A-2 — minimum controlled generic full-space optimizer comparison
 
-**Status:** One independent Sol re-review was executed; decision `REQUEST_Q0_REVISIONS`. Q0 remains OPEN and Q1 implementation is blocked. No Q1 implementation, tests, synthetic evaluations, COM/network calculations, optimizer execution, or production launch is authorized.
+**Status:** Q0-R1 and Q0-R2 Sol dispositions are both `REQUEST_Q0_REVISIONS`. Q0 remains OPEN; the R2 review identified remaining blockers in identity genesis, RNG-call replay, initialization representation, and Q1 qualification scope. Q1 implementation is blocked. No Q1 implementation, tests, synthetic evaluations, COM/network calculations, optimizer study, or production launch is authorized.
 
 **Prerequisite:** [Stage 5A-1 read-only closeout](../history/stage5a1_closeout_20261020.md).
 
-**Q0 protocol proposal (not accepted):** [Q0-R1 packet and independent Sol findings](../../reports/escalation_packets/stage5a2_q0_protocol_revision_20261021.md).
+**Current Q0 proposal (not accepted):** [Q0-R2 transaction/identity/serialization/censored-reporting packet](../../reports/escalation_packets/stage5a2_q0_protocol_revision_r2_20261021.md). The [Q0-R1 packet](../../reports/escalation_packets/stage5a2_q0_protocol_revision_20261021.md) and its `REQUEST_Q0_REVISIONS` record are preserved as history.
 
-**Q1 gates:** [Q1 qualification matrix](stage5a2_q1_qualification_matrix.md).
+**Q1 gates:** [single authoritative Q1 qualification matrix](stage5a2_q1_qualification_matrix.md).
 
-**Prior decision history:** [PR #47](https://github.com/MasayaTakagi/saw-com-optimizer/pull/47) and [first Sol review packet](../../reports/escalation_packets/stage5a2_de_protocol_sol_review_20261021.md).
+**Prior decision history:** [PR #47](https://github.com/MasayaTakagi/saw-com-optimizer/pull/47), [PR #48](https://github.com/MasayaTakagi/saw-com-optimizer/pull/48), and [first Sol review packet](../../reports/escalation_packets/stage5a2_de_protocol_sol_review_20261021.md).
 
 **Decision owner:** the user; a Sol judgment and independent GitHub review do not substitute for user acceptance.
 
@@ -16,32 +16,32 @@
 
 Under one frozen Stage 4C COM/network/specification/bounds problem, does an alternative generic 13-variable mixed continuous/integer full-space optimizer obtain better short-budget common-grid feasibility-first quality or faster time-to-quality than the audited L-SHADE package? The comparison is exploratory, and does not test whether 4,096 evaluations prove feasibility or whether either topology/method is universally best.
 
-## Q0-R1 comparison envelope
+## Q0-R1 comparison envelope retained by the current Q0-R2 proposal
 
-| Dimension | Proposed Q0-R1 choice (not accepted; see open findings) |
+| Dimension | Q0-R1 value retained by the Q0-R2 proposal (not yet accepted) |
 |---|---|
 | Model/spec/ports | Stage 4C MLIT/T1 at real 50/50 Ω; protected COM inputs, objective, specs, geometry constraints, bounds and conventions unchanged |
 | Topologies | `P_D`, `D_P`, optimized independently; 13 DOF each |
 | Methods | Existing L-SHADE complete package versus a new dedicated controlled `DE/rand/1/bin`; do not use/relabel `ScipyDELegacyBackend` or `FixedDEReferenceBackend` |
-| L-SHADE | Proposed cold 4,096 terminal horizon; initial 234, min 4; retain existing F/CR adaptation, p-best, archive, latent genotypes, parent-midpoint repair, immediate replacement, shrink schedule and existing duplicate fallback; see packet for settings, but replay/transaction details remain open |
+| L-SHADE | Retained cold 4,096 terminal horizon; initial 234, min 4; preserve existing F/CR adaptation, p-best, archive, latent genotypes, parent-midpoint repair, immediate replacement, shrink schedule and duplicate fallback; Q0-R2 §6 specifies transactional replay without search-rule changes |
 | Controlled DE | Fixed population 234; `F=.5`, `CR=.9`; reflection; canonical phenotype remapping; synchronous generations; no adaptation/archive/shrink/polish/fallback; fully fixed RNG/donor/crossover/update/retry semantics in packet |
 | Matched roots | `20261012`, `20261013`, `20261014` for each topology; same ordered initialization across methods; role-separated hash-derived PCG64 streams |
 | Search budget | 4,096 unique canonical search FEs/cell inclusive of 234 initial FEs; 3,862 remain; geometry rejects and modeled physics failures charge one FE; duplicate/cache hit and sampler rejection do not |
 | Matrix | 2 methods × 2 topologies × 3 matched roots = 12 cells; maximum 49,152 unique search FEs |
-| Initializer | Proposed `independent_uniform_rejection_v1`; physical-bounds uniform draw, unchanged canonicalizer, duplicate then geometry rejection, maximum 10,000 draws, complete ordered population before evaluation; sampler resume identity and lossless RNG serialization remain open |
+| Initializer | Retained `independent_uniform_rejection_v1`; physical-bounds uniform draw, unchanged canonicalizer, duplicate then geometry rejection, maximum 10,000 draws, complete ordered population before evaluation; Q0-R2 §§7–8 specify pair/cell identity lifecycle and lossless RNG state |
 | Search/validation | Fixed 1,001-point search grid and unchanged 9,113-point common validation grid. Validate stable top 16 distinct search-history candidates; separate search incumbent and validation ranks |
 | Ranking | Existing `GeometryFirstComparator.rank_key` unchanged; exact lexicographic tuples; no scalarization; parent-on-tie; stable first-evaluation ordinal for history, incumbent, finalist and validation ordering |
-| Retry/failure | Proposed DE ≤4,096 proposal attempts per target/generation and shared 65,536 no-progress proposal watchdog; exact transition/recovery journal and censored-pair reporting remain open |
+| Retry/failure | Retained DE ≤4,096 proposal attempts per target/generation and shared 65,536 no-progress proposal watchdog; Q0-R2 §§3–6 and 10–11 specify durable transitions, and censored-pair rules |
 | Resources/order | One serial worker/process and one BLAS/OpenMP thread; fixed 12-cell alternating method order appears in packet; no parallel cells |
 | Validation/interpretation | Report paired seed outcomes, FE- and wall-time curves, feasibility/violations, metrics, status, uncertainty and convergence limits. No finite-run global-optimum, infeasibility, or general superiority claim |
 
-The Q0 packet §13 matrix records each prior Sol/PR #47 finding as `RESOLVED_WITH_SPEC`, `RESOLVED_WITH_JUSTIFIED_ALTERNATIVE`, or `BLOCKED_WITH_REASON`. Sol's re-review found blockers in L-SHADE replay, transaction transitions, identity/RNG serialization, and censored-pair reporting; see §14. The factual first-`None` fallback control-flow description and the single authoritative Q1-ID mapping were corrected after review, but were not re-reviewed by Sol. Q1 may not decide remaining items. The watchdog is a proposal-count limit, not a wall-time cutoff; incomplete trajectories remain `BUDGET_STALLED`.
+Q0-R1's Sol review and PR #48 comments identified four blockers. Q0-R2 received its requested Sol review, which accepted the censored-pair contract, lossless codec direction, zero-FE transition design, corrected fallback flow, and sole Q1-ID matrix, but returned `REQUEST_Q0_REVISIONS`. Remaining Q0 blockers are partial pair/arm identity genesis; RNG-call crash/idempotency and replay-state reconstruction; exact identity between sealed physical initial members and L-SHADE's normalized/reconstructed evaluated vectors; and the contradiction between Q1 synthetic optimizer-state qualification and wording that prohibits optimizer execution. These remain Q0 decisions, not Q1 options. The watchdog remains a proposal-count limit, not a wall-time cutoff; incomplete trajectories remain `BUDGET_STALLED`.
 
 ## Review and implementation gates
 
-1. The one authorized read-only Sol review was completed using the pinned `openai/gpt-6.1-sol` route and returned `REQUEST_Q0_REVISIONS`; the recorded child route is documented in §14. No second Sol agent is launched by this task.
-2. The revised packet, finding matrix, this plan, Q1 qualification matrix, escalation log and Sol result are published on branch `codex/stage5a2-q0-protocol-revision` in [Draft PR #48](https://github.com/MasayaTakagi/saw-com-optimizer/pull/48). Obtain independent GitHub review and explicit user acceptance. Do not merge or close Q0 without that acceptance.
-3. Q1 implementation remains blocked until the Q0 blockers in §14 have been explicitly resolved in an accepted protocol, then independent GitHub review and explicit user implementation permission are recorded. Q1 must pass the synthetic/unit-only matrix with proof that no COM/provider or production orchestration path is called.
+1. Q0-R1 and Q0-R2 each received one read-only Sol review; both returned `REQUEST_Q0_REVISIONS`. The R2 result and observed child routing are recorded in the R2 packet and escalation log. No additional Sol review will be started automatically.
+2. These documents are published in [Draft PR #49](https://github.com/MasayaTakagi/saw-com-optimizer/pull/49) from branch `codex/stage5a2-q0-r2-transaction-design`. Await independent GitHub review and explicit user disposition; do not merge or close Q0 automatically.
+3. Q1 implementation remains blocked until the four R2 open items are resolved in Q0, independent GitHub review is complete, and explicit user implementation permission is recorded. Q1 must distinguish COM-free synthetic algorithm qualification from prohibited COM/production studies and must not choose unresolved Q0 semantics.
 4. Q1 pass does not authorize any pilot. A future launch still requires a frozen implementation/source SHA and preflight, external persistent storage, exact run contract, resource/abort policy, and separate explicit user authorization through the qualified workflow.
 
 ## Cost and scientific interpretation
