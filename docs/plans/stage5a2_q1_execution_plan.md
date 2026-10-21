@@ -1,6 +1,6 @@
 # Stage 5A-2 Q1 synthetic qualification — execution plan
 
-**Status (2026-10-21):** Q1-A is `LOCAL_EVIDENCE_READY / AWAITING INDEPENDENT REVIEW`; Q1-B/C/D/E are `NOT AUTHORIZED / NOT STARTED`. No official Q1 qualification gate has passed.
+**Status (2026-10-22):** Q1-A is `WORK_UNIT_READY / CLOSED`: [PR #54](https://github.com/MasayaTakagi/saw-com-optimizer/pull/54) merged at `03d673052c7570d86b78b43849f649758bb7d3f4` and [Issue #52](https://github.com/MasayaTakagi/saw-com-optimizer/issues/52) closed as completed after independent review and explicit user acceptance. Q1-B/C/D/E remain `NOT AUTHORIZED / NOT STARTED`; no official Q1 gate has passed.
 
 **Q0:** `CLOSED / ACCEPTED` under the user decision recorded in the [Q0 closeout](../history/stage5a2_q0_closeout_20261021.md).
 
@@ -111,7 +111,7 @@ Q1-A preserved the pre-extraction baseline before changing canonicalization and 
 
 **PR artifact.** One focused Q1-A implementation PR: new infrastructure modules, limited tests and compact synthetic evidence, explicit touched-file/import report, source/config/environment identity, and an interface compatibility table for B/C. No Stage 4C data. Do not merge without independent review/user acceptance.
 
-**Exit to Q1-B/C.** Q1-A PR is independently reviewed/accepted as `WORK_UNIT_READY`; schemas and interfaces are stable; no unresolved Q0 contract ambiguity. Record Q1-03/04/05/14/15 only as component evidence / `PENDING_DEPENDENCY` where noted above—none is fully passed at this exit. Q1-16's foundational transaction primitives may be supplied here, but its full cross-optimizer crash/recovery gate is owned by Q1-D. A later final pinned-fingerprint qualification phase is required before any formal gate is recorded `FULL_PASS`.
+**Exit to Q1-B/C (Q1-A exit accepted).** The merged Q1-A foundation is `WORK_UNIT_READY`; it enables planning, not unauthorized implementation, of B/C. Q1-A's preflight certificates remain synthetic/non-authoritative and its evaluator dispatch is disabled. Actual 234-member per-arm evaluator input paths must be checked under B/C before FE is allowed. Q1-03/04/05/14/15 remain `PENDING_DEPENDENCY`; Q1-16 is owned by D. No gate is `FULL_PASS` until final pinned-fingerprint qualification.
 
 ### Q1-B — Controlled DE implementation
 
