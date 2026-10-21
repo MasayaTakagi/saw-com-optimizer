@@ -113,15 +113,19 @@ Q0_CONTROLLED_DE_SETTINGS = {
     "fallback": "none",
     "parameter_tuning": "none",
 }
+# Q0-R1 §§6.3/7.3 and Q0-R2 §8.2 are the identifier authority.
+# The rank *serialization* ID is distinct from the comparator identity.
+# The state codec declared here is L-SHADE-specific; do not invent a DE
+# state-codec version ahead of the separately authorized Q1-B work.
 Q0_SUPPORTED_SCHEMAS = {
     "candidate": "stage5a2_candidate_record_v1",
     "journal": "stage5a2_txn_journal_v1",
     "canonical_key": "f64be_tuple_v1",
-    "rank": "geometry_first_rank_v1",
+    "rank": "rank_tuple_f64_v1",
     "rng_call": "stage5a2_rng_call_v1",
     "pcg64_state": "stage5a2_pcg64_state_v1",
-    "optimizer_state": "stage5a2_optimizer_state_v1",
-    "outer_envelope": "stage5a2_execution_envelope_v1",
+    "lshade_state": "stage5a2_lshade_state_v1",
+    "outer_envelope": "stage5a2_checkpoint_v1",
 }
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
