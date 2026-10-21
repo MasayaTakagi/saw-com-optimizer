@@ -1,0 +1,93 @@
+# Stage 5A-2 Q1-A common foundation — local evidence
+
+**Issue:** [#52 — Q1-A canonicalization seam, identity/RNG/journal foundation](https://github.com/MasayaTakagi/saw-com-optimizer/issues/52)
+
+**Status:** `LOCAL_EVIDENCE_READY / AWAITING INDEPENDENT REVIEW`. This is work-unit evidence only; no official Q1 gate is passed.
+
+**Authorization:** Issue #52 explicitly authorizes Q1-A implementation and deterministic synthetic/unit qualification, including the narrow legacy canonicalization characterization. Q1-B/C/D/E, synthetic integration, COM/network/physics evaluation, real SAW optimization, Stage 4C mutation, and production orchestration/run are not authorized.
+
+**Worktree:** `/home/user/src/saw-com-optimizer`, branch `codex/stage5a2-q1a-common-foundation`; based on `f32b8f8dac928f21c567b34593b1ed227a4c9c9e`. Final implementation commit and Draft PR identity are recorded in the PR; this report is updated with that link before publication.
+
+## A0 — pre-extraction characterization
+
+The compatibility characterization ran before modifying `HybridDesignSpace.canonicalize`, in a separate process using the ordinary public import path. That process called only `HybridDesignSpace.canonicalize`; it made no decode, geometry, provider, evaluator, network, physics, or optimizer call.
+
+- Baseline source commit: `f32b8f8dac928f21c567b34593b1ed227a4c9c9e`.
+- Pre-extraction `src/sawopt/problem/hybrid.py` SHA-256: `b892be9360174d6701f3db0dc8ba49c82d1b75d8b3c1886dbbba998bd3242462`.
+- Captured environment: CPython 3.12.3, NumPy 2.5.3, Linux/WSL2 x86_64; full NumPy build metadata, SOABI, platform, source/config fingerprints, bounds, integer-index order, exact inputs/outputs/errors, dtype/shape/ownership, and input non-mutation are archived in `tests/fixtures/stage5a2/canonicalization_legacy_golden.json`.
+- The initial captured corpus checksum was `927960479e7c4b274661485351e03f8275ed2b6526763a105bcd57af7a4a8f31`. The checked-in frozen corpus, after its metadata annotation, has SHA-256 `3763c5746f4bf800a54f310aeeb94f493520fc0962505b1eed85d3c32b589aa2`. The capture utility now refuses to capture after extraction.
+- Coverage: 92 cases over `D`, `P_D`, `D_P`, and `P_D_P`; dimensions 10/13/13/16; every integer coordinate's half-up tie and adjacent ULPs; lower/upper clipping; rounded-integer second clipping; signed zero; wrong shapes; NaN/±Inf; conversion error; exact keys/output bytes; ownership and input immutability.
+- Sample case: `P_D_P/integer_14_tie_at` returned `<f8`, shape `(16,)`, ordered 16-element float key, independent writable output, and unchanged input. `D/signed_zero` preserved the negative-zero vector/key bits.
+
+## A1 — extraction, parity, and imports
+
+- Moved the exact operation order into `src/sawopt/design/canonicalization.py`; the NumPy/typing-only helper retains conversion, shape/finiteness validation, clip → half-up round → clip, key construction, and exception behavior. `HybridDesignSpace.canonicalize` is a same-signature delegate passing its existing bounds, integer-index order, dimension, and topology.
+- Fresh-process public-delegate verification: 92/92 cases passed; fixture SHA-256 `3763c5746f4bf800a54f310aeeb94f493520fc0962505b1eed85d3c32b589aa2`.
+- Fresh-process pure-leaf verification: 92/92 cases passed against the same corpus/checksum.
+- The one-time checked-in Q0 design-space contract fixture `tests/fixtures/stage5a2/q0_design_space_contract.json` binds the Stage 4A and base config fingerprints to all four ordered active bounds/index/dimension/topology records; fixture SHA-256 `c7902e30f7becf2e2c0aa280d8f51c25f31f524cbf06c3516252bf47b2faddc9`.
+- Fresh-process leaf-only and Q1-A-package import checks both observed `forbidden_imports: []`, including during a canonicalization call. Forbidden boundaries include `sawopt.problem`, COM/network/physics modules, Stage 4B/4C studies, and orchestration.
+- Caller protection review: only `src/sawopt/problem/hybrid.py` was changed among shared/caller source. Stage 4B's `space.canonicalize` sampler and L-SHADE canonicalizer call sites and Stage 4C's delegation through Stage 4B are unchanged. No decoder rounding, Stage 4B/4C source, checkpoint, saved state, or study data was changed. Actual Stage 4B/4C runtime/caller execution was deliberately not performed because those paths reach geometry/optimizer execution outside this Q1-A scope; the direct public-method parity corpus is the executed compatibility evidence.
+
+## A2 — foundation and synthetic tests
+
+Implemented the study-scoped typed identity, journal, RNG, and initialization components under `src/sawopt/studies/stage5a2/`. The tests use deterministic synthetic vectors, injected transforms/geometry, and injected evaluator callbacks only.
+
+- Pair/cell immutable Phase-I records, ordered roster with reciprocal identity hashes and locators, and a separate-database G0–G4 coordinator. Writes are individually transactional; no cross-database atomicity claim is made. Reconciliation validates exact records/events, permits only exact pre-G4 recovery in a pristine destination, and fails closed on orphan/conflicting/corrupt state or post-G4 identity loss. The G4 barrier includes schema versions, pair/cell hashes, roster and reciprocal-reference hashes, common/arm config hashes, and environment identity.
+- Append-only SQLite event chain and immutable-record digests; a journal verifies existing records/events when opened, checks the cached verified tail before extending, poisons a live journal after a detected chain-integrity failure, and rejects writes after corruption is observed. Idempotency conflicts, event corruption, record-digest corruption, and full-chain/tail verification are tested.
+- `stage5a2_rng_call_v1` and `stage5a2_pcg64_state_v1`: exact typed arguments/results, PCG64 full pre/post state plus hashes, owner/role/cursor/ordinal identity, START-before-draw, committed replay without redraw, pending recovery restored from the recorded pre-state, invalid-request rejection before START, private arm ownership, and common-sampler G4 enforcement. All seven allowed methods are exercised. Eighteen frozen seed vectors cover two topologies, three root seeds, and three stream roles. The typed NumPy codec preserves plain dtypes/arrays and explicitly rejects object, structured, and subarray dtypes it cannot encode losslessly.
+- Representation-aware 234-member synthetic common population: raw, provisional canonical, L-SHADE input genotype, reconstructed physical vector, sealed evaluator vector/key, DE direct physical input, and normalized DE phenotype genotype are preserved in ordered records/hashes. The test verifies duplicate-before-geometry, exact counters, 10,000-draw shortfall, sampler replay, durable pair-owned seal, unchanged Phase-I IDs, and per-arm Phase-II attachment references.
+- Pure per-arm preflight interfaces and durable certificates compare complete ordered evaluator-vector/key digests. No evaluator callback runs before both attachments and certificates validate; a forged readiness token and mismatched transform fail closed. These synthetic injected paths do **not** qualify the future real B/C evaluator paths.
+- Genesis fault injection covers G0, G1, G2, G3, and G4 commit boundaries. Tests also cover orphan state, conflicting pre-G4 state, post-G4 loss, pre-barrier RNG rejection, and certificate/attachment/journal integrity.
+
+## A3 — command results and gate status
+
+Commands run:
+
+```text
+uv run --locked pytest -q tests/unit/studies/test_stage5a2_foundation.py
+26 passed in 24.68s
+
+uv run --locked python scripts/verify_stage5a2_canonicalization_golden.py --mode public
+92 passed; fixture SHA-256 3763c5746f4bf800a54f310aeeb94f493520fc0962505b1eed85d3c32b589aa2
+
+uv run --locked python scripts/verify_stage5a2_canonicalization_golden.py --mode leaf
+92 passed; same fixture SHA-256
+
+uv run --locked python scripts/check_stage5a2_pure_leaf_import.py
+forbidden_imports: []
+
+uv run --locked python scripts/check_stage5a2_foundation_imports.py
+forbidden_imports: []
+
+uv run --locked python -m compileall -q src/sawopt/design src/sawopt/studies/stage5a2 scripts/capture_stage5a2_legacy_canonicalization.py scripts/verify_stage5a2_canonicalization_golden.py scripts/check_stage5a2_pure_leaf_import.py scripts/check_stage5a2_foundation_imports.py
+git diff --check
+passed
+```
+
+No full repository test suite was run because it includes tests/workflows that can invoke physics, optimizer, or production paths outside the explicit Q1-A authorization. No COM/network/physics calculation, real optimization, production orchestration, or long-running run was started.
+
+| Official gate | Current disposition | Why Q1-A does not close it |
+|---|---|---|
+| Q1-03 | `PENDING_DEPENDENCY` | Proposal-stream/no-hidden-draw parity needs B/C/D. |
+| Q1-04 | `PENDING_DEPENDENCY` | Both actual evaluator paths need B/C. |
+| Q1-05 | `PENDING_DEPENDENCY` | Arm initialization and recovery need B/C/D. |
+| Q1-14 | `PENDING_DEPENDENCY` | The live L-SHADE codec remains Q1-C work. |
+| Q1-15 | `PENDING_DEPENDENCY` | Optimizer/checkpoint hydration and recovery need B/C/D. |
+| Q1-16 | `PENDING_DEPENDENCY` | Cross-optimizer transaction/recovery qualification is Q1-D work. |
+
+Q1-B/C/D/E remain `NOT AUTHORIZED / NOT STARTED`. No Q1 gate is `FULL_PASS`. Q1-A is `LOCAL_EVIDENCE_READY`; `WORK_UNIT_READY` awaits independent GitHub review and user acceptance.
+
+## Changed files
+
+- Canonicalization seam: `src/sawopt/design/__init__.py`, `src/sawopt/design/canonicalization.py`, `src/sawopt/problem/hybrid.py`.
+- Q1-A foundations: `src/sawopt/studies/stage5a2/{__init__,codec,identity,initialization,journal,rng}.py`.
+- Characterization/import tools: `scripts/capture_stage5a2_legacy_canonicalization.py`, `scripts/verify_stage5a2_canonicalization_golden.py`, `scripts/check_stage5a2_pure_leaf_import.py`, `scripts/check_stage5a2_foundation_imports.py`.
+- Fixtures/tests: `tests/fixtures/stage5a2/{canonicalization_legacy_golden,seed_derivation_golden,q0_design_space_contract}.json`, `tests/unit/studies/test_stage5a2_foundation.py`.
+- Current status docs: `docs/plans/stage5a2_q1_execution_plan.md`, `docs/plans/stage5a2_q1_qualification_matrix.md`, `docs/plans/stage5a2_minimum_fair_comparison.md`, `docs/project_roadmap.md`.
+
+## Residual risks and next review gate
+
+- No actual Q1-B/C optimizer/evaluator adapter exists yet; both production-arm preflight paths and their transaction/recovery behavior remain unqualified.
+- The Stage 4A/4B/4C protection is based on exact direct `canonicalize` parity plus call-site/source review; the actual callers were not executed in this Q1-A work unit.
+- Synthetic population/preflight transforms are injected, two-coordinate unit fixtures where appropriate; they are software contract tests, not SAW or physical geometry evidence.
+- No independent review or user acceptance has occurred. The next step is independent GitHub review of the focused Draft PR. Stop there; do not start Q1-B/C/D/E, mark any formal gate passed, merge, or launch follow-up work without later explicit authorization.

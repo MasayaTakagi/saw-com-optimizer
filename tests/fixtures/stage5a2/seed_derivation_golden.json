@@ -1,0 +1,25 @@
+{
+  "schema": "stage5a2_seed_derivation_golden_v1",
+  "protocol": "stage5a2-q0-r1-v1",
+  "design_space_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "records": [
+    {"topology":"P_D","root_seed":20261012,"role":"common_init","seed32":351665188},
+    {"topology":"P_D","root_seed":20261012,"role":"optimizer_lshade","seed32":4042847095},
+    {"topology":"P_D","root_seed":20261012,"role":"optimizer_controlled_de","seed32":884242839},
+    {"topology":"P_D","root_seed":20261013,"role":"common_init","seed32":519455880},
+    {"topology":"P_D","root_seed":20261013,"role":"optimizer_lshade","seed32":3304225503},
+    {"topology":"P_D","root_seed":20261013,"role":"optimizer_controlled_de","seed32":3939229679},
+    {"topology":"P_D","root_seed":20261014,"role":"common_init","seed32":2061012515},
+    {"topology":"P_D","root_seed":20261014,"role":"optimizer_lshade","seed32":1886755232},
+    {"topology":"P_D","root_seed":20261014,"role":"optimizer_controlled_de","seed32":538344832},
+    {"topology":"D_P","root_seed":20261012,"role":"common_init","seed32":2454004388},
+    {"topology":"D_P","root_seed":20261012,"role":"optimizer_lshade","seed32":2455862588},
+    {"topology":"D_P","root_seed":20261012,"role":"optimizer_controlled_de","seed32":2609825347},
+    {"topology":"D_P","root_seed":20261013,"role":"common_init","seed32":2786354751},
+    {"topology":"D_P","root_seed":20261013,"role":"optimizer_lshade","seed32":3254989230},
+    {"topology":"D_P","root_seed":20261013,"role":"optimizer_controlled_de","seed32":1115431450},
+    {"topology":"D_P","root_seed":20261014,"role":"common_init","seed32":1855166847},
+    {"topology":"D_P","root_seed":20261014,"role":"optimizer_lshade","seed32":1119416744},
+    {"topology":"D_P","root_seed":20261014,"role":"optimizer_controlled_de","seed32":2443772306}
+  ]
+}

@@ -8,6 +8,7 @@ import numpy as np
 
 from ..core.hybrid import RESONATOR_BOUNDS, ResonatorDesign, decode_resonator
 from ..core.metrics import geometry
+from ..design.canonicalization import canonicalize_hybrid_vector
 from .dms_topologies import T1, FiveIdtDesign, decode_t1
 
 
@@ -79,15 +80,13 @@ class HybridDesignSpace:
         return int(len(self.bounds))
 
     def canonicalize(self, vector: Sequence[float]) -> tuple[np.ndarray, tuple[float, ...]]:
-        values = np.asarray(vector, dtype=float)
-        if values.shape != (self.dimension,) or not np.isfinite(values).all():
-            raise ValueError(f"{self.topology} requires a finite {self.dimension}-dimensional vector")
-        canonical = np.clip(values.copy(), self.bounds[:, 0], self.bounds[:, 1])
-        for index in self.integer_indices:
-            canonical[index] = np.floor(canonical[index] + 0.5)
-        canonical = np.clip(canonical, self.bounds[:, 0], self.bounds[:, 1])
-        key = tuple(float(value) for value in canonical)
-        return canonical, key
+        return canonicalize_hybrid_vector(
+            vector,
+            bounds=self.bounds,
+            integer_indices=self.integer_indices,
+            dimension=self.dimension,
+            topology=self.topology,
+        )
 
     def decode(self, vector: Sequence[float], *, reflector_electrodes: int = 40) -> HybridCandidate:
         canonical, key = self.canonicalize(vector)

@@ -1,6 +1,6 @@
 # Stage 5A-2 — minimum controlled generic full-space optimizer comparison
 
-**Status:** Q0 is `CLOSED / ACCEPTED` by explicit user decision on 2026-10-21; see the [formal Q0 closeout](../history/stage5a2_q0_closeout_20261021.md). Q0-R1/R2/R3 review decisions remain in the historical packets. Q1 is `PLANNED / IMPLEMENTATION NOT STARTED / AWAITING SEPARATE USER AUTHORIZATION`. This plan does not authorize Q1 implementation or tests, synthetic evaluations, COM/network calculations, an optimizer study, Stage 4C mutation, or production launch.
+**Status (2026-10-21):** Q0 is `CLOSED / ACCEPTED` by explicit user decision on 2026-10-21; see the [formal Q0 closeout](../history/stage5a2_q0_closeout_20261021.md). Q0-R1/R2/R3 review decisions remain in the historical packets. Under Issue #52, Q1-A is `LOCAL_EVIDENCE_READY / AWAITING INDEPENDENT REVIEW`; Q1-B/C/D/E are `NOT AUTHORIZED / NOT STARTED`. This plan does not authorize synthetic integration, COM/network calculations, a real optimizer study, Stage 4C mutation, or production launch.
 
 **Prerequisite:** [Stage 5A-1 read-only closeout](../history/stage5a1_closeout_20261020.md).
 
@@ -40,8 +40,8 @@ Q0-R2 received `REQUEST_Q0_REVISIONS` for partial pair/cell genesis, RNG-call cr
 ## Review and implementation gates
 
 1. Q0-R1 and Q0-R2 each received one read-only Sol `REQUEST_Q0_REVISIONS`; Q0-R3 received one read-only `APPROVE_Q0_PROTOCOL`. The independent PR #50 review's required documentary clarification was applied and accepted as `ACCEPT_FOR_DOCUMENTARY_MERGE`; PR #50 merged at `9427b404d302932b27f50d31919bb3fb95fcfcd4`. The user separately closed Q0 on 2026-10-21. The [closeout](../history/stage5a2_q0_closeout_20261021.md) records the distinct events and historical evidence.
-2. The [Q1 execution plan](stage5a2_q1_execution_plan.md) splits future work into Q1-A…Q1-E while keeping the existing Q1-01…Q1-23 matrix as the sole formal gate list. Q1 implementation and synthetic qualification are `AWAITING SEPARATE USER AUTHORIZATION`; no Q1 gate has passed.
-3. Q1, when separately authorized, is synthetic-only and may not change Q0 semantics or invoke COM/provider/physics, perform a real SAW optimizer study, launch production orchestration, or mutate Stage 4C data. Q1 permission and passing Q1 do not authorize a later pilot.
+2. The [Q1 execution plan](stage5a2_q1_execution_plan.md) splits future work into Q1-A…Q1-E while keeping the existing Q1-01…Q1-23 matrix as the sole formal gate list. Issue #52 authorizes Q1-A implementation and deterministic synthetic/unit tests only; Q1-B/C/D/E remain unauthorized. No official Q1 gate has passed.
+3. Q1-A is authorized for local deterministic synthetic/unit work only. Q1-B/C/D/E still require separate authorization; no Q1 work may change Q0 semantics or invoke COM/provider/physics, perform a real SAW optimizer study, launch production orchestration, or mutate Stage 4C data. Q1-A authorization and any later Q1 acceptance do not authorize a real pilot.
 4. Any future physical study still requires a frozen implementation/source SHA and preflight, external persistent storage, exact run contract, resource/abort policy, and separate explicit user authorization through the qualified workflow.
 
 ## Cost and scientific interpretation
