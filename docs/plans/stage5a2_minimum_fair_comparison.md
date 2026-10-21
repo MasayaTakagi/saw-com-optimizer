@@ -40,7 +40,7 @@ Q0-R1's Sol review and PR #48 comments identified four blockers. Q0-R2 received 
 ## Review and implementation gates
 
 1. Q0-R1 and Q0-R2 each received one read-only Sol review; both returned `REQUEST_Q0_REVISIONS`. The R2 result and observed child routing are recorded in the R2 packet and escalation log. No additional Sol review will be started automatically.
-2. Publish the R2 packet, updated finding matrix, this plan, official Q1 matrix and escalation-log result in a Draft PR. Obtain independent GitHub review and explicit user disposition; do not merge or close Q0 automatically.
+2. These documents are published in [Draft PR #49](https://github.com/MasayaTakagi/saw-com-optimizer/pull/49) from branch `codex/stage5a2-q0-r2-transaction-design`. Await independent GitHub review and explicit user disposition; do not merge or close Q0 automatically.
 3. Q1 implementation remains blocked until the four R2 open items are resolved in Q0, independent GitHub review is complete, and explicit user implementation permission is recorded. Q1 must distinguish COM-free synthetic algorithm qualification from prohibited COM/production studies and must not choose unresolved Q0 semantics.
 4. Q1 pass does not authorize any pilot. A future launch still requires a frozen implementation/source SHA and preflight, external persistent storage, exact run contract, resource/abort policy, and separate explicit user authorization through the qualified workflow.
 
