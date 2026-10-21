@@ -23,8 +23,8 @@ Separate these activities:
    changes, experiments, and gated project-stage transitions.
 
 Implementation self-validation is not external review. A passing test is not scientific
-acceptance. Keep PRs focused; do not merge or start follow-up work without the
-applicable owner decision.
+acceptance. Keep PRs focused; merge only within documented owner delegation and
+do not start gated follow-up work without the applicable owner decision.
 
 ## Scientific risk gates
 
@@ -81,8 +81,9 @@ changes to scientific meaning as proposals until the user decides. Production
 study implementation/config/preflight/source identity/review spec must be
 available for review before a run, but this is not run authorization. For the
 R1-A documentation cutover, stop at the Draft PR pending independent review and
-user acceptance; do not start R1-B or R2 until that review and any applicable
-owner contract decision are complete.
+acceptance within the owner's delegation; retain the separate owner decision
+on Q1 continuation. Do not start R1-B or R2 until the applicable review and
+stage/contract decision gates are complete.
 
 ## CI direction (not yet implemented)
 
