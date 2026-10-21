@@ -10,7 +10,7 @@
 
 **Strict-manifest follow-up (2026-10-21):** This revision addresses the subsequent PR #54 review comment on incomplete optimizer settings/version/schema validation. It locks both complete resolved package contracts and all supported schema identifiers, and adds negative coverage for setting/version/schema drift. Source/config/lock digests and `clean_tree` remain declarative manifest consistency checks, not independent workspace attestation. Q1-A remains `LOCAL_EVIDENCE_READY / AWAITING INDEPENDENT REVIEW`; no gate is passed.
 
-**Independent reviewer patch (2026-10-22 JST; GitHub-only):** Corrected the Q0-R1 `f64be_tuple_v1` signed-zero policy in `initialization.canonical_key_tokens`: `-0.0` and `+0.0` serialize to the same positive-zero key token, while physical/latent vector bytes and the legacy canonicalizer remain unchanged. Corrected the strict production-manifest ID map to the explicit Q0 identifiers: `rank_tuple_f64_v1` (Q0-R1 §6.3), `stage5a2_lshade_state_v1` (Q0-R2 §8.2; scoped as `lshade_state`, not a generic/DE codec) and `stage5a2_checkpoint_v1` (Q0-R1 §7.3). Updated the affected manifest/negative tests and added a signed-zero key/vector regression. **The 64 focused test passes below precede these reviewer commits and do not certify the new HEAD.** The reviewer checked GitHub source and a standalone Python signed-zero expression, but **did not run repository tests, the 92-case verifiers, or the import guards after the patch**. Pi Code must rerun the Q1-A focused suite, both 92-case golden verifiers, physics-free import guards, compileall and diff-check under its locked environment, report a new HEAD/evidence, and stop for independent re-review. Official Q1 gates remain `PENDING_DEPENDENCY`; no FE/COM/optimizer/production work is permitted.
+**Independent reviewer patch (2026-10-22 JST; GitHub-only):** Corrected the Q0-R1 `f64be_tuple_v1` signed-zero policy in `initialization.canonical_key_tokens`: `-0.0` and `+0.0` serialize to the same positive-zero key token, while physical/latent vector bytes and the legacy canonicalizer remain unchanged. Corrected the strict production-manifest ID map to the explicit Q0 identifiers: `rank_tuple_f64_v1` (Q0-R1 §6.3), `stage5a2_lshade_state_v1` (Q0-R2 §8.2; scoped as `lshade_state`, not a generic/DE codec) and `stage5a2_checkpoint_v1` (Q0-R1 §7.3). Updated the affected manifest/negative tests and added a signed-zero key/vector regression. The initial 64-test result below predates the reviewer patch; post-patch revalidation is recorded under A3. Official Q1 gates remain `PENDING_DEPENDENCY`; no FE/COM/optimizer/production work is permitted.
 
 **Worktree:** `/home/user/src/saw-com-optimizer`, branch `codex/stage5a2-q1a-common-foundation`; based on `f32b8f8dac928f21c567b34593b1ed227a4c9c9e`.
 
@@ -59,7 +59,7 @@ Commands run:
 
 ```text
 uv run --locked pytest -q tests/unit/studies/test_stage5a2_foundation.py
-64 passed in 36.87s
+64 passed in 36.87s (pre-reviewer-patch baseline at `64212880255b1f67f55984f9090c1f90d5c49107`)
 
 uv run --locked python scripts/verify_stage5a2_canonicalization_golden.py --mode public
 92 passed; fixture SHA-256 3763c5746f4bf800a54f310aeeb94f493520fc0962505b1eed85d3c32b589aa2
@@ -88,7 +88,32 @@ uv run --locked ruff check src/sawopt/studies/stage5a2/identity.py src/sawopt/st
 failed to launch: `ruff` is not installed in the locked environment (`Failed to spawn: ruff`); no package was installed
 ```
 
-No full repository test suite was run because it includes tests/workflows that can invoke physics, optimizer, or production paths outside the explicit Q1-A authorization. No COM/network/physics calculation, real optimization, production orchestration, or long-running run was started.
+### Post-reviewer-patch revalidation (2026-10-22 JST)
+
+Fetched and fast-forwarded the clean local branch to PR #54 HEAD `03b9a5495111a1f933f542682f76b5ec9bad4e53`, then ran the requested locked checks:
+
+```text
+uv run --locked pytest -q tests/unit/studies/test_stage5a2_foundation.py
+65 passed in 49.26s
+
+uv run --locked python scripts/verify_stage5a2_canonicalization_golden.py --mode public
+92 passed; fixture SHA-256 3763c5746f4bf800a54f310aeeb94f493520fc0962505b1eed85d3c32b589aa2
+
+uv run --locked python scripts/verify_stage5a2_canonicalization_golden.py --mode leaf
+92 passed; same fixture SHA-256
+
+uv run --locked python scripts/check_stage5a2_pure_leaf_import.py
+forbidden_imports: []
+
+uv run --locked python scripts/check_stage5a2_foundation_imports.py
+forbidden_imports: []; `production_identity` included
+
+uv run --locked python -m compileall -q src/sawopt/studies/stage5a2 tests/unit/studies/test_stage5a2_foundation.py
+git diff --check
+passed
+```
+
+Final revalidation HEAD: `03b9a5495111a1f933f542682f76b5ec9bad4e53`. Tests/import checks passed; no implementation change was needed. No full repository test suite was run because it includes tests/workflows that can invoke physics, optimizer, or production paths outside the explicit Q1-A authorization. No COM/network/physics calculation, real optimization, production orchestration, or long-running run was started.
 
 | Official gate | Current disposition | Why Q1-A does not close it |
 |---|---|---|
