@@ -1,5 +1,13 @@
 # Luna → Sol Escalation Log
 
+## 2026-10-21 — Stage 5A-2 Q0 formal closeout and Q1 execution plan
+
+- Recorded Q0 as `CLOSED / ACCEPTED` under the user's explicit 2026-10-21 closeout instruction in `docs/history/stage5a2_q0_closeout_20261021.md`. This is a separate event from PR #50's merge at `9427b404d302932b27f50d31919bb3fb95fcfcd4`; Sol's Q0-R3 `APPROVE_Q0_PROTOCOL` and GitHub's `ACCEPT_FOR_DOCUMENTARY_MERGE` are cited as review evidence, not represented as the user's formal-close decision.
+- The closeout preserves Q0-R1/R2/R3 historical records, records final `R2-SOL-01…04` dispositions, the frozen comparison conditions, initializer pushforward risk, and the design-versus-qualification distinction. The Q0-R3 Phase-I/Phase-II correction from PR #50 remains explicit: sampled hashes are in Phase-II attachment/execution records referencing immutable Phase-I identities.
+- Added `docs/plans/stage5a2_q1_execution_plan.md`, splitting future Q1 work into A (identity/RNG/population), B (controlled DE), C (L-SHADE integration), D (crash recovery/determinism), and E (synthetic integration/reporting). A unique primary-owner mapping assigns each existing Q1-01…Q1-23 gate exactly once. Updated the fair-comparison plan, sole Q1 matrix, and roadmap to `PLANNED / IMPLEMENTATION NOT STARTED / AWAITING SEPARATE USER AUTHORIZATION`.
+- No Q1 source code, unit/synthetic test, optimizer, COM/network/physics evaluation, Stage 4C data, or production orchestration was run or changed. Static documentation/link/status/gate-ID consistency checking only. No additional Sol review was needed; no Q1 implementation or qualification permission was inferred.
+- The next gate is separate explicit user authorization for Q1 implementation and deterministic synthetic-only qualification. Q1 acceptance will not authorize a real SAW comparison, COM evaluation or production run.
+
 ## 2026-10-21 — Stage 5A-2 Q0-R3 Sol review outcome
 
 - Prepared the documentation-only Q0-R3 proposal in the existing worktree on branch `codex/stage5a2-q0-r3-contract-closeout`, based on merged PR #49/main `25147a6b4912d4a00aa6eb023060d9507dd018f5`. Read-only audit included the prior Q0 packets, project roadmap, Q0 plan/Q1 matrix, relevant optimizer/problem/study/checkpoint sources, and PR #49 independent review comment #6312601955. No source or Stage 4C artifact was edited.
