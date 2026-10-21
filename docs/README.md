@@ -1,15 +1,49 @@
-# Documentation
+# Documentation index
 
-- [`guides/development_environment.md`](guides/development_environment.md): official WSL2/uv setup for every worktree
+This is the sole index of current project documentation. For each topic, use
+the canonical source below; old plans and detailed guides are retained only as
+evidence unless linked here as supporting references.
 
-- [`guides/data_storage_logging_review_policy.md`](guides/data_storage_logging_review_policy.md): canonical overview for production raw-data storage, logging, retention, and GitHub review evidence
-- [`history/experiment_register.md`](history/experiment_register.md): historical experiments, findings, decisions, and evidence limits
-- [`history/storage_reconciliation_20261005.md`](history/storage_reconciliation_20261005.md): verified historical run and log storage reconciliation
-- [`history/storage_reconciliation_addendum_20261005.md`](history/storage_reconciliation_addendum_20261005.md): re-added historical run copies reverified against the external archive and retired
-- [`history/current_baseline.md`](history/current_baseline.md): adopted assumptions and current unresolved engineering work
-- [`project_roadmap.md`](project_roadmap.md): long-term goals, next stages, and project gates
-- [`history/stage4b_closeout_20261004.md`](history/stage4b_closeout_20261004.md): externally reviewed Stage 4B execution closeout and Stage 4C carry-forward
-- [`guides/github_review_workflow.md`](guides/github_review_workflow.md): active GitHub-mediated review roles and branch workflow
-- [`guides/postrun_review_contract.md`](guides/postrun_review_contract.md): required post-run continuation and lightweight GitHub evidence contract for new production studies
-- [`guides/async_orchestration.md`](guides/async_orchestration.md): long-running production orchestration, recovery, and continuation
-- [`guides/worktree_safety.md`](guides/worktree_safety.md): persistent run storage and fail-closed worktree removal safety
+## Current sources of truth
+
+- [Roadmap](roadmap.md) — product goal, stage gates, current scientific status,
+  and interpretation limits.
+- [Architecture](architecture.md) — current package ownership, dependency
+  direction, target layout, and staged module migration.
+- [Physics and numerical conventions](physics.md) — implemented COM equations,
+  units/signs, network/port conventions, metrics, grids, and analytic tests.
+- [Development](development.md) — Docs-first workflow, risk-based tests, PR
+  responsibilities, environment commands, and CI status.
+- [Experiments and data](experiments.md) — authorization, frozen conditions,
+  historical preservation, raw storage, and future review schema.
+
+## Authoritative supporting records
+
+These records are authoritative only for their stated subject and do not
+supersede the five current sources above:
+
+- [Stage 5A-2 Q1 qualification matrix](plans/stage5a2_q1_qualification_matrix.md)
+  is the sole formal Q1-01…Q1-23 gate list.
+- [Stage 5A-2 Q1 execution plan](plans/stage5a2_q1_execution_plan.md) defines
+  work-unit dependencies; it does not pass gates or authorize Q1-B/C/D/E.
+- [Q0 closeout](history/stage5a2_q0_closeout_20261021.md) records the accepted
+  comparison protocol and distinct approval/closure events.
+- [Current historical baseline](history/current_baseline.md),
+  [experiment register](history/experiment_register.md), and stage closeouts
+  retain reviewed historical findings and limitations; they are not a new
+  implementation plan.
+- [R0 preflight inventory](../reports/restructure/r0_preflight_inventory_20261022.md),
+  [reconstruction design](plans/repository_restructure_decisions_20261022.md),
+  and [migration plan](plans/repository_restructure_migration_plan_20261022.md)
+  are records for the staged reconstruction. They do not authorize source
+  deletion, scientific changes, or experiments.
+
+## Legacy paths
+
+[`project_roadmap.md`](project_roadmap.md) and
+[`architecture_overview.md`](architecture_overview.md) are retained as
+compatibility pointers to [roadmap.md](roadmap.md) and
+[architecture.md](architecture.md), respectively. Older guides, handoffs,
+agent procedures, and stage plans are historical or supporting material, not
+independent current policy. Do not follow an old operational procedure unless
+it is explicitly re-authorized and consistent with the current sources above.
