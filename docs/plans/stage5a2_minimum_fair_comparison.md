@@ -1,10 +1,10 @@
 # Stage 5A-2 — minimum controlled generic full-space optimizer comparison
 
-**Status:** Q0-R1 and Q0-R2 Sol dispositions were `REQUEST_Q0_REVISIONS`; Q0-R3 received one Sol `APPROVE_Q0_PROTOCOL` judgment. Q0 remains OPEN pending independent GitHub review and explicit user disposition; Sol approval is not Q0 closure or Q1 permission. Q1 remains NOT STARTED / BLOCKED. No Q1 implementation, tests, synthetic evaluations, COM/network calculations, optimizer study, Stage 4C mutation, or production launch is authorized.
+**Status:** Q0 is `CLOSED / ACCEPTED` by explicit user decision on 2026-10-21; see the [formal Q0 closeout](../history/stage5a2_q0_closeout_20261021.md). Q0-R1/R2/R3 review decisions remain in the historical packets. Q1 is `PLANNED / IMPLEMENTATION NOT STARTED / AWAITING SEPARATE USER AUTHORIZATION`. This plan does not authorize Q1 implementation or tests, synthetic evaluations, COM/network calculations, an optimizer study, Stage 4C mutation, or production launch.
 
 **Prerequisite:** [Stage 5A-1 read-only closeout](../history/stage5a1_closeout_20261020.md).
 
-**Current Q0 proposal (not accepted):** [Q0-R3 identity-genesis/RNG-replay/initialization/Q1-scope packet](../../reports/escalation_packets/stage5a2_q0_protocol_revision_r3_20261021.md). Q0-R2's accepted design principles and remaining findings are preserved in the [Q0-R2 packet](../../reports/escalation_packets/stage5a2_q0_protocol_revision_r2_20261021.md); the [Q0-R1 packet](../../reports/escalation_packets/stage5a2_q0_protocol_revision_20261021.md) is unchanged history.
+**Q0 design record:** the accepted [Q0-R3 protocol packet](../../reports/escalation_packets/stage5a2_q0_protocol_revision_r3_20261021.md) incorporates prior decisions preserved in the [Q0-R2 packet](../../reports/escalation_packets/stage5a2_q0_protocol_revision_r2_20261021.md) and [Q0-R1 packet](../../reports/escalation_packets/stage5a2_q0_protocol_revision_20261021.md). Historical packet statuses are unchanged; the current closeout status is authoritative in the linked closeout record.
 
 **Q1 gates:** [single authoritative Q1 qualification matrix](stage5a2_q1_qualification_matrix.md).
 
@@ -16,9 +16,9 @@
 
 Under one frozen Stage 4C COM/network/specification/bounds problem, does an alternative generic 13-variable mixed continuous/integer full-space optimizer obtain better short-budget common-grid feasibility-first quality or faster time-to-quality than the audited L-SHADE package? The comparison is exploratory, and does not test whether 4,096 evaluations prove feasibility or whether either topology/method is universally best.
 
-## Retained Q0-R1 comparison envelope with explicit Q0-R3 initializer exception
+## Q0-approved comparison contract with explicit Q0-R3 initializer exception
 
-| Dimension | Proposed Q0-R1/R2 terms and Q0-R3 initializer exception (not yet accepted) |
+| Dimension | Frozen Q0 condition |
 |---|---|
 | Model/spec/ports | Stage 4C MLIT/T1 at real 50/50 Ω; protected COM inputs, objective, specs, geometry constraints, bounds and conventions unchanged |
 | Topologies | `P_D`, `D_P`, optimized independently; 13 DOF each |
@@ -35,14 +35,14 @@ Under one frozen Stage 4C COM/network/specification/bounds problem, does an alte
 | Resources/order | One serial worker/process and one BLAS/OpenMP thread; fixed 12-cell alternating method order appears in packet; no parallel cells |
 | Validation/interpretation | Report paired seed outcomes, FE- and wall-time curves, feasibility/violations, metrics, status, uncertainty and convergence limits. No finite-run global-optimum, infeasibility, or general superiority claim |
 
-Q0-R2 received `REQUEST_Q0_REVISIONS` for partial pair/cell genesis, RNG-call crash recovery/local-state reconstruction, exact initial evaluator-vector identity, and contradictory Q1 scope. Q0-R3 specifies an ordered pair-coordinated G0–G4 identity genesis with a durable all-identities-ready barrier; an exact typed RNG-call tape replayed from a complete pre-step L-SHADE state; a sealed population whose values are the exact actual evaluator vectors in both arms, with a pure 234-member pre-FE identity gate; and a conditional synthetic-only Q1 scope that is prohibited during Q0. Sol returned `APPROVE_Q0_PROTOCOL` for this design, with no open/new critical findings, while requiring the initialization pushforward exception to remain disclosed and original logical first-evaluation/cache semantics to be verified in Q1. The packet remains pending independent GitHub review and explicit user disposition. The watchdog remains a proposal-count limit, not a wall-time cutoff; incomplete trajectories remain `BUDGET_STALLED`.
+Q0-R2 received `REQUEST_Q0_REVISIONS` for partial pair/cell genesis, RNG-call crash recovery/local-state reconstruction, exact initial evaluator-vector identity, and contradictory Q1 scope. Q0-R3 resolved these at the design level with the G0–G4 identity barrier, lossless typed RNG-call replay from complete L-SHADE pre-step state, exact 234-member pre-FE input certificates, and a future synthetic-only Q1 boundary. Sol returned `APPROVE_Q0_PROTOCOL`; independent GitHub review accepted the narrow Phase-I/Phase-II clarification and initializer-exception wording for documentary merge; the user then formally closed Q0 separately. Q1 has not started and still requires separate explicit user authorization. The initializer pushforward exception remains disclosed, and original logical first-evaluation/backend-cache semantics must be qualified. The watchdog remains a proposal-count limit, not a wall-time cutoff; incomplete trajectories remain `BUDGET_STALLED`.
 
 ## Review and implementation gates
 
-1. Q0-R1 and Q0-R2 each received one read-only Sol review; both returned `REQUEST_Q0_REVISIONS`. Q0-R3 received one read-only `APPROVE_Q0_PROTOCOL` review. All records are preserved; no additional Sol review is planned.
-2. Q0-R3 and the updated Q1 matrix are prepared in the current dedicated review branch. The prior Draft PR #49 records Q0-R2 history and is not rewritten. Q0-R3 publication requires its own Draft PR; do not merge or close Q0 automatically.
-3. No Q1 work is authorized during Q0-R3. After accepted Q0, Q1 synthetic-only implementation/qualification still requires separate explicit user permission and must not choose unresolved Q0 semantics. No COM/provider/physics, real SAW optimizer study, production orchestration, or Stage 4C data change is within Q1.
-4. Q1 pass does not authorize any pilot. A future launch still requires a frozen implementation/source SHA and preflight, external persistent storage, exact run contract, resource/abort policy, and separate explicit user authorization through the qualified workflow.
+1. Q0-R1 and Q0-R2 each received one read-only Sol `REQUEST_Q0_REVISIONS`; Q0-R3 received one read-only `APPROVE_Q0_PROTOCOL`. The independent PR #50 review's required documentary clarification was applied and accepted as `ACCEPT_FOR_DOCUMENTARY_MERGE`; PR #50 merged at `9427b404d302932b27f50d31919bb3fb95fcfcd4`. The user separately closed Q0 on 2026-10-21. The [closeout](../history/stage5a2_q0_closeout_20261021.md) records the distinct events and historical evidence.
+2. The [Q1 execution plan](stage5a2_q1_execution_plan.md) splits future work into Q1-A…Q1-E while keeping the existing Q1-01…Q1-23 matrix as the sole formal gate list. Q1 implementation and synthetic qualification are `AWAITING SEPARATE USER AUTHORIZATION`; no Q1 gate has passed.
+3. Q1, when separately authorized, is synthetic-only and may not change Q0 semantics or invoke COM/provider/physics, perform a real SAW optimizer study, launch production orchestration, or mutate Stage 4C data. Q1 permission and passing Q1 do not authorize a later pilot.
+4. Any future physical study still requires a frozen implementation/source SHA and preflight, external persistent storage, exact run contract, resource/abort policy, and separate explicit user authorization through the qualified workflow.
 
 ## Cost and scientific interpretation
 
