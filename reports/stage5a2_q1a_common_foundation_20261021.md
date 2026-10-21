@@ -10,7 +10,9 @@
 
 **Worktree:** `/home/user/src/saw-com-optimizer`, branch `codex/stage5a2-q1a-common-foundation`; based on `f32b8f8dac928f21c567b34593b1ed227a4c9c9e`.
 
-**Implementation commit:** `0c7b23fd528abc16f43b1f1ac269d7c664676fbd`
+**Initial Q1-A implementation commit:** `0c7b23fd528abc16f43b1f1ac269d7c664676fbd`
+
+**PR #54 integrity-repair commit:** `d066b49` (`Fix Stage 5A-2 Q1-A integrity gaps`); published on the Draft PR branch. This does not pass an official Q1 gate.
 
 **Draft PR:** [#54 — Stage 5A-2 Q1-A common foundation](https://github.com/MasayaTakagi/saw-com-optimizer/pull/54)
 
