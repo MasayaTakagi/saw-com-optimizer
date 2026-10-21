@@ -220,9 +220,9 @@ def _production_manifest_record(topology: str = "P_D", root_seed: int = 20261012
                                }},
         },
         "schemas": {"candidate": "stage5a2_candidate_record_v1", "journal": "stage5a2_txn_journal_v1",
-                    "canonical_key": "f64be_tuple_v1", "rank": "geometry_first_rank_v1",
+                    "canonical_key": "f64be_tuple_v1", "rank": "rank_tuple_f64_v1",
                     "rng_call": "stage5a2_rng_call_v1", "pcg64_state": "stage5a2_pcg64_state_v1",
-                    "optimizer_state": "stage5a2_optimizer_state_v1", "outer_envelope": "stage5a2_execution_envelope_v1"},
+                    "lshade_state": "stage5a2_lshade_state_v1", "outer_envelope": "stage5a2_checkpoint_v1"},
     }
 
 
@@ -397,7 +397,7 @@ def test_q0_design_space_contract_matches_frozen_stage4a_configuration():
 
 def test_design_space_hash_binds_metadata_and_normalizes_signed_zero():
     metadata = _metadata()
-    assert canonical_key_tokens(np.asarray([-0.0])) != canonical_key_tokens(np.asarray([0.0]))
+    assert canonical_key_tokens(np.asarray([-0.0])) == canonical_key_tokens(np.asarray([0.0]))
     assert metadata.design_space_sha256 == design_space_sha256(
         metadata.topology, metadata.variable_names, metadata.bounds_array(),
         metadata.integer_indices, metadata.units,
@@ -407,6 +407,20 @@ def test_design_space_hash_binds_metadata_and_normalizes_signed_zero():
             "P_D", metadata.variable_names, metadata.bounds, metadata.integer_indices,
             metadata.units, _digest("wrong-bound-identity"),
         )
+
+
+def test_canonical_key_signed_zero_normalizes_without_mutating_vector_bits():
+    negative = np.asarray([-0.0, 1.0], dtype="<f8")
+    positive = np.asarray([0.0, 1.0], dtype="<f8")
+    original_bytes = negative.tobytes()
+    assert negative.tobytes() != positive.tobytes()
+    negative_key = canonical_key_tokens(negative)
+    positive_key = canonical_key_tokens(positive)
+    assert negative_key == positive_key
+    assert negative_key[0] == "0000000000000000"
+    assert len({negative_key, positive_key}) == 1
+    assert negative.tobytes() == original_bytes
+    assert np.signbit(negative[0])
 
 
 def test_q0_production_identity_manifest_is_complete_and_bounds_checked(tmp_path):
@@ -440,7 +454,7 @@ def test_q0_production_identity_manifest_is_complete_and_bounds_checked(tmp_path
     "wrong_lshade_history", "wrong_lshade_pbest", "wrong_lshade_retry", "wrong_lshade_fallback",
     "wrong_lshade_unknown_setting", "unknown_lshade_version", "unknown_controlled_de_version",
     "wrong_de_update_mode", "wrong_de_reflection", "wrong_de_adaptation", "wrong_de_unknown_setting",
-    "wrong_rank_schema", "wrong_optimizer_state_schema", "wrong_outer_envelope_schema",
+    "wrong_rank_schema", "wrong_lshade_state_schema", "wrong_outer_envelope_schema",
 ])
 def test_q0_production_manifest_rejects_mismatched_identity_inputs(mutation):
     record = _production_manifest_record()
@@ -490,8 +504,8 @@ def test_q0_production_manifest_rejects_mismatched_identity_inputs(mutation):
         record["arms"]["controlled_de"]["resolved_settings"]["adaptive_F"] = True
     elif mutation == "wrong_rank_schema":
         record["schemas"]["rank"] = "unknown_rank_v999"
-    elif mutation == "wrong_optimizer_state_schema":
-        record["schemas"]["optimizer_state"] = "unknown_state_v999"
+    elif mutation == "wrong_lshade_state_schema":
+        record["schemas"]["lshade_state"] = "unknown_state_v999"
     elif mutation == "wrong_outer_envelope_schema":
         record["schemas"]["outer_envelope"] = "unknown_envelope_v999"
     with pytest.raises(ProductionIdentityError):
