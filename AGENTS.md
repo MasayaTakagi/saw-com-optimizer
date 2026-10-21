@@ -34,8 +34,9 @@ add speculative abstractions or refactor unrelated code.
   runs relevant checks, and publishes a review branch/commit or Draft PR.
 - **Independent review:** ChatGPT reviews the pushed GitHub diff and evidence.
   Self-validation is not external acceptance.
-- **Accept / merge:** the user accepts reviewed work and authorizes merge or
-  the next gated activity.
+- **Accept / merge:** ChatGPT records review outcomes and merges within
+  owner-delegated scope. The user decides material scientific changes,
+  experiment execution, and gated project-stage transitions.
 
 For meaningful work, report branch, commit SHA, review URL, checks run, and
 unresolved questions. Stop for an owner decision before changing scientific
