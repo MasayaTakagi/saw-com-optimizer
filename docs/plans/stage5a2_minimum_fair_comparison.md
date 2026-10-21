@@ -16,9 +16,9 @@
 
 Under one frozen Stage 4C COM/network/specification/bounds problem, does an alternative generic 13-variable mixed continuous/integer full-space optimizer obtain better short-budget common-grid feasibility-first quality or faster time-to-quality than the audited L-SHADE package? The comparison is exploratory, and does not test whether 4,096 evaluations prove feasibility or whether either topology/method is universally best.
 
-## Q0-R1 comparison envelope retained by Q0-R2 / Q0-R3 proposals
+## Retained Q0-R1 comparison envelope with explicit Q0-R3 initializer exception
 
-| Dimension | Q0-R1 value retained by Q0-R2/R3 (not yet accepted) |
+| Dimension | Proposed Q0-R1/R2 terms and Q0-R3 initializer exception (not yet accepted) |
 |---|---|
 | Model/spec/ports | Stage 4C MLIT/T1 at real 50/50 Ω; protected COM inputs, objective, specs, geometry constraints, bounds and conventions unchanged |
 | Topologies | `P_D`, `D_P`, optimized independently; 13 DOF each |
