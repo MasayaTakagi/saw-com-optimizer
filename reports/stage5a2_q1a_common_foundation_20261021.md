@@ -2,7 +2,7 @@
 
 **Issue:** [#52 — Q1-A canonicalization seam, identity/RNG/journal foundation](https://github.com/MasayaTakagi/saw-com-optimizer/issues/52)
 
-**Status:** `LOCAL_EVIDENCE_READY / AWAITING INDEPENDENT REVIEW`. This is work-unit evidence only; no official Q1 gate is passed.
+**Status (2026-10-22):** `WORK_UNIT_READY / CLOSED` by independent GitHub review and explicit user acceptance; [PR #54](https://github.com/MasayaTakagi/saw-com-optimizer/pull/54) merged to `main` at `03d673052c7570d86b78b43849f649758bb7d3f4`; [Issue #52](https://github.com/MasayaTakagi/saw-com-optimizer/issues/52) closed as completed. This is work-unit acceptance only; no official Q1 gate has passed.
 
 **Authorization:** Issue #52 explicitly authorizes Q1-A implementation and deterministic synthetic/unit qualification, including the narrow legacy canonicalization characterization. Q1-B/C/D/E, synthetic integration, COM/network/physics evaluation, real SAW optimization, Stage 4C mutation, and production orchestration/run are not authorized.
 
@@ -19,6 +19,13 @@
 **PR #54 integrity-repair commit:** `d066b49` (`Fix Stage 5A-2 Q1-A integrity gaps`); published on the Draft PR branch. This does not pass an official Q1 gate.
 
 **Draft PR:** [#54 — Stage 5A-2 Q1-A common foundation](https://github.com/MasayaTakagi/saw-com-optimizer/pull/54)
+
+## Q1-A final closeout (2026-10-22 JST)
+
+- **User decision:** explicitly authorized merging PR #54 and closing Q1-A/Issue #52; GitHub merge completed at `03d673052c7570d86b78b43849f649758bb7d3f4` from reviewed source HEAD `ba0d13f69a34422669fee9dd88819dfbab45d392`.
+- **Review outcome:** `ACCEPT_FOR_WORK_UNIT_READY`, recorded in [PR #54 review comment](https://github.com/MasayaTakagi/saw-com-optimizer/pull/54#issuecomment-6320482648). The native Approve mechanism could not approve a PR owned by the reviewing account; the decision was documented as a PR comment. No unaddressed Q1-A blocker remained at the reviewed HEAD.
+- **Local software qualification evidence:** Pi Code's locked environment revalidation of the code at `03b9a5495111a1f933f542682f76b5ec9bad4e53` reported 65 focused tests passed, public/leaf canonicalization parity 92/92 each, no-COM imports, compileall and clean diff. The final `ba0d13f` commit changed **this report only**. ChatGPT independently reviewed the GitHub source/diff and supplied evidence, but did not independently execute the local tests.
+- **Limits:** `WORK_UNIT_READY` is not `FULL_PASS` for Q1-01…Q1-23. Q1-A preflight certificates remain non-authoritative and evaluator dispatch disabled. Q1-03/04/05/14/15/16 remain `PENDING_DEPENDENCY` and the rest of the official Q1 gates remain unpassed. Stage 4A/4B/4C direct caller runtime parity, full optimizer replay and real COM/physics were not executed here. Q1-B/C/D/E and any physical/production work require separate user authorization.
 
 ## A0 — pre-extraction characterization
 
@@ -124,7 +131,7 @@ Final revalidation HEAD: `03b9a5495111a1f933f542682f76b5ec9bad4e53`. Tests/impor
 | Q1-15 | `PENDING_DEPENDENCY` | Optimizer/checkpoint hydration and recovery need B/C/D. |
 | Q1-16 | `PENDING_DEPENDENCY` | Cross-optimizer transaction/recovery qualification is Q1-D work. |
 
-Q1-B/C/D/E remain `NOT AUTHORIZED / NOT STARTED`. No Q1 gate is `FULL_PASS`. Q1-A is `LOCAL_EVIDENCE_READY`; `WORK_UNIT_READY` awaits independent GitHub review and user acceptance.
+Q1-B/C/D/E remain `NOT AUTHORIZED / NOT STARTED`. No Q1 gate is `FULL_PASS`. Q1-A is `WORK_UNIT_READY / CLOSED` after the independent GitHub review, user acceptance and PR #54 merge; Q1-B/C/D/E remain unauthorized.
 
 ## Changed files
 
@@ -141,4 +148,4 @@ Q1-B/C/D/E remain `NOT AUTHORIZED / NOT STARTED`. No Q1 gate is `FULL_PASS`. Q1-
 - The Stage 4A/4B/4C protection is based on exact direct `canonicalize` parity plus call-site/source review; the actual callers were not executed in this Q1-A work unit.
 - Synthetic population/preflight transforms are injected, two-coordinate unit fixtures where appropriate; they are software contract tests, not SAW or physical geometry evidence.
 - Production manifest source/config/lock digests and `source.clean_tree` are checked for canonical shape and internal identity consistency only. They are caller-supplied claims, not independent filesystem/source/environment attestation or proof the current workspace matches those digests. Any future run-enabled path must add independent attestation or explicitly gate it to later qualification before use.
-- No independent review or user acceptance has occurred. The next step is independent GitHub review of the focused Draft PR. Stop there; do not start Q1-B/C/D/E, mark any formal gate passed, merge, or launch follow-up work without later explicit authorization.
+- Independent GitHub review and user acceptance of Q1-A are complete, and PR #54 is merged; this closure does not authorize B/C/D/E, promote any formal Q1 gate to `FULL_PASS`, or permit physical evaluation/production. Downstream work requires separate scoped authorization.
