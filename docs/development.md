@@ -17,8 +17,10 @@ Separate these activities:
    relevant local checks, and publish the exact branch/commit and evidence.
 3. **Independent review — ChatGPT:** inspect the pushed GitHub diff, source and
    committed evidence; request focused corrections where needed.
-4. **Accept / merge — user:** decide whether reviewed work is accepted and may
-   merge or advance to another stage.
+4. **Accept / merge — ChatGPT within delegated scope; user at decision gates:**
+   ChatGPT records review results and merges reviewed PRs where the owner has
+   delegated that class of change. The user approves material scientific
+   changes, experiments, and gated project-stage transitions.
 
 Implementation self-validation is not external review. A passing test is not scientific
 acceptance. Keep PRs focused; do not merge or start follow-up work without the
