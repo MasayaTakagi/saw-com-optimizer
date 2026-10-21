@@ -6,7 +6,11 @@
 
 **Authorization:** Issue #52 explicitly authorizes Q1-A implementation and deterministic synthetic/unit qualification, including the narrow legacy canonicalization characterization. Q1-B/C/D/E, synthetic integration, COM/network/physics evaluation, real SAW optimization, Stage 4C mutation, and production orchestration/run are not authorized.
 
-**Worktree:** `/home/user/src/saw-com-optimizer`, branch `codex/stage5a2-q1a-common-foundation`; based on `f32b8f8dac928f21c567b34593b1ed227a4c9c9e`. Final implementation commit and Draft PR identity are recorded in the PR; this report is updated with that link before publication.
+**Worktree:** `/home/user/src/saw-com-optimizer`, branch `codex/stage5a2-q1a-common-foundation`; based on `f32b8f8dac928f21c567b34593b1ed227a4c9c9e`.
+
+**Implementation commit:** `0c7b23fd528abc16f43b1f1ac269d7c664676fbd`
+
+**Draft PR:** [#54 — Stage 5A-2 Q1-A common foundation](https://github.com/MasayaTakagi/saw-com-optimizer/pull/54)
 
 ## A0 — pre-extraction characterization
 
