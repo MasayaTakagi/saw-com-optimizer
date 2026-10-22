@@ -247,12 +247,22 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="sawopt-evaluation-repro-") as temp:
         root = Path(temp)
-        dirs = {name: root / name for name in ("default_1", "default_2", "single_thread")}
+        dirs = {
+            name: root / name
+            for name in ("default_1", "default_2", "single_thread", "haswell_core")
+        }
         default_env = os.environ.copy()
         single_env = default_env | {
             "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1",
         }
-        for name, env in (("default_1", default_env), ("default_2", default_env), ("single_thread", single_env)):
+        haswell_env = default_env | {"OPENBLAS_CORETYPE": "Haswell"}
+        modes = (
+            ("default_1", default_env),
+            ("default_2", default_env),
+            ("single_thread", single_env),
+            ("haswell_core", haswell_env),
+        )
+        for name, env in modes:
             subprocess.run([sys.executable, __file__, "--worker", str(dirs[name])], check=True, env=env)
         reports = {name: json.loads((directory / "report.json").read_text()) for name, directory in dirs.items()}
         result = {
@@ -260,6 +270,7 @@ def main() -> int:
             "runs": reports,
             "independent_default_processes": _compare(dirs["default_1"], dirs["default_2"], "default process 1 vs 2"),
             "default_vs_single_thread": _compare(dirs["default_1"], dirs["single_thread"], "default vs single-thread BLAS"),
+            "default_vs_forced_haswell": _compare(dirs["default_1"], dirs["haswell_core"], "default vs OPENBLAS_CORETYPE=Haswell"),
         }
         print(json.dumps(result, indent=2, sort_keys=True))
     return 0
