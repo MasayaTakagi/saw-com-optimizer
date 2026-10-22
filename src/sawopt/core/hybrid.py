@@ -1,9 +1,10 @@
-"""COM one-port resonators and electrical nodal interconnection."""
+"""Legacy resonator design, topology, layout, and candidate response helpers."""
 from dataclasses import dataclass, asdict
 import numpy as np
-from .models import FilterDesign, FixedProvider, decode
-from .com import acoustic_admittance, simulate_filter, validate_admittance
-from .network import evaluate
+from ..physics.com import FixedProvider, simulate_filter, validate_admittance
+from ..physics.elements import circuit_y as _circuit_y, resonator_y as _calculate_resonator_y
+from ..physics.network import evaluate
+from .models import FilterDesign, decode
 from .metrics import measure, geometry
 
 
@@ -23,53 +24,21 @@ def decode_resonator(x):
     return ResonatorDesign(float(x[0]), int(np.floor(x[1] + .5)), float(x[2]))
 
 
-def resonator_y(d, provider, f):
-    geom = FilterDesign(
+def resonator_admittance(d, provider, frequencies_hz):
+    """Adapt a resonator design to the full provider-visible geometry record."""
+    geometry = FilterDesign(
         wavelength_um=d.wavelength_um,
         io_idt_pairs=d.pairs,
         aperture_um=d.aperture_um,
     )
-    regions = [
-        ('reflector', d.reflector_electrodes/2, None),
-        ('gap', d.gap_lambda, None),
-        ('idt', d.pairs, 0),
-        ('gap', d.gap_lambda, None),
-        ('reflector', d.reflector_electrodes/2, None),
-    ]
-    y = acoustic_admittance(geom, provider, np.asarray(f), regions, 1)
-    validate_admittance(y)
-    return y[:, 0, 0]
-
-
-def circuit_y(dms, branches, ports=(0, 1), dms_nodes=(0, 1), node_count=2):
-    """Stamp admittances then eliminate internal nodes. Ground is node -1."""
-    n = len(dms)
-    Y = np.zeros((n, node_count, node_count), complex)
-    for i, ni in enumerate(dms_nodes):
-        for j, nj in enumerate(dms_nodes):
-            Y[:, ni, nj] += dms[:, i, j]
-    for a, b, y in branches:
-        if a >= 0:
-            Y[:, a, a] += y
-        if b >= 0:
-            Y[:, b, b] += y
-        if a >= 0 and b >= 0:
-            Y[:, a, b] -= y
-            Y[:, b, a] -= y
-
-    external = list(ports)
-    internal = [i for i in range(node_count) if i not in ports]
-    out = Y[:, external][:, :, external]
-    if internal:
-        Yei = Y[:, external][:, :, internal]
-        Yii = Y[:, internal][:, :, internal]
-        Yie = Y[:, internal][:, :, external]
-        try:
-            out = out - Yei @ np.linalg.solve(Yii, Yie)
-        except np.linalg.LinAlgError as exc:
-            raise ValueError('Singular internal-node elimination') from exc
-    validate_admittance(out)
-    return out
+    return _calculate_resonator_y(
+        geometry,
+        provider,
+        frequencies_hz,
+        pairs=d.pairs,
+        reflector_electrodes=d.reflector_electrodes,
+        gap_lambda=d.gap_lambda,
+    )
 
 
 STAGE4A_TOPOLOGIES = ("D", "P_D", "D_P", "P_D_P")
@@ -100,7 +69,7 @@ def compose_stage4a_y(dms_y, topology, resonator_ys=()):
         nodes, branches = (0, 1), [(0, -1), (1, -1)]
     if ys:
         branches = [(a, b, value) for (a, b), value in zip(branches, ys)]
-    return circuit_y(dms_y, branches, dms_nodes=nodes, node_count=2)
+    return _circuit_y(dms_y, branches, dms_nodes=nodes, node_count=2)
 
 
 # (DMS nodes, resonator terminals, node count). Added resonators are independent.
@@ -179,8 +148,8 @@ def response(x, topology, wiring, cfg, f, rs=None, rl=None, *, measure_result=Tr
     provider = FixedProvider(cfg['com'])
     dms = simulate_filter(d, provider, f, cfg['center'], wiring).y_parameters
     nodes, terminals, node_count = TOPOLOGIES[topology]
-    ys = [resonator_y(r, provider, f) for r in resonators]
-    combined = circuit_y(
+    ys = [resonator_admittance(r, provider, f) for r in resonators]
+    combined = _circuit_y(
         dms,
         [(a, b, y) for (a, b), y in zip(terminals, ys)],
         dms_nodes=nodes,

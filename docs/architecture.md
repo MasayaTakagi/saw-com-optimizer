@@ -1,9 +1,9 @@
 # Architecture: current implementation and target ownership
 
-**Status:** Responsibility map, not an implemented target package tree. R0
-counted 94 Python modules at main `a4b3807d399cc78b10c280d41ee8cea476ade329`;
-R2–R7 migration has not begun. Do not import, document, or rely on target APIs
-as if they already exist.
+**Status:** Responsibility map with the R2 physics extraction underway on
+Issue #63. The R0 inventory counted 94 Python modules at main
+`a4b3807d399cc78b10c280d41ee8cea476ade329` (pre-R2 baseline). R3–R7 have not
+begun. Target APIs not yet implemented must not be treated as current.
 
 ## Target dependency direction
 
@@ -14,8 +14,8 @@ optimization → evaluation → design + physics
 ```
 
 - **`physics/`** — COM sections/elements, acoustic and electrical network,
-  S-parameters, and physical metrics. Must not depend on optimizer, study,
-  CLI, reporting, GitHub, or run lifecycle.
+  and S-parameter calculations. Must not depend on optimizer, study, CLI,
+  reporting, GitHub, or run lifecycle.
 - **`design/`** — topology, bounds, variable representation, canonicalization,
   and geometry. Must not invoke COM evaluation or optimization.
 - **`evaluation.py`** — the single bridge from design plus physics to response
@@ -39,8 +39,8 @@ readers are part of the target design.
 
 | Current code (exists) | Current role / observed coupling | Target owner (future) |
 |---|---|---|
-| `src/sawopt/core/com.py`, `models.py`, `network.py` | COM sections, providers/design/result records, acoustic solve, real-port network evaluator. | Split physics math/providers and network into `physics/`; domain input records into `design/` or `evaluation.py` according to ownership. |
-| `src/sawopt/core/hybrid.py`, `topology.py` | Hybrid electrical composition/layout and DMS/topology behavior. | Reusable physical composition in `physics/`; topology definitions in `design/`. |
+| `src/sawopt/physics/com.py`, `network.py`, `literature_com.py`; `src/sawopt/core/models.py` | R2 owns COM P-matrix propagation/global acoustic solve, COM providers and result record, and the real-positive-port network evaluator. `FilterDesign`, its vector decoder, geometry, and candidate metrics remain in `core/` pending R3. | Physics remains in `physics/`; domain input records move to `design/` and evaluation duties to `evaluation.py` in R3. |
+| `src/sawopt/physics/elements.py`; `src/sawopt/core/hybrid.py` | Reusable acoustic-section, IDT-port, one-port resonator, parallel-track, and electrical nodal composition are in `physics/`. `core.hybrid` still owns resonator design/topology/layout/response, the Stage 4A-specific adapter, and the adapter that passes a full `FilterDesign` geometry record to the generic physics resonator evaluator pending R3. | Reusable physical composition in `physics/`; topology/design/evaluation definitions in `design/` and `evaluation.py`. |
 | `src/sawopt/core/metrics.py` | Frequency grids, metrics, geometry calculation, scalar search surrogate. | Grid/spec and constraint evaluation to `evaluation.py`; physical response metrics to `physics/` only where genuinely physical. |
 | `src/sawopt/problem/design_space.py`, `dms_topologies.py`, `released_dms.py`, `hybrid.py`, `validation.py` | Design spaces, topology records, geometry and candidate evaluation; several depend upward on optimization services or core. | `design/` and one `evaluation.py`; remove upward dependency. |
 | `src/sawopt/optimizers/` and `src/sawopt/optimization/` | Separate optimizer backends/policies and shared budget/cache/accounting/runner; responsibilities overlap. | One cohesive `optimization/` with algorithm strategies and common runner/services. |
@@ -65,17 +65,20 @@ R0's static package import scan found these existing edges:
 - `reporting → core, optimization, optimizers, orchestration, studies`;
 - `orchestration → io, reporting, studies`.
 
-These are software dependencies, not proof that a module is dead. In
-particular, `problem.evaluator` uses optimization cache/adaptive-frequency
-services, the optimizer packages overlap, and studies/reporting/orchestration
-have runtime cycles. The architecture refactor must move ownership and invert
+These are the pre-R2 software dependencies, not proof that a module is dead.
+The R2 extraction now has `physics.elements → physics.com`; the other physics
+modules import only external numerical libraries or standard-library modules.
+`problem.evaluator` still uses optimization cache/adaptive-frequency services,
+the optimizer packages overlap, and studies/reporting/orchestration have
+runtime cycles. The architecture refactor must move ownership and invert
 dependencies intentionally; renaming directories alone will not meet the target.
 
-R2 extracts physics; R3 separates design and evaluation; R4 consolidates
-optimization and reconciles the closed Q1-A implementation; R5 establishes
-future raw/review storage contracts; R6 builds a minimal user-facing vertical
-slice and retires replaced code; R7 audits risk-based CI and cutover. Each is a
-separate review gate in the [migration plan](plans/repository_restructure_migration_plan_20261022.md).
+R2 extracts physics (Issue #63, implementation and independent review pending);
+R3 separates design and evaluation; R4 consolidates optimization and
+reconciles the closed Q1-A implementation; R5 establishes future raw/review
+storage contracts; R6 builds a minimal user-facing vertical slice and retires
+replaced code; R7 audits risk-based CI and cutover. Each is a separate review
+gate in the [migration plan](plans/repository_restructure_migration_plan_20261022.md).
 No stage grants permission to change equations, ranking, bounds, Q0/Q1
 semantics, or run conditions.
 

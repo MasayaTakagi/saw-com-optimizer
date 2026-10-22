@@ -80,7 +80,8 @@ def test_signal_requires_three_distinct_cells_to_cross_materiality_threshold():
 
 
 def test_stage4a_evaluator_accepts_probe_geometry_bounds_without_mutating_them(monkeypatch):
-    from sawopt.core import metrics, network
+    from sawopt.core import metrics
+    from sawopt.physics import network
     from sawopt.problem import hybrid as problem_hybrid
     from sawopt.studies import hybrid as study_hybrid
 

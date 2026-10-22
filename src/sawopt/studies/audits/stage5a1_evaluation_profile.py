@@ -21,9 +21,9 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 import scipy
 
-from ...core.hybrid import compose_stage4a_y, resonator_y
+from ...core.hybrid import compose_stage4a_y, resonator_admittance
 from ...core.metrics import measure
-from ...core.network import evaluate
+from ...physics.network import evaluate
 from ...problem.dms_topologies import T1, simulate_topology
 from ...problem.hybrid import hybrid_geometry
 from ...studies.hybrid import stage4a_evaluate
@@ -261,7 +261,7 @@ def profile_decomposed_evaluation(
     stage_seconds["B_s"] = time.perf_counter() - started
 
     started = time.perf_counter()
-    resonator_ys = [resonator_y(item, context["provider"], frequencies)
+    resonator_ys = [resonator_admittance(item, context["provider"], frequencies)
                     for item in candidate.resonator_designs]
     stage_seconds["C_s"] = time.perf_counter() - started
 
@@ -311,7 +311,7 @@ def capture_stage4a_reference(
 ) -> dict[str, Any]:
     """Run the unmodified Stage 4A evaluator while capturing its Y/network outputs."""
     from unittest.mock import patch
-    from ...core import network as network_module
+    from ...physics import network as network_module
 
     candidate = _candidate(vector, topology, context)
     captured: dict[str, Any] = {}

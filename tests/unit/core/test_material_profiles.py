@@ -5,7 +5,8 @@ import numpy as np
 import pytest
 import yaml
 
-from sawopt.core.models import FilterDesign, FixedProvider, LiteratureProfileProvider
+from sawopt.core.models import FilterDesign
+from sawopt.physics.com import FixedProvider, LiteratureProfileProvider
 
 
 def _metadata():

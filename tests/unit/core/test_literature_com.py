@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from sawopt.core.literature_com import (
+from sawopt.physics.literature_com import (
     NormalizedLiteratureCOMProfile,
     profile_from_mapping,
 )

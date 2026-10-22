@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 
-from sawopt.core.com import block
+from sawopt.physics.com import block
 
 
 def legacy_scalar_block(f, length, lam, p, gap=False):

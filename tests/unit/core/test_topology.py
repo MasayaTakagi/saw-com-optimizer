@@ -1,9 +1,9 @@
 import numpy as np
 
-from sawopt.core.com import simulate_filter
-from sawopt.core.models import FilterDesign, FixedProvider
-from sawopt.core.network import evaluate
-from sawopt.core.topology import simulate_section_chain
+from sawopt.physics.com import FixedProvider, simulate_filter
+from sawopt.core.models import FilterDesign
+from sawopt.physics.network import evaluate
+from sawopt.physics.elements import simulate_section_chain
 from sawopt.io.config import load_experiment_config
 from sawopt.problem.dms_topologies import (
     FiveIdtDesign,

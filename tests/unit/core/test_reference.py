@@ -9,9 +9,9 @@ normal test package rather than keeping this handoff package.
 import numpy as np
 import unittest
 
-from sawopt.core.com import block, simulate_filter
-from sawopt.core.network import evaluate
-from sawopt.core.models import FilterDesign, FixedProvider
+from sawopt.physics.com import FixedProvider, block, simulate_filter
+from sawopt.physics.network import evaluate
+from sawopt.core.models import FilterDesign
 
 
 def test_synchronous_kappa_zero_analytic_limit():

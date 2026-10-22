@@ -3,9 +3,9 @@ from pathlib import Path
 import numpy as np
 import yaml
 from scipy.linalg import expm
-from sawopt.core.network import evaluate
-from sawopt.core.com import block,simulate_filter
-from sawopt.core.models import FilterDesign,FixedProvider
+from sawopt.physics.network import evaluate
+from sawopt.physics.com import FixedProvider, block, simulate_filter
+from sawopt.core.models import FilterDesign
 
 class Physics(unittest.TestCase):
     def test_series_resistor_and_rlc(self):

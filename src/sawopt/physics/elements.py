@@ -1,9 +1,7 @@
-"""Generic acoustic-section and IDT-to-port composition helpers.
+"""COM sections and physical electrical interconnection elements.
 
-The COM equations remain in :mod:`sawopt.core.com`.  This module only owns
-the ordered section list and the explicit electrical port map used to turn an
-N-IDT acoustic admittance into the two-port admittance consumed by the
-existing network evaluator.
+This module composes acoustic sections, IDT ports, one-port resonators and
+lumped electrical branches without depending on design or evaluation code.
 """
 from __future__ import annotations
 
@@ -13,8 +11,7 @@ from typing import Any, Iterable, Sequence
 
 import numpy as np
 
-from .com import acoustic_admittance, validate_admittance
-from .models import SimulationResult
+from .com import SimulationResult, acoustic_admittance, validate_admittance
 
 
 @dataclass(frozen=True)
@@ -149,9 +146,64 @@ def parallel_two_port_admittance(
     return SimulationResult(reference_frequencies, total, diagnostics)
 
 
+def resonator_y(
+    geometry,
+    provider,
+    frequencies_hz,
+    *,
+    pairs,
+    reflector_electrodes,
+    gap_lambda,
+):
+    """Calculate a one-port resonator using explicit physical geometry/input."""
+    regions = [
+        ("reflector", reflector_electrodes / 2, None),
+        ("gap", gap_lambda, None),
+        ("idt", pairs, 0),
+        ("gap", gap_lambda, None),
+        ("reflector", reflector_electrodes / 2, None),
+    ]
+    y = acoustic_admittance(geometry, provider, np.asarray(frequencies_hz), regions, 1)
+    validate_admittance(y)
+    return y[:, 0, 0]
+
+
+def circuit_y(dms, branches, ports=(0, 1), dms_nodes=(0, 1), node_count=2):
+    """Stamp admittances then eliminate internal nodes. Ground is node -1."""
+    n = len(dms)
+    Y = np.zeros((n, node_count, node_count), complex)
+    for i, ni in enumerate(dms_nodes):
+        for j, nj in enumerate(dms_nodes):
+            Y[:, ni, nj] += dms[:, i, j]
+    for a, b, y in branches:
+        if a >= 0:
+            Y[:, a, a] += y
+        if b >= 0:
+            Y[:, b, b] += y
+        if a >= 0 and b >= 0:
+            Y[:, a, b] -= y
+            Y[:, b, a] -= y
+
+    external = list(ports)
+    internal = [i for i in range(node_count) if i not in ports]
+    out = Y[:, external][:, :, external]
+    if internal:
+        Yei = Y[:, external][:, :, internal]
+        Yii = Y[:, internal][:, :, internal]
+        Yie = Y[:, internal][:, :, external]
+        try:
+            out = out - Yei @ np.linalg.solve(Yii, Yie)
+        except np.linalg.LinAlgError as exc:
+            raise ValueError("Singular internal-node elimination") from exc
+    validate_admittance(out)
+    return out
+
+
 __all__ = [
     "AcousticSection",
+    "circuit_y",
     "parallel_two_port_admittance",
+    "resonator_y",
     "simulate_section_chain",
     "validate_port_matrix",
 ]

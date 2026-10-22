@@ -11,7 +11,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 import numpy as np
 
-from ..core.topology import (
+from ..physics.elements import (
     AcousticSection,
     parallel_two_port_admittance,
     simulate_section_chain,

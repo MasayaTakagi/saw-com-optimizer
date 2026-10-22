@@ -3,10 +3,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..core.com import simulate_filter
 from ..core.metrics import measure, search_grid, validation_grid
-from ..core.models import FixedProvider, SimulationResult
-from ..core.network import evaluate
+from ..physics.com import FixedProvider, SimulationResult, simulate_filter
+from ..physics.network import evaluate
 from ..optimization.adaptive_frequency import critical_frequencies, new_frequency_points
 from ..optimization.cache import IncrementalFrequencyCache
 

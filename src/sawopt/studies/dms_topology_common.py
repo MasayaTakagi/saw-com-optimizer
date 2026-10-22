@@ -11,12 +11,13 @@ from typing import Any, Iterable, Mapping, Sequence
 import numpy as np
 import yaml
 
-from ..core.com import simulate_filter
-from ..core.literature_com import profile_from_mapping
+from ..physics.com import simulate_filter
+from ..physics.literature_com import profile_from_mapping
 from ..core.metrics import geometry, measure, search_grid
-from ..core.models import NAMES, FilterDesign, FixedProvider, decode
-from ..core.network import evaluate
-from ..core.topology import simulate_section_chain
+from ..core.models import NAMES, FilterDesign, decode
+from ..physics.com import FixedProvider
+from ..physics.network import evaluate
+from ..physics.elements import simulate_section_chain
 from ..problem.dms_topologies import (
     FiveIdtDesign, ParallelThreeIdtDesign, T0, T0_PORT_MATRIX, T1, T1_PORT_MATRIX,
     T2, TOPOLOGIES, decode_t1, decode_t2, simulate_topology,
