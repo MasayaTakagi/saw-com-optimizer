@@ -45,10 +45,9 @@ do not start gated follow-up work without the applicable owner decision.
 The current CI is one locked full-pytest job, not the planned risk-lane system.
 Do not disable or weaken that job as a documentation or cleanup shortcut. CI
 lane definitions and measured test cost belong to a separately reviewed
-migration task. The observed main baseline failure is the stale agent/model
-routing assertion in `tests/unit/test_sol_review_routing_policy.py`, recorded
-as `KNOWN_BASELINE_FAILURE` by the R0 inventory; a docs-only PR must neither
-rewrite nor delete that test. Track a focused CI/test follow-up separately.
+migration task. The `KNOWN_BASELINE_FAILURE` for the obsolete agent/model
+routing assertion in the R0 inventory is historical evidence; R1-B retires
+that non-product test without changing scientific tests or CI.
 
 ## Environment and commands
 
