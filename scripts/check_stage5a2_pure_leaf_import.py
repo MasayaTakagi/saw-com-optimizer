@@ -17,12 +17,12 @@ assert vector.tobytes() == np.asarray([0.25, 3.0], dtype=np.float64).tobytes()
 assert key == (0.25, 3.0)
 forbidden_prefixes = (
     "sawopt.problem",
-    "sawopt.core.com",
-    "sawopt.core.literature_com",
+    "sawopt.physics.com",
+    "sawopt.physics.literature_com",
     "sawopt.core.models",
     "sawopt.core.metrics",
-    "sawopt.core.network",
-    "sawopt.core.topology",
+    "sawopt.physics.network",
+    "sawopt.physics.elements",
     "sawopt.core.hybrid",
     "sawopt.studies.dms_topology_common",
     "sawopt.studies.hybrid_stage4b",

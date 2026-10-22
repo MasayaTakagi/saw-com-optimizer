@@ -7,8 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from ..core.com import acoustic_admittance, validate_admittance
-from ..core.models import SimulationResult
+from ..physics.com import SimulationResult, acoustic_admittance, validate_admittance
 
 
 @dataclass(frozen=True)

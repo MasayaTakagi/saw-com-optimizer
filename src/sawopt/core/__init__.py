@@ -1,1 +1,1 @@
-"""COM physics, device models, network conversion, and response metrics."""
+"""Legacy design records, topology adapters, and response metrics during R2/R3 migration."""

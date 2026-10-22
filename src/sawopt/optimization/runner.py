@@ -5,9 +5,9 @@ from dataclasses import asdict
 import numpy as np
 from scipy.optimize import differential_evolution
 
-from ..core.models import FilterDesign, FixedProvider, SimulationResult, decode, NAMES, BOUNDS
-from ..core.com import simulate_filter
-from ..core.network import evaluate
+from ..core.models import FilterDesign, decode, NAMES, BOUNDS
+from ..physics.com import FixedProvider, SimulationResult, simulate_filter
+from ..physics.network import evaluate
 from ..core.metrics import search_grid, validation_grid, measure, geometry
 from ..io.run_store import initialize
 from ..io.serialization import save

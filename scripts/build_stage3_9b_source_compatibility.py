@@ -36,7 +36,7 @@ SOURCE_FILES = (
     "src/sawopt/optimizers/lshade.py",
     "src/sawopt/problem/dms_topologies.py",
     "src/sawopt/core/metrics.py",
-    "src/sawopt/core/network.py",
+    "src/sawopt/physics/network.py",
     "configs/studies/stage3_9b_mlit_t1_50ohm_overlap_parity.yaml",
     "configs/studies/stage3_9b_mlit_t1_50ohm_budget_extension.yaml",
 )

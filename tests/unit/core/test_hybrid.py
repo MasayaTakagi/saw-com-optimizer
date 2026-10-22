@@ -1,9 +1,10 @@
 import unittest
 from pathlib import Path
 import numpy as np,yaml
-from sawopt.core.hybrid import circuit_y,resonator_y,ResonatorDesign,layout,TOPOLOGIES,response
-from sawopt.core.models import FixedProvider,FilterDesign,NAMES
-from sawopt.core.com import simulate_filter,acoustic_admittance
+from sawopt.core.hybrid import ResonatorDesign,layout,TOPOLOGIES,response
+from sawopt.core.models import FilterDesign,NAMES
+from sawopt.physics.com import FixedProvider,acoustic_admittance,simulate_filter
+from sawopt.physics.elements import circuit_y,resonator_y
 
 class Hybrid(unittest.TestCase):
     def setUp(self):

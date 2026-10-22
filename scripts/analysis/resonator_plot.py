@@ -5,8 +5,9 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from sawopt.core.hybrid import ResonatorDesign,resonator_y
-from sawopt.core.models import FixedProvider
+from sawopt.core.hybrid import ResonatorDesign
+from sawopt.physics.com import FixedProvider
+from sawopt.physics.elements import resonator_y
 
 out=Path(sys.argv[1]); best=json.loads((out/'best.json').read_text(encoding='utf-8'))
 cfg=json.loads((out/'manifest.json').read_text(encoding='utf-8'))['config']

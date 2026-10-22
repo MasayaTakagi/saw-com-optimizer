@@ -500,12 +500,12 @@ def _stage4a_dependency_paths(config_path, cfg, grid_metadata):
         "src/sawopt/problem/hybrid.py",
         "src/sawopt/problem/dms_topologies.py",
         "src/sawopt/core/hybrid.py",
-        "src/sawopt/core/topology.py",
-        "src/sawopt/core/com.py",
+        "src/sawopt/physics/elements.py",
+        "src/sawopt/physics/com.py",
         "src/sawopt/core/models.py",
         "src/sawopt/core/metrics.py",
-        "src/sawopt/core/network.py",
-        "src/sawopt/core/literature_com.py",
+        "src/sawopt/physics/network.py",
+        "src/sawopt/physics/literature_com.py",
         "src/sawopt/studies/hybrid.py",
         "src/sawopt/studies/dms_topology_common.py",
         "src/sawopt/studies/dms_topology_screening.py",
@@ -642,7 +642,8 @@ def _stage4a_load_context(config_path):
 
 
 def _stage4a_y(candidate, provider, frequencies):
-    from ..core.hybrid import compose_stage4a_y, resonator_y
+    from ..core.hybrid import compose_stage4a_y
+    from ..physics.elements import resonator_y
     from ..problem.dms_topologies import T1, simulate_topology
 
     dms_simulation = simulate_topology(candidate.dms_design, provider, frequencies, T1)
@@ -657,7 +658,7 @@ def _stage4a_evaluate(candidate, provider, cfg, frequencies, rs, rl, *, include_
     """Evaluate one fixed candidate, with an opt-in geometry-bound override for diagnostics."""
     import math
     from ..core.metrics import measure
-    from ..core.network import evaluate
+    from ..physics.network import evaluate
     from ..problem.hybrid import hybrid_geometry
 
     geometry_options = ({} if geometry_resonator_bounds is None else
@@ -754,7 +755,7 @@ def _stage4a_assert_close(name, left, right, *, rtol=1e-10, atol=1e-12):
 
 def _stage4a_d_only_parity(context):
     from dataclasses import asdict
-    from ..core.network import evaluate
+    from ..physics.network import evaluate
     from ..problem.dms_topologies import T1, simulate_topology
     from ..studies.dms_topology_common import decode_design
     from ..studies.dms_topology_screening import evaluate_dms_design
@@ -834,7 +835,7 @@ def _stage4a_d_only_parity(context):
 
 
 def _stage4a_structural_validation(context):
-    from ..core.hybrid import resonator_y
+    from ..physics.elements import resonator_y
     from ..problem.hybrid import assumptions, hybrid_geometry
     from ..problem.dms_topologies import T1, simulate_topology
 
@@ -862,7 +863,7 @@ def _stage4a_structural_validation(context):
         conductance = (y + np.swapaxes(y.conj(), 1, 2)) / 2.0
         minimum_eigenvalue = float(np.linalg.eigvalsh(conductance).min())
         reciprocity_error = float(np.max(np.abs(y - np.swapaxes(y, 1, 2)), initial=0.0))
-        network = __import__("sawopt.core.network", fromlist=["evaluate"]).evaluate(
+        network = __import__("sawopt.physics.network", fromlist=["evaluate"]).evaluate(
             y, context["source_impedance_ohm"], context["load_impedance_ohm"],
         )
         if minimum_eigenvalue < -1e-8 or float(np.max(network["gt"])) > 1.0 + 1e-7:

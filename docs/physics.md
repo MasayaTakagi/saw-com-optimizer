@@ -1,10 +1,10 @@
 # Physics and numerical conventions (implemented prototype)
 
 This page records the equations and conventions implemented in
-`src/sawopt/core/`. It does not certify the placeholder COM inputs as a real
-device model. Scientific equations, units, terminations, or evaluation
-conditions must not be changed under a structural refactor without a reviewed
-scientific decision.
+`src/sawopt/physics/` and the still-legacy metric/evaluation helpers. It does
+not certify the placeholder COM inputs as a real device model. Scientific
+equations, units, terminations, or evaluation conditions must not be changed
+under a structural refactor without a reviewed scientific decision.
 
 ## COM section equations
 
@@ -211,9 +211,11 @@ Parameters in a Layered Piezoelectric Substrate and Its Application to a
 Double-Mode SAW Filter* (Eq. 4). These are equation references, not sources of
 the hypothetical numeric parameters. Electrical definitions are also in
 [`conventions/network_convention.md`](conventions/network_convention.md).
-Implemented source: `src/sawopt/core/{com,models,network,metrics,hybrid,
-topology}.py`; regression tests:
+Implemented source: `src/sawopt/physics/{com,elements,network,
+literature_com}.py`; the `FilterDesign` record and decoder remain in
+`src/sawopt/core/models.py`, and metrics remain in `src/sawopt/core/metrics.py`
+pending R3. Regression tests include
 `tests/unit/core/{test_reference,test_physics,test_scalar_regression,
-test_hybrid,test_stage4a_hybrid_composition}.py`. This document transcribes
-those current definitions and does not replace the code or frozen historical
-study contracts.
+test_hybrid,test_stage4a_hybrid_composition}.py` and the physics import-boundary
+test. This document transcribes those current definitions and does not replace
+the code or frozen historical study contracts.

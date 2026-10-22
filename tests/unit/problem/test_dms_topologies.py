@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 from sawopt.core.metrics import geometry, measure, search_grid
-from sawopt.core.network import evaluate
+from sawopt.physics.network import evaluate
 from sawopt.io.config import load_experiment_config
 from sawopt.problem import dms_topologies as canonical
 from sawopt.studies.dms_topology_common import decode_design, initial_design, provider_for_material

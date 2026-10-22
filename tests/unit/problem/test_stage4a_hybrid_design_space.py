@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from sawopt.core.hybrid import resonator_y
+from sawopt.physics.elements import resonator_y
 from sawopt.problem.dms_topologies import T1
 from sawopt.problem.hybrid import HybridDesignSpace, hybrid_geometry
 from sawopt.studies.dms_topology_common import decode_design

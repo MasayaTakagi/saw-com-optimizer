@@ -16,7 +16,7 @@ import numpy as np
 import yaml
 
 from ..core.metrics import geometry, measure, search_grid
-from ..core.network import evaluate
+from ..physics.network import evaluate
 from ..io.config import load_experiment_config
 from ..io.serialization import save
 from ..optimization.accounting import validate_checkpoint_lattice
