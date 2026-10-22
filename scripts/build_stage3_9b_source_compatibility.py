@@ -11,7 +11,7 @@ from typing import Any, Mapping
 import numpy as np
 
 from sawopt.io.config import load_experiment_config
-from sawopt.problem.dms_topologies import T1
+from sawopt.design.topology import T1
 from sawopt.studies import dms_topology_screening as study
 from sawopt.studies.audits.stage3_9b_overlap_parity import (
     CHECKPOINTS,
@@ -34,8 +34,10 @@ SOURCE_FILES = (
     "src/sawopt/studies/audits/stage3_9b_overlap_parity.py",
     "src/sawopt/optimizers/selection.py",
     "src/sawopt/optimizers/lshade.py",
-    "src/sawopt/problem/dms_topologies.py",
-    "src/sawopt/core/metrics.py",
+    "src/sawopt/design/topology.py",
+    "src/sawopt/design/space.py",
+    "src/sawopt/design/geometry.py",
+    "src/sawopt/evaluation.py",
     "src/sawopt/physics/network.py",
     "configs/studies/stage3_9b_mlit_t1_50ohm_overlap_parity.yaml",
     "configs/studies/stage3_9b_mlit_t1_50ohm_budget_extension.yaml",

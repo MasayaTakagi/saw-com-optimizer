@@ -3,23 +3,10 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..core.metrics import measure, search_grid, validation_grid
-from ..physics.com import FixedProvider, SimulationResult, simulate_filter
-from ..physics.network import evaluate
+from ..evaluation import evaluate_response, measure, validation_grid
+from ..physics.com import SimulationResult
 from ..optimization.adaptive_frequency import critical_frequencies, new_frequency_points
 from ..optimization.cache import IncrementalFrequencyCache
-
-
-def evaluate_design(d, cfg, f, rs, rl, wiring="outer_ports"):
-    """Evaluate one decoded design on a supplied frequency grid."""
-    sim = simulate_filter(d, FixedProvider(cfg["com"]), f, cfg["center"], wiring=wiring)
-    net = evaluate(sim.y_parameters, rs, rl)
-    if net["gt"].max() > 1 + 1e-7:
-        raise ValueError("Nonpassive power gain")
-    result = measure(f, net, d, cfg)
-    result["diagnostics"] = sim.diagnostics
-    result["search_scalar_objective"] = result["objective"]
-    return result, net, sim
 
 
 def dense(d, cfg, rs, rl, wiring="outer_ports", counters=None, *,
@@ -35,10 +22,7 @@ def dense(d, cfg, rs, rl, wiring="outer_ports", counters=None, *,
     ))
 
     def point_evaluate(points):
-        sim = simulate_filter(d, FixedProvider(cfg["com"]), points, cfg["center"], wiring=wiring)
-        net = evaluate(sim.y_parameters, rs, rl)
-        if net["gt"].max() > 1 + 1e-7:
-            raise ValueError("Nonpassive power gain")
+        net, sim = evaluate_response(d, cfg, points, rs, rl, wiring=wiring)
         payload = dict(net)
         payload["y_parameters"] = sim.y_parameters
         payload["_diagnostics"] = sim.diagnostics
@@ -81,4 +65,4 @@ def dense(d, cfg, rs, rl, wiring="outer_ports", counters=None, *,
     return f, cached_evaluate(f)
 
 
-__all__ = ["dense", "evaluate_design"]
+__all__ = ["dense"]

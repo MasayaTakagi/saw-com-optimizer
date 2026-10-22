@@ -9,7 +9,7 @@ import pytest
 
 from sawopt.io.config import load_experiment_config
 from sawopt.optimization.accounting import validate_checkpoint_lattice
-from sawopt.problem.dms_topologies import T0, T1
+from sawopt.design.topology import T0, T1
 from sawopt.studies import dms_topology_screening as study
 from sawopt.studies.dms_topology_common import initial_design, provider_for_material
 

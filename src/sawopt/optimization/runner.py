@@ -5,15 +5,15 @@ from dataclasses import asdict
 import numpy as np
 from scipy.optimize import differential_evolution
 
-from ..core.models import FilterDesign, decode, NAMES, BOUNDS
-from ..physics.com import FixedProvider, SimulationResult, simulate_filter
-from ..physics.network import evaluate
-from ..core.metrics import search_grid, validation_grid, measure, geometry
+from ..design.space import FilterDesign, decode, NAMES, BOUNDS, canonical_design
+from ..design.geometry import geometry
+from ..evaluation import (
+    evaluate_design, evaluate_response, measure, search_grid, validation_grid,
+)
 from ..io.run_store import initialize
 from ..io.serialization import save
 from ..optimizers.selection import DEFAULT_COMPARATOR, rank
-from ..problem.design_space import canonical_design
-from ..problem.evaluator import dense, evaluate_design
+from ..problem.evaluator import dense
 from .adaptive_frequency import (
     adaptive_settings, common_validation_grid, critical_frequencies, new_frequency_points,
 )
@@ -370,10 +370,10 @@ def optimize_one(out, cfg, rs, rl, seed, neighbor=None, *, wiring='outer_ports',
             'promote_in_production', True)))
     if polish.get('promoted'):
         selected = polished
-        sim = simulate_filter(
+        net, sim = evaluate_response(
             decode([selected['design'][name] for name in NAMES]),
-            FixedProvider(cfg['com']), common_f, cfg['center'], wiring=wiring)
-        net = evaluate(sim.y_parameters, rs, rl)
+            cfg, common_f, rs, rl, wiring=wiring,
+        )
         frequencies = common_f
     post_polish = dict(selected)
     d = FilterDesign(**selected['design'])

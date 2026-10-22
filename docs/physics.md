@@ -127,7 +127,7 @@ fail explicitly.
 
 ## Metrics, constraint ranking, and grids
 
-`core.metrics.measure` currently records worst passband insertion loss, peak-
+`evaluation.measure` currently records worst passband insertion loss, peak-
 to-peak passband ripple, maximum input/output VSWR in band, minimum source/load
 return loss in band, each stopband's minimum attenuation, and geometry
 measurements plus an aggregated maximum geometry violation. It derives
@@ -212,9 +212,9 @@ Double-Mode SAW Filter* (Eq. 4). These are equation references, not sources of
 the hypothetical numeric parameters. Electrical definitions are also in
 [`conventions/network_convention.md`](conventions/network_convention.md).
 Implemented source: `src/sawopt/physics/{com,elements,network,
-literature_com}.py`; the `FilterDesign` record and decoder remain in
-`src/sawopt/core/models.py`, and metrics remain in `src/sawopt/core/metrics.py`
-pending R3. Regression tests include
+literature_com}.py`; the provider-visible `FilterDesign` record and decoder live
+in `src/sawopt/design/space.py`, topology geometry in `src/sawopt/design/`, and
+RF metrics/constraints in `src/sawopt/evaluation.py`. Regression tests include
 `tests/unit/core/{test_reference,test_physics,test_scalar_regression,
 test_hybrid,test_stage4a_hybrid_composition}.py` and the physics import-boundary
 test. This document transcribes those current definitions and does not replace

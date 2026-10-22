@@ -31,6 +31,18 @@ def _architecture_violations(module, path_name, source):
                 violations.append(f'{module} imports {imported}')
             if owner == 'problem' and imported.startswith('sawopt.studies'):
                 violations.append(f'{module} imports {imported}')
+            if owner == 'design' and imported.startswith((
+                'sawopt.core', 'sawopt.problem', 'sawopt.physics', 'sawopt.evaluation',
+                'sawopt.optimization', 'sawopt.optimizers', 'sawopt.studies', 'sawopt.io',
+                'sawopt.reporting', 'sawopt.orchestration', 'sawopt.runtime',
+            )):
+                violations.append(f'{module} imports {imported}')
+            if owner == 'evaluation' and imported.startswith((
+                'sawopt.core', 'sawopt.problem', 'sawopt.optimization', 'sawopt.optimizers',
+                'sawopt.studies', 'sawopt.io', 'sawopt.reporting', 'sawopt.orchestration',
+                'sawopt.runtime',
+            )):
+                violations.append(f'{module} imports {imported}')
             if owner == 'optimization' and imported.startswith('sawopt.studies'):
                 violations.append(f'{module} imports {imported}')
             if owner == 'studies' and imported.startswith('sawopt.studies') and imported_name and imported_name.startswith('_'):

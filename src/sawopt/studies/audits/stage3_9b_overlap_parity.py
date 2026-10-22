@@ -12,7 +12,7 @@ from typing import Any, Mapping, Sequence
 
 import numpy as np
 
-from ...core.metrics import search_grid
+from ...evaluation import search_grid
 from ...io.config import load_experiment_config
 from .. import dms_topology_common as common
 from .. import dms_topology_screening as study

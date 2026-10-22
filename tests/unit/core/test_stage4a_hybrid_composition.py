@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from sawopt.core.hybrid import compose_stage4a_y
+from sawopt.evaluation import compose_stage4a_y
 
 
 class Stage4AHybridCompositionTests(unittest.TestCase):

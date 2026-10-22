@@ -1,20 +1,15 @@
 import numpy as np
 
 from sawopt.physics.com import FixedProvider, simulate_filter
-from sawopt.core.models import FilterDesign
+from sawopt.design.space import FilterDesign
 from sawopt.physics.network import evaluate
 from sawopt.physics.elements import simulate_section_chain
 from sawopt.io.config import load_experiment_config
-from sawopt.problem.dms_topologies import (
-    FiveIdtDesign,
-    ParallelThreeIdtDesign,
-    T0,
-    T0_PORT_MATRIX,
-    T1,
-    T1_PORT_MATRIX,
-    T2,
-    simulate_topology,
+from sawopt.design.topology import (
+    FiveIdtDesign, ParallelThreeIdtDesign, T0, T0_PORT_MATRIX, T1,
+    T1_PORT_MATRIX, T2,
 )
+from sawopt.evaluation import simulate_topology
 
 
 def _cfg():

@@ -5,7 +5,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from ..optimization.runner import rank
-from ..core.models import NAMES
+from ..design.space import NAMES
 
 def report(out):
     out=Path(out); records=[json.loads(p.read_text(encoding='utf-8')) for p in out.glob('R*_seed*.json') if '.checkpoint.' not in p.name]

@@ -3,9 +3,10 @@ import unittest
 
 import numpy as np
 
-from sawopt.core.hybrid import resonator_admittance
-from sawopt.problem.dms_topologies import T1
-from sawopt.problem.hybrid import HybridDesignSpace, hybrid_geometry
+from sawopt.evaluation import resonator_admittance
+from sawopt.design.topology import T1
+from sawopt.design.space import HybridDesignSpace
+from sawopt.design.geometry import hybrid_geometry
 from sawopt.studies.dms_topology_common import decode_design
 from sawopt.studies.hybrid import _stage4a_load_context
 

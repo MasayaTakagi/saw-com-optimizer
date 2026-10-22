@@ -98,7 +98,7 @@ def load_stage4b_context(config_path: str | Path) -> dict[str, Any]:
     """Load and fail-closed validate the fixed production protocol."""
     from ..io.config import load_experiment_config
     from ..io.provenance import build_fingerprint_metadata
-    from ..core.hybrid import RESONATOR_BOUNDS
+    from ..design.topology import RESONATOR_BOUNDS
 
     context = stage4a_load_context(config_path)
     stage4a_contract = context["contract"]
@@ -392,7 +392,7 @@ def verify_production_manifest(
 
 def _sample_stage4b_population(space, cfg, seed: int, topology: str, population_size: int):
     import hashlib as _hashlib
-    from ..problem.hybrid import hybrid_geometry
+    from ..design.geometry import hybrid_geometry
 
     max_attempts = int(cfg["hybrid"]["initializer"]["max_attempts"])
     if max_attempts <= 0:
@@ -496,7 +496,7 @@ def _run_cell(
     finalist_count: int, mode: str, source_commit_sha: str,
     resume: bool, compact_history_cache: bool = False,
 ) -> dict[str, Any]:
-    from ..core.hybrid import RESONATOR_BOUNDS
+    from ..design.topology import RESONATOR_BOUNDS
     from ..optimization.counters import GeometryGateCounters, evaluation_status
     from ..optimizers.checkpoint_session import LShadeCheckpointSession
     from ..optimizers.lshade import LShadeBackend

@@ -5,7 +5,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from ..optimization.runner import rank,save
-from ..core.hybrid import TOPOLOGIES
+from ..design.topology import TOPOLOGIES
 
 def diagram(topology, rs=50, rl=50):
     nodes,branches,_=TOPOLOGIES[topology]

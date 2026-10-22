@@ -7,9 +7,11 @@ import numpy as np
 import yaml
 from scipy.optimize import differential_evolution
 
-from ..core.models import FilterDesign, BOUNDS, NAMES, decode
-from ..core.hybrid import TOPOLOGIES, RESONATOR_BOUNDS, response, layout, decode_resonator
-from ..core.metrics import search_grid, validation_grid, measure
+from ..design.space import FilterDesign, BOUNDS, NAMES, decode
+from ..design.topology import TOPOLOGIES, RESONATOR_BOUNDS, decode_resonator
+from ..design.geometry import layout
+from ..core.hybrid import response
+from ..evaluation import search_grid, validation_grid, measure
 from ..io.run_store import initialize
 from ..io.serialization import save
 from ..optimizers.selection import rank
@@ -497,13 +499,13 @@ def _stage4a_dependency_paths(config_path, cfg, grid_metadata):
         "configs/studies/stage3_9b_mlit_t1_50ohm_overlap_parity.yaml",
         "configs/studies/dms_topology_screening.yaml",
         "configs/base/b28_dms_baseline.yaml",
-        "src/sawopt/problem/hybrid.py",
-        "src/sawopt/problem/dms_topologies.py",
-        "src/sawopt/core/hybrid.py",
+        "src/sawopt/design/space.py",
+        "src/sawopt/design/canonicalization.py",
+        "src/sawopt/design/geometry.py",
+        "src/sawopt/design/topology.py",
+        "src/sawopt/evaluation.py",
         "src/sawopt/physics/elements.py",
         "src/sawopt/physics/com.py",
-        "src/sawopt/core/models.py",
-        "src/sawopt/core/metrics.py",
         "src/sawopt/physics/network.py",
         "src/sawopt/physics/literature_com.py",
         "src/sawopt/studies/hybrid.py",
@@ -538,11 +540,10 @@ def _stage4a_dependency_paths(config_path, cfg, grid_metadata):
 
 def _stage4a_load_context(config_path):
     import hashlib
-    from ..core.hybrid import RESONATOR_BOUNDS
-    from ..core.metrics import search_grid
+    from ..design.topology import RESONATOR_BOUNDS, T1
+    from ..evaluation import search_grid
     from ..io.config import load_experiment_config
-    from ..problem.hybrid import HYBRID_TOPOLOGIES, HybridDesignSpace
-    from ..problem.dms_topologies import T1
+    from ..design.space import HYBRID_TOPOLOGIES, HybridDesignSpace
     from ..studies.dms_topology_common import load_common_validation_grid, provider_for_material
     from ..studies.dms_topology_screening import material_bounds
 
@@ -642,8 +643,8 @@ def _stage4a_load_context(config_path):
 
 
 def _stage4a_y(candidate, provider, frequencies):
-    from ..core.hybrid import compose_stage4a_y, resonator_admittance
-    from ..problem.dms_topologies import T1, simulate_topology
+    from ..evaluation import compose_stage4a_y, resonator_admittance, simulate_topology
+    from ..design.topology import T1
 
     dms_simulation = simulate_topology(candidate.dms_design, provider, frequencies, T1)
     resonator_ys = [resonator_admittance(design, provider, frequencies)
@@ -656,9 +657,9 @@ def _stage4a_evaluate(candidate, provider, cfg, frequencies, rs, rl, *, include_
                       geometry_resonator_bounds=None):
     """Evaluate one fixed candidate, with an opt-in geometry-bound override for diagnostics."""
     import math
-    from ..core.metrics import measure
+    from ..evaluation import measure
     from ..physics.network import evaluate
-    from ..problem.hybrid import hybrid_geometry
+    from ..design.geometry import hybrid_geometry
 
     geometry_options = ({} if geometry_resonator_bounds is None else
                         {"resonator_bounds": geometry_resonator_bounds})
@@ -755,7 +756,8 @@ def _stage4a_assert_close(name, left, right, *, rtol=1e-10, atol=1e-12):
 def _stage4a_d_only_parity(context):
     from dataclasses import asdict
     from ..physics.network import evaluate
-    from ..problem.dms_topologies import T1, simulate_topology
+    from ..evaluation import simulate_topology
+    from ..design.topology import T1
     from ..studies.dms_topology_common import decode_design
     from ..studies.dms_topology_screening import evaluate_dms_design
 
@@ -834,9 +836,9 @@ def _stage4a_d_only_parity(context):
 
 
 def _stage4a_structural_validation(context):
-    from ..core.hybrid import resonator_admittance
-    from ..problem.hybrid import assumptions, hybrid_geometry
-    from ..problem.dms_topologies import T1, simulate_topology
+    from ..evaluation import resonator_admittance, simulate_topology
+    from ..design.geometry import assumptions, hybrid_geometry
+    from ..design.topology import T1
 
     checks = {"topologies": {}, "resonator_model_assumptions": assumptions()}
     frequencies = context["search_frequencies"]
@@ -893,12 +895,11 @@ def _stage4a_structural_validation(context):
 def run_stage4a_implementation_validation(config_path, run_path):
     """Run the fail-closed Stage 4A contract, parity, and structural gate."""
     import shutil
-    from ..problem.hybrid import HYBRID_TOPOLOGIES
+    from ..design.space import HYBRID_TOPOLOGIES
     from ..optimizers.lshade import LShadeBackend
     from ..optimizers.selection import GeometryFirstComparator
     from ..optimization.counters import GeometryGateCounters
-    from ..core.hybrid import RESONATOR_BOUNDS
-    from ..problem.dms_topologies import T1
+    from ..design.topology import RESONATOR_BOUNDS, T1
 
     context = _stage4a_load_context(config_path)
     run = Path(run_path)
@@ -978,7 +979,7 @@ def run_stage4a_implementation_validation(config_path, run_path):
             "execution_failure_disposition": "FAILED",
         },
         "layout_contract": {
-            "dms_geometry": "current core.metrics.geometry on T1",
+            "dms_geometry": "current design.geometry.geometry on T1",
             "resonator_geometry": "bounds/features/count from existing one-port model",
             "combined_layout": context["cfg"]["hybrid"]["layout"],
             "model_status": "hypothetical separate rows; qualification only",
@@ -991,7 +992,7 @@ def run_stage4a_implementation_validation(config_path, run_path):
 
 def _stage4a_sample_population(space, cfg, seed, topology, population_size, max_attempts):
     import hashlib
-    from ..problem.hybrid import hybrid_geometry
+    from ..design.geometry import hybrid_geometry
 
     payload = f"stage4a-v1/{int(seed)}/MLIT/{topology}/initial_population"
     sampling_seed = int.from_bytes(hashlib.sha256(payload.encode("utf-8")).digest()[:8], "big") % (2**32)
@@ -1138,7 +1139,8 @@ def run_stage4a_smoke(config_path, run_path):
     from ..optimizers.lshade import LShadeBackend
     from ..optimizers.selection import GeometryFirstComparator
     from ..optimization.counters import GeometryGateCounters, evaluation_status
-    from ..problem.hybrid import HYBRID_TOPOLOGIES, hybrid_geometry
+    from ..design.space import HYBRID_TOPOLOGIES
+    from ..design.geometry import hybrid_geometry
 
     context = _stage4a_load_context(config_path)
     root = context["root"]
@@ -1163,8 +1165,7 @@ def run_stage4a_smoke(config_path, run_path):
         raise ValueError("Stage 4A qualification smoke contract is fixed at 256 unique / pop 32 / checkpoints 128,256")
     if not run.is_dir():
         raise FileNotFoundError("run path must be initialized by --stage4a-validate first")
-    from ..core.hybrid import RESONATOR_BOUNDS
-    from ..problem.dms_topologies import T1
+    from ..design.topology import RESONATOR_BOUNDS, T1
     from ..studies.dms_topology_screening import material_bounds
     active, hard, _ = material_bounds(context["cfg"], "MLIT", T1)
     top_results, initializer_rows, checkpoint_rows, cache_probe_rows = [], [], [], []

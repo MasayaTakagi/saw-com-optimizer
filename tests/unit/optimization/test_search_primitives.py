@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from sawopt.core.metrics import feasibility_objective
+from sawopt.evaluation import feasibility_objective
 from sawopt.physics.com import CalibratedProvider
 from sawopt.optimization.adaptive_frequency import adaptive_exchange
 from sawopt.optimization.population import scaled_population

@@ -80,9 +80,9 @@ def test_signal_requires_three_distinct_cells_to_cross_materiality_threshold():
 
 
 def test_stage4a_evaluator_accepts_probe_geometry_bounds_without_mutating_them(monkeypatch):
-    from sawopt.core import metrics
+    from sawopt import evaluation
+    from sawopt.design import geometry
     from sawopt.physics import network
-    from sawopt.problem import hybrid as problem_hybrid
     from sawopt.studies import hybrid as study_hybrid
 
     seen = {}
@@ -95,12 +95,12 @@ def test_stage4a_evaluator_accepts_probe_geometry_bounds_without_mutating_them(m
             "combined": {"violations": {}}, "max_violation": 0.0,
         }
 
-    monkeypatch.setattr(problem_hybrid, "hybrid_geometry", fake_geometry)
+    monkeypatch.setattr(geometry, "hybrid_geometry", fake_geometry)
     monkeypatch.setattr(study_hybrid, "_stage4a_y", lambda *_args: (None, {}))
     monkeypatch.setattr(network, "evaluate", lambda *_args: {
         "gt": np.asarray([0.9]), "s": np.zeros((1, 2, 2), dtype=complex),
     })
-    monkeypatch.setattr(metrics, "measure", lambda *_args: {
+    monkeypatch.setattr(evaluation, "measure", lambda *_args: {
         "metrics": {"worst_il_db": 1.0, "ripple_db": 0.5},
         "violations": {"stop_1": 0.0, "stop_2": 0.1}, "objective": 1.0,
     })
@@ -136,7 +136,7 @@ def test_normal_evaluation_rejects_pair_65_but_probe_geometry_allows_diagnosis()
     import json
     from pathlib import Path
 
-    from sawopt.problem.hybrid import hybrid_geometry
+    from sawopt.design.geometry import hybrid_geometry
     from sawopt.studies.audits.stage4c_resonator_pair_probe import candidate_at_pairs
     from sawopt.studies.hybrid import stage4a_evaluate
     from sawopt.studies.hybrid_stage4c import load_stage4c_context

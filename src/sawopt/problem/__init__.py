@@ -1,7 +1,5 @@
-"""The SAW optimization problem: design representation and evaluation."""
+"""R4-owned adaptive dense-evaluation adapter and explicit legacy evidence paths.
 
-from .design_space import canonical_design
-from .evaluator import dense, evaluate_design
-from .validation import geometry_violations
-
-__all__ = ["canonical_design", "dense", "evaluate_design", "geometry_violations"]
+Current design APIs live in :mod:`sawopt.design`; current pointwise response,
+metrics, and constraints live in :mod:`sawopt.evaluation`.
+"""

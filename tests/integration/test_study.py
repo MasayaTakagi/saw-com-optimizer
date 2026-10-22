@@ -2,8 +2,8 @@ import copy,json,tempfile,unittest
 from pathlib import Path
 import yaml,numpy as np
 from sawopt.optimization.runner import initialize,optimize_one
-from sawopt.core.metrics import geometry
-from sawopt.core.models import FilterDesign
+from sawopt.design.geometry import geometry
+from sawopt.design.space import FilterDesign
 
 class Study(unittest.TestCase):
     def test_reproducibility_resume_and_constraints(self):

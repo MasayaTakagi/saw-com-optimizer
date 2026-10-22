@@ -17,8 +17,9 @@ import yaml
 ROOT = Path.cwd().resolve()
 PHYSICS_ROOT = ROOT / "src/sawopt/physics"
 if (PHYSICS_ROOT / "com.py").is_file():
-    from sawopt.core.hybrid import ResonatorDesign, resonator_admittance
-    from sawopt.core.models import FilterDesign
+    from sawopt.design.space import FilterDesign
+    from sawopt.design.topology import ResonatorDesign
+    from sawopt.evaluation import resonator_admittance
     from sawopt.physics.com import FixedProvider, block, simulate_filter
     from sawopt.physics.elements import (
         AcousticSection,
