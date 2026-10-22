@@ -14,7 +14,7 @@ from ..core.hybrid import response
 from ..evaluation import search_grid, validation_grid, measure
 from ..io.run_store import initialize
 from ..io.serialization import save
-from ..optimizers.selection import rank
+from ..optimization.selection import rank
 from ..optimization.adaptive_frequency import adaptive_settings, common_validation_grid, critical_frequencies, new_frequency_points
 from ..optimization.budget import PlateauStopper
 from ..optimization.cache import IncrementalFrequencyCache
@@ -511,9 +511,9 @@ def _stage4a_dependency_paths(config_path, cfg, grid_metadata):
         "src/sawopt/studies/hybrid.py",
         "src/sawopt/studies/dms_topology_common.py",
         "src/sawopt/studies/dms_topology_screening.py",
-        "src/sawopt/optimizers/lshade.py",
-        "src/sawopt/optimizers/selection.py",
-        "src/sawopt/optimizers/checkpoint_session.py",
+        "src/sawopt/optimization/lshade.py",
+        "src/sawopt/optimization/selection.py",
+        "src/sawopt/optimization/checkpoint_session.py",
         "src/sawopt/optimization/counters.py",
         "src/sawopt/io/config.py",
         "src/sawopt/io/provenance.py",
@@ -896,8 +896,8 @@ def run_stage4a_implementation_validation(config_path, run_path):
     """Run the fail-closed Stage 4A contract, parity, and structural gate."""
     import shutil
     from ..design.space import HYBRID_TOPOLOGIES
-    from ..optimizers.lshade import LShadeBackend
-    from ..optimizers.selection import GeometryFirstComparator
+    from ..optimization.lshade import LShadeBackend
+    from ..optimization.selection import GeometryFirstComparator
     from ..optimization.counters import GeometryGateCounters
     from ..design.topology import RESONATOR_BOUNDS, T1
 
@@ -1135,9 +1135,9 @@ def run_stage4a_smoke(config_path, run_path):
     import time
     from ..io.checkpoints import complete_study_run
     from ..io.lifecycle import RunDisposition
-    from ..optimizers.checkpoint_session import LShadeCheckpointSession
-    from ..optimizers.lshade import LShadeBackend
-    from ..optimizers.selection import GeometryFirstComparator
+    from ..optimization.checkpoint_session import LShadeCheckpointSession
+    from ..optimization.lshade import LShadeBackend
+    from ..optimization.selection import GeometryFirstComparator
     from ..optimization.counters import GeometryGateCounters, evaluation_status
     from ..design.space import HYBRID_TOPOLOGIES
     from ..design.geometry import hybrid_geometry

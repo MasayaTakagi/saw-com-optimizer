@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sawopt.optimizers.selection import DEFAULT_COMPARATOR, GeometryFirstComparator
+from sawopt.optimization.selection import DEFAULT_COMPARATOR, GeometryFirstComparator
 from sawopt.reporting.hybrid_stage4c import _score, _winner, paired_comparisons
 from sawopt.studies.hybrid_stage4c import SEEDS, TOPOLOGIES
 

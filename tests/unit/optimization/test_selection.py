@@ -1,7 +1,7 @@
 import numpy as np
 
-from sawopt.optimizers.lshade import LShadeBackend
-from sawopt.optimizers.selection import DEFAULT_COMPARATOR, GeometryFirstComparator
+from sawopt.optimization.lshade import LShadeBackend
+from sawopt.optimization.selection import DEFAULT_COMPARATOR, GeometryFirstComparator
 
 
 def _invalid(geometry_violation):

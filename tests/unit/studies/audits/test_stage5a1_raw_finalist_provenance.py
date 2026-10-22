@@ -5,7 +5,7 @@ import copy
 import json
 from pathlib import Path
 
-from sawopt.optimizers.selection import GeometryFirstComparator
+from sawopt.optimization.selection import GeometryFirstComparator
 from sawopt.reporting.candidate_integrity import validated_hybrid_rank_key
 from sawopt.studies.audits.stage5a1_raw_finalist_provenance import (
     audit_checkpoint, audit_raw_run, main,

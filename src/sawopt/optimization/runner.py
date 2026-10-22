@@ -12,7 +12,7 @@ from ..evaluation import (
 )
 from ..io.run_store import initialize
 from ..io.serialization import save
-from ..optimizers.selection import DEFAULT_COMPARATOR, rank
+from .selection import DEFAULT_COMPARATOR, rank
 from ..problem.evaluator import dense
 from .adaptive_frequency import (
     adaptive_settings, common_validation_grid, critical_frequencies, new_frequency_points,

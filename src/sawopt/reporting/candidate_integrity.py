@@ -10,7 +10,7 @@ import math
 from numbers import Real
 from typing import Any, Mapping
 
-from ..optimizers.selection import DEFAULT_COMPARATOR
+from ..optimization.selection import DEFAULT_COMPARATOR
 
 
 STAGE4C_FILTER_CONSTRAINTS = frozenset({
