@@ -28,4 +28,8 @@ jobs:
         run: uv run --locked --extra test --extra benchmark python tools/diagnostics/evaluation_repro.py
 
       - name: Run tests
+        # Exact response-array fixtures are pinned to this BLAS dispatch path;
+        # production/runtime environments remain untouched.
+        env:
+          OPENBLAS_CORETYPE: Haswell
         run: uv run --locked pytest
