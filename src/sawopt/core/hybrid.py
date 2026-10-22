@@ -2,9 +2,9 @@
 from dataclasses import dataclass, asdict
 import numpy as np
 from ..physics.com import FixedProvider, simulate_filter, validate_admittance
-from ..physics.elements import circuit_y as _circuit_y, resonator_y as _resonator_y
+from ..physics.elements import circuit_y as _circuit_y, resonator_y as _calculate_resonator_y
 from ..physics.network import evaluate
-from .models import decode
+from .models import FilterDesign, decode
 from .metrics import measure, geometry
 
 
@@ -22,6 +22,23 @@ RESONATOR_BOUNDS = [(4.5, 5.6), (10, 60), (30, 150)]
 
 def decode_resonator(x):
     return ResonatorDesign(float(x[0]), int(np.floor(x[1] + .5)), float(x[2]))
+
+
+def resonator_admittance(d, provider, frequencies_hz):
+    """Adapt a resonator design to the full provider-visible geometry record."""
+    geometry = FilterDesign(
+        wavelength_um=d.wavelength_um,
+        io_idt_pairs=d.pairs,
+        aperture_um=d.aperture_um,
+    )
+    return _calculate_resonator_y(
+        geometry,
+        provider,
+        frequencies_hz,
+        pairs=d.pairs,
+        reflector_electrodes=d.reflector_electrodes,
+        gap_lambda=d.gap_lambda,
+    )
 
 
 STAGE4A_TOPOLOGIES = ("D", "P_D", "D_P", "P_D_P")
@@ -131,7 +148,7 @@ def response(x, topology, wiring, cfg, f, rs=None, rl=None, *, measure_result=Tr
     provider = FixedProvider(cfg['com'])
     dms = simulate_filter(d, provider, f, cfg['center'], wiring).y_parameters
     nodes, terminals, node_count = TOPOLOGIES[topology]
-    ys = [_resonator_y(r, provider, f) for r in resonators]
+    ys = [resonator_admittance(r, provider, f) for r in resonators]
     combined = _circuit_y(
         dms,
         [(a, b, y) for (a, b), y in zip(terminals, ys)],

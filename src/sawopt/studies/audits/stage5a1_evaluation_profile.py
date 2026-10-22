@@ -21,8 +21,7 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 import scipy
 
-from ...core.hybrid import compose_stage4a_y
-from ...physics.elements import resonator_y
+from ...core.hybrid import compose_stage4a_y, resonator_admittance
 from ...core.metrics import measure
 from ...physics.network import evaluate
 from ...problem.dms_topologies import T1, simulate_topology
@@ -262,7 +261,7 @@ def profile_decomposed_evaluation(
     stage_seconds["B_s"] = time.perf_counter() - started
 
     started = time.perf_counter()
-    resonator_ys = [resonator_y(item, context["provider"], frequencies)
+    resonator_ys = [resonator_admittance(item, context["provider"], frequencies)
                     for item in candidate.resonator_designs]
     stage_seconds["C_s"] = time.perf_counter() - started
 

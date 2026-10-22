@@ -642,12 +642,11 @@ def _stage4a_load_context(config_path):
 
 
 def _stage4a_y(candidate, provider, frequencies):
-    from ..core.hybrid import compose_stage4a_y
-    from ..physics.elements import resonator_y
+    from ..core.hybrid import compose_stage4a_y, resonator_admittance
     from ..problem.dms_topologies import T1, simulate_topology
 
     dms_simulation = simulate_topology(candidate.dms_design, provider, frequencies, T1)
-    resonator_ys = [resonator_y(design, provider, frequencies)
+    resonator_ys = [resonator_admittance(design, provider, frequencies)
                     for design in candidate.resonator_designs]
     y = compose_stage4a_y(dms_simulation.y_parameters, candidate.topology, resonator_ys)
     return y, dms_simulation.diagnostics
@@ -835,7 +834,7 @@ def _stage4a_d_only_parity(context):
 
 
 def _stage4a_structural_validation(context):
-    from ..physics.elements import resonator_y
+    from ..core.hybrid import resonator_admittance
     from ..problem.hybrid import assumptions, hybrid_geometry
     from ..problem.dms_topologies import T1, simulate_topology
 
@@ -872,7 +871,7 @@ def _stage4a_structural_validation(context):
             raise AssertionError(f"hybrid network reciprocity failure for {topology}")
         resonator_checks = []
         for resonator in candidate.resonator_designs:
-            one_port = resonator_y(resonator, context["provider"], sample)
+            one_port = resonator_admittance(resonator, context["provider"], sample)
             minimum_conductance = float(np.min(np.real(one_port)))
             if minimum_conductance < -1e-8 or not np.isfinite(one_port).all():
                 raise AssertionError(f"invalid resonator admittance for {topology}")

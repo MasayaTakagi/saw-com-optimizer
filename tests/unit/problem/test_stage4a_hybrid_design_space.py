@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from sawopt.physics.elements import resonator_y
+from sawopt.core.hybrid import resonator_admittance
 from sawopt.problem.dms_topologies import T1
 from sawopt.problem.hybrid import HybridDesignSpace, hybrid_geometry
 from sawopt.studies.dms_topology_common import decode_design
@@ -62,8 +62,8 @@ class Stage4AHybridDesignSpaceTests(unittest.TestCase):
             np.r_[np.mean(self.context["spaces"]["P_D"].bounds[:10], axis=1), 5.0, 20.0, 90.0]
         ).resonator_designs[0]
         frequencies = np.asarray([758e6, 780e6, 803e6])
-        first = resonator_y(design, self.context["provider"], frequencies)
-        second = resonator_y(design, self.context["provider"], frequencies)
+        first = resonator_admittance(design, self.context["provider"], frequencies)
+        second = resonator_admittance(design, self.context["provider"], frequencies)
         np.testing.assert_array_equal(first, second)
         self.assertTrue(np.isfinite(first).all())
         self.assertGreaterEqual(float(np.min(np.real(first))), -1e-8)

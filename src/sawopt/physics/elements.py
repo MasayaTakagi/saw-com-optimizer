@@ -146,18 +146,22 @@ def parallel_two_port_admittance(
     return SimulationResult(reference_frequencies, total, diagnostics)
 
 
-def resonator_y(d, provider, frequencies_hz):
-    """Calculate a COM one-port resonator admittance for a design record."""
-    geometry = SimpleNamespace(
-        wavelength_um=d.wavelength_um,
-        aperture_um=d.aperture_um,
-    )
+def resonator_y(
+    geometry,
+    provider,
+    frequencies_hz,
+    *,
+    pairs,
+    reflector_electrodes,
+    gap_lambda,
+):
+    """Calculate a one-port resonator using explicit physical geometry/input."""
     regions = [
-        ("reflector", d.reflector_electrodes / 2, None),
-        ("gap", d.gap_lambda, None),
-        ("idt", d.pairs, 0),
-        ("gap", d.gap_lambda, None),
-        ("reflector", d.reflector_electrodes / 2, None),
+        ("reflector", reflector_electrodes / 2, None),
+        ("gap", gap_lambda, None),
+        ("idt", pairs, 0),
+        ("gap", gap_lambda, None),
+        ("reflector", reflector_electrodes / 2, None),
     ]
     y = acoustic_admittance(geometry, provider, np.asarray(frequencies_hz), regions, 1)
     validate_admittance(y)

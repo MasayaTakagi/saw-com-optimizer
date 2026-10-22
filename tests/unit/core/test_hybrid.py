@@ -1,10 +1,10 @@
 import unittest
 from pathlib import Path
 import numpy as np,yaml
-from sawopt.core.hybrid import ResonatorDesign,layout,TOPOLOGIES,response
+from sawopt.core.hybrid import ResonatorDesign,layout,TOPOLOGIES,resonator_admittance,response
 from sawopt.core.models import FilterDesign,NAMES
 from sawopt.physics.com import FixedProvider,acoustic_admittance,simulate_filter
-from sawopt.physics.elements import circuit_y,resonator_y
+from sawopt.physics.elements import circuit_y
 
 class Hybrid(unittest.TestCase):
     def setUp(self):
@@ -24,9 +24,35 @@ class Hybrid(unittest.TestCase):
     def test_resonator_static_limit(self):
         f=np.linspace(750e6,810e6,10)
         self.cfg['com']['idt']['alpha_sqrtS_per_m']=0
-        y=resonator_y(ResonatorDesign(),FixedProvider(self.cfg['com']),f)
+        y=resonator_admittance(ResonatorDesign(),FixedProvider(self.cfg['com']),f)
         C=1e-8*(70/80)*25*5e-6
         np.testing.assert_allclose(y,1j*2*np.pi*f*C,atol=1e-12)
+
+    def test_resonator_provider_sees_full_filter_design_geometry(self):
+        observed = []
+        fixed = self.provider
+
+        class GeometryAwareProvider:
+            def parameters(self, region, geometry, frequency, temperature_c=25):
+                self_pairs = geometry.io_idt_pairs
+                self_metallization = geometry.metallization_ratio
+                assert isinstance(geometry, FilterDesign)
+                observed.append(vars(geometry).copy())
+                assert self_pairs == 23
+                assert self_metallization == 0.5
+                return fixed.parameters(region, geometry, frequency, temperature_c)
+
+        resonator = ResonatorDesign(wavelength_um=5.1, pairs=23, aperture_um=71.0)
+        frequencies = np.asarray([780e6, 800e6])
+        response_y = resonator_admittance(resonator, GeometryAwareProvider(), frequencies)
+        expected_geometry = FilterDesign(
+            wavelength_um=resonator.wavelength_um,
+            io_idt_pairs=resonator.pairs,
+            aperture_um=resonator.aperture_um,
+        )
+
+        self.assertEqual(observed, [vars(expected_geometry)] * 5)
+        self.assertTrue(np.isfinite(response_y).all())
 
     def test_wiring_transform_against_three_port(self):
         f=np.linspace(730e6,830e6,101); d=FilterDesign()
