@@ -246,7 +246,7 @@ def validate_frozen_config(cfg: Mapping[str, Any], baseline: Mapping[str, Any]) 
 
 def load_stage4c_context(config_path: str | Path) -> dict[str, Any]:
     """Load Stage 4C over the qualified Stage 4A model and freeze its inputs."""
-    from ..core.hybrid import RESONATOR_BOUNDS
+    from ..design.topology import RESONATOR_BOUNDS
     from ..io.config import load_experiment_config
     from ..io.provenance import build_fingerprint_metadata
     import yaml

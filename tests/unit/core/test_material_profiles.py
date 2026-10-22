@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 import yaml
 
-from sawopt.core.models import FilterDesign
+from sawopt.design.space import FilterDesign
 from sawopt.physics.com import FixedProvider, LiteratureProfileProvider
 
 

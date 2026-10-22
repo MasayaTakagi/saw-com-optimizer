@@ -15,8 +15,8 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 import yaml
 
-from ..core.metrics import geometry, measure, search_grid
-from ..physics.network import evaluate
+from ..design.geometry import geometry
+from ..evaluation import evaluate_topology_response, search_grid, simulate_topology
 from ..io.config import load_experiment_config
 from ..io.serialization import save
 from ..optimization.accounting import validate_checkpoint_lattice
@@ -28,7 +28,7 @@ from ..optimization.population import (
 )
 from ..optimizers.lshade import LShadeBackend
 from ..optimizers.selection import GeometryFirstComparator
-from ..problem.dms_topologies import T0, T1, T2, TOPOLOGIES, simulate_topology
+from ..design.topology import T0, T1, T2, DMS_TOPOLOGIES as TOPOLOGIES
 from ..reporting.review_bundle import write_review_bundle_archive
 from .dms_topology_common import (
     MATERIALS, decode_design, fixed_design_sanity, implementation_validation,
@@ -682,13 +682,11 @@ def evaluate_dms_design(
         }
 
     try:
-        simulation = simulate_topology(design, provider, frequencies_hz, topology)
-        network = evaluate(simulation.y_parameters, rs, rl)
-        if not np.isfinite(np.asarray(network["gt"], dtype=float)).all():
-            raise ValueError("non-finite transducer power gain")
-        if np.asarray(network["gt"], dtype=float).max() > 1.0 + 1e-7:
-            raise ValueError("Nonpassive power gain")
-        raw = dict(measure(np.asarray(frequencies_hz), network, design, cfg))
+        raw, network, simulation = evaluate_topology_response(
+            design, provider, cfg, frequencies_hz, topology, rs=rs, rl=rl,
+            require_finite_gain=True,
+        )
+        raw = dict(raw)
         all_violations = dict(raw.get("violations", {}))
         filter_violations = {
             str(key): float(value) for key, value in all_violations.items() if key != "geometry"

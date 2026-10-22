@@ -5,7 +5,7 @@ import yaml
 from scipy.linalg import expm
 from sawopt.physics.network import evaluate
 from sawopt.physics.com import FixedProvider, block, simulate_filter
-from sawopt.core.models import FilterDesign
+from sawopt.design.space import FilterDesign
 
 class Physics(unittest.TestCase):
     def test_series_resistor_and_rlc(self):

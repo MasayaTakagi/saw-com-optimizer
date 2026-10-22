@@ -1,8 +1,11 @@
 import unittest
 from pathlib import Path
 import numpy as np,yaml
-from sawopt.core.hybrid import ResonatorDesign,layout,TOPOLOGIES,resonator_admittance,response
-from sawopt.core.models import FilterDesign,NAMES
+from sawopt.design.topology import ResonatorDesign, TOPOLOGIES, decode_resonator
+from sawopt.design.geometry import layout
+from sawopt.evaluation import resonator_admittance
+from sawopt.core.hybrid import response
+from sawopt.design.space import FilterDesign, NAMES
 from sawopt.physics.com import FixedProvider,acoustic_admittance,simulate_filter
 from sawopt.physics.elements import circuit_y
 

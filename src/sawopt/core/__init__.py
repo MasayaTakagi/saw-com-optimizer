@@ -1,1 +1,1 @@
-"""Legacy design records, topology adapters, and response metrics during R2/R3 migration."""
+"""Evidence-only legacy response entry points retained through the R3 migration."""

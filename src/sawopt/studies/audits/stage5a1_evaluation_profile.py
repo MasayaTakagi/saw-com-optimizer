@@ -21,11 +21,10 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 import scipy
 
-from ...core.hybrid import compose_stage4a_y, resonator_admittance
-from ...core.metrics import measure
+from ...evaluation import compose_stage4a_y, resonator_admittance, measure, simulate_topology
 from ...physics.network import evaluate
-from ...problem.dms_topologies import T1, simulate_topology
-from ...problem.hybrid import hybrid_geometry
+from ...design.topology import T1
+from ...design.geometry import hybrid_geometry
 from ...studies.hybrid import stage4a_evaluate
 from ...studies.hybrid_stage4c import (
     COMMON_GRID_ID,

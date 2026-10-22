@@ -881,7 +881,7 @@ def audit_run(run_dir: str | Path, output_dir: str | Path) -> dict[str, Any]:
 
     # Recreate only the declared frequency grid from configuration. This is
     # deterministic bookkeeping, not filter evaluation or COM execution.
-    from sawopt.core.metrics import search_grid
+    from sawopt.evaluation import search_grid
     from sawopt.io.config import load_experiment_config
 
     root = Path(__file__).resolve().parents[4]

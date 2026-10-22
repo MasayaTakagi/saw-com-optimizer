@@ -4,7 +4,7 @@ import yaml
 
 import numpy as np
 
-from sawopt.core.models import FilterDesign
+from sawopt.design.space import FilterDesign
 from sawopt.optimization.adaptive_frequency import (
     common_validation_grid,
     critical_frequencies,
@@ -13,7 +13,8 @@ from sawopt.optimization.adaptive_frequency import (
 from sawopt.optimization.budget import PlateauStopper, adaptive_budget_limits
 from sawopt.optimization.cache import IncrementalFrequencyCache
 from sawopt.optimization.polish import mixed_variable_polish
-from sawopt.problem.evaluator import dense, evaluate_design
+from sawopt.problem.evaluator import dense
+from sawopt.evaluation import evaluate_design
 
 
 def _record(violation, il=5.0):

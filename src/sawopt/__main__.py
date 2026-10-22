@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-from .core.models import FilterDesign
+from .design.space import FilterDesign
 from .io.checkpoints import complete_study_run
 from .io.config import load_experiment_config
 from .io.legacy_lifecycle import legacy_process_disposition

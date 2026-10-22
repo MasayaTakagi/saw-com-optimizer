@@ -6,11 +6,11 @@ from dataclasses import asdict
 
 import numpy as np
 
-from ..core.metrics import geometry
-from ..core.models import BOUNDS, NAMES, decode
+from ..design.geometry import geometry
+from ..design.space import BOUNDS, NAMES, decode
 from ..optimizers.polish import powell_continuous_polish
 from ..optimizers.selection import rank
-from ..problem.evaluator import evaluate_design
+from ..evaluation import evaluate_design
 
 
 def mixed_variable_polish(record, cfg, rs, rl, wiring, frequencies, counters=None,

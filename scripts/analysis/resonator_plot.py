@@ -5,7 +5,8 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from sawopt.core.hybrid import ResonatorDesign, resonator_admittance
+from sawopt.design.topology import ResonatorDesign
+from sawopt.evaluation import resonator_admittance
 from sawopt.physics.com import FixedProvider
 
 out=Path(sys.argv[1]); best=json.loads((out/'best.json').read_text(encoding='utf-8'))

@@ -4,7 +4,6 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -13,15 +12,16 @@ import yaml
 
 from ..physics.com import simulate_filter
 from ..physics.literature_com import profile_from_mapping
-from ..core.metrics import geometry, measure, search_grid
-from ..core.models import NAMES, FilterDesign, decode
+from ..design.geometry import geometry
+from ..design.space import FilterDesign, decode_t0
+from ..design.topology import (
+    FiveIdtDesign, ParallelThreeIdtDesign, ThreeIdtDesign, T0, T0_PORT_MATRIX,
+    T1, T1_PORT_MATRIX, T2, DMS_TOPOLOGIES as TOPOLOGIES, decode_t1, decode_t2,
+)
+from ..evaluation import evaluate_topology_design, measure, search_grid, simulate_topology
 from ..physics.com import FixedProvider
 from ..physics.network import evaluate
 from ..physics.elements import simulate_section_chain
-from ..problem.dms_topologies import (
-    FiveIdtDesign, ParallelThreeIdtDesign, T0, T0_PORT_MATRIX, T1, T1_PORT_MATRIX,
-    T2, TOPOLOGIES, decode_t1, decode_t2, simulate_topology,
-)
 from ..problem.released_dms import ReleasedFilterDesign, simulate_released_filter
 from ..reporting.material_metadata import material_profile_metadata
 
@@ -52,59 +52,9 @@ def load_common_validation_grid(
     return grid, grid_id, str(metadata_path), metadata
 
 
-def evaluate_topology_design(design, provider, cfg, frequencies_hz, topology: str, *,
-                            rs: float = 50.0, rl: float = 50.0) -> dict[str, Any]:
-    """Evaluate one topology while preserving the existing metrics/objective."""
-    _dims, geometry_violations = geometry(design, cfg["constraints"])
-    if max(geometry_violations, default=0.0) > 0:
-        return _invalid_record(design, geometry_violations, "manufacturing constraint")
-    simulation = simulate_topology(design, provider, frequencies_hz, topology)
-    network = evaluate(simulation.y_parameters, rs, rl)
-    if network["gt"].max() > 1.0 + 1e-7:
-        raise ValueError("Nonpassive power gain")
-    record = measure(np.asarray(frequencies_hz), network, design, cfg)
-    record = dict(record)
-    record.update({
-        "design": asdict(design),
-        "topology": topology,
-        "source_impedance_ohm": float(rs),
-        "load_impedance_ohm": float(rl),
-        "diagnostics": simulation.diagnostics,
-        "search_scalar_objective": record["objective"],
-    })
-    return record
-
-
-def _invalid_record(design, geometry_violations: Sequence[float], failure: str):
-    violations = {
-        "geometry": float(max(geometry_violations, default=0.0)),
-        "numerical_failure": 1.0 if failure != "manufacturing constraint" else 0.0,
-    }
-    return {
-        "design": asdict(design),
-        "metrics": {"worst_il_db": float("inf"), "ripple_db": float("inf")},
-        "violations": violations,
-        "max_violation": float(max(violations.values(), default=1.0)),
-        "sum_violation": float(sum(violations.values())),
-        "feasible": False,
-        "failure": failure,
-        "objective": float("inf"),
-        "search_scalar_objective": float("inf"),
-        "topology": None,
-    }
-
 def decode_design(vector: Sequence[float], topology: str, cfg: Mapping[str, Any]):
     if topology == T0:
-        values = np.asarray(list(vector), dtype=float)
-        expected = len(NAMES) + 2
-        if values.shape != (expected,) or not np.isfinite(values).all():
-            raise ValueError(f"G1_G2 requires a finite vector with dimension {expected}")
-        base = decode(values[:len(NAMES)])
-        return ReleasedFilterDesign(
-            **asdict(base),
-            center_wavelength_um=float(values[len(NAMES)]),
-            reflector_wavelength_um=float(values[len(NAMES) + 1]),
-        )
+        return decode_t0(vector)
     if topology == T1:
         return decode_t1(vector, int(cfg["dms_topology"]["t1_reflector_electrodes"]))
     if topology == T2:
@@ -126,13 +76,13 @@ def _provider(material: str, cfg: Mapping[str, Any]):
     )
 
 
-def _initial_t0(material: str, cfg: Mapping[str, Any]) -> ReleasedFilterDesign:
+def _initial_t0(material: str, cfg: Mapping[str, Any]) -> ThreeIdtDesign:
     path = ROOT / cfg["dms_topology"]["initial_designs"][material]
     payload = json.loads(path.read_text(encoding="utf-8"))
     if "design" in payload:
         payload = payload["design"]
-    allowed = {field.name for field in ReleasedFilterDesign.__dataclass_fields__.values()}
-    return ReleasedFilterDesign(**{key: payload[key] for key in allowed if key in payload})
+    allowed = {field.name for field in ThreeIdtDesign.__dataclass_fields__.values()}
+    return ThreeIdtDesign(**{key: payload[key] for key in allowed if key in payload})
 
 
 def initial_design(material: str, topology: str, cfg: Mapping[str, Any]):
@@ -209,10 +159,11 @@ def implementation_validation(cfg: Mapping[str, Any]) -> dict[str, Any]:
     frequencies = np.unique(search_grid(cfg["spec"], cfg))
     provider, _metadata = _provider("M0", cfg)
     legacy_design = FilterDesign()
-    generic_t0 = ReleasedFilterDesign()
+    generic_t0 = ThreeIdtDesign()
+    released_t0 = ReleasedFilterDesign()
     legacy = simulate_filter(legacy_design, provider, frequencies, cfg["center"], wiring="center_outer_same")
     generalized = simulate_topology(generic_t0, provider, frequencies, T0)
-    released = simulate_released_filter(generic_t0, provider, frequencies, cfg["center"], wiring="center_outer_same")
+    released = simulate_released_filter(released_t0, provider, frequencies, cfg["center"], wiring="center_outer_same")
     _assert_close("T0 Y legacy/generalized", legacy.y_parameters, generalized.y_parameters)
     _assert_close("T0 Y released/generalized", released.y_parameters, generalized.y_parameters)
     legacy_net = evaluate(legacy.y_parameters, 50.0, 50.0)
@@ -307,12 +258,11 @@ def provider_for_material(material: str, cfg: Mapping[str, Any]):
 
 array_hash = _array_hash
 clean_value = _clean
-invalid_record = _invalid_record
 write_csv = _write_csv
 
 
 __all__ = [
     "MATERIALS", "array_hash", "clean_value", "decode_design",
     "evaluate_topology_design", "fixed_design_sanity", "implementation_validation",
-    "initial_design", "invalid_record", "provider_for_material", "write_csv",
+    "initial_design", "provider_for_material", "write_csv",
 ]

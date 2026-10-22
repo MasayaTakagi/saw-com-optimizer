@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from sawopt.core.metrics import search_grid
+from sawopt.evaluation import search_grid
 from sawopt.io.config import load_experiment_config
 from sawopt.studies import dms_topology_screening as study
 from sawopt.studies.dms_topology_common import fixed_design_sanity, implementation_validation

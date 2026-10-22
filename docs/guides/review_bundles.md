@@ -48,7 +48,8 @@ files:
   ],
   "optional_artifacts": ["responses.npz"],
   "source_paths": [
-    "src/sawopt/problem/dms_topologies.py",
+    "src/sawopt/design/topology.py",
+    "src/sawopt/evaluation.py",
     "src/sawopt/studies/my_study.py"
   ],
   "review_me_path": "REVIEW_ME.md"
@@ -91,7 +92,7 @@ spec = ReviewBundleSpec(
     study_type="my_dms_study",
     required_artifacts=("run_manifest.json", "input_config.yaml", "results.csv", "REVIEW_ME.md"),
     optional_artifacts=("responses.npz",),
-    source_paths=("src/sawopt/problem/dms_topologies.py",),
+    source_paths=("src/sawopt/design/topology.py", "src/sawopt/evaluation.py"),
 )
 build_review_bundle("<saved-run-dir>", "artifacts/review_bundles/my_saved_run_review.zip", spec)
 ```

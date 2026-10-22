@@ -61,11 +61,11 @@ def test_physics_modules_are_importable_without_upward_dependencies():
 
 def test_boundary_guard_resolves_and_rejects_relative_upward_imports():
     tree = ast.parse(
-        "from ..core.models import FilterDesign as Design\n"
+        "from ..design.space import FilterDesign as Design\n"
         "from .. import core as legacy_core\n"
         "from .. import problem as problem_layer\n"
         "from .com import block\n"
     )
-    assert _upward_roots(tree) == {"core", "problem"}
+    assert _upward_roots(tree) == {"core", "design", "problem"}
     with pytest.raises(AssertionError, match="core.*problem"):
         _assert_no_upward_imports(tree, Path("relative-import-fixture.py"))

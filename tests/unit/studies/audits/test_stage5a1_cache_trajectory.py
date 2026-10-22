@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from sawopt.core.metrics import search_grid
+from sawopt.evaluation import search_grid
 from sawopt.io.config import load_experiment_config
 from sawopt.studies.audits.stage5a1_cache_trajectory import (
     AuditError,

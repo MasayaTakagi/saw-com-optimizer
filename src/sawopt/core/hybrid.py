@@ -1,124 +1,20 @@
-"""Legacy resonator design, topology, layout, and candidate response helpers."""
-from dataclasses import dataclass, asdict
+"""Evidence-only legacy seven-coordinate hybrid evaluation path.
+
+Current design records and reusable geometry live in ``sawopt.design``. The
+legacy response path is retained for its existing study/test evidence; current
+Stage 4A/B/C and shared DMS evaluation use ``sawopt.evaluation`` directly.
+"""
+from dataclasses import asdict
+
 import numpy as np
+
+from ..design.geometry import layout
+from ..design.space import FilterDesign, decode
+from ..design.topology import TOPOLOGIES, decode_resonator
+from ..evaluation import compose_stage4a_y, measure, resonator_admittance
 from ..physics.com import FixedProvider, simulate_filter, validate_admittance
-from ..physics.elements import circuit_y as _circuit_y, resonator_y as _calculate_resonator_y
+from ..physics.elements import circuit_y as _circuit_y
 from ..physics.network import evaluate
-from .models import FilterDesign, decode
-from .metrics import measure, geometry
-
-
-@dataclass
-class ResonatorDesign:
-    wavelength_um: float = 5.0
-    pairs: int = 25
-    aperture_um: float = 70.0
-    reflector_electrodes: int = 40
-    gap_lambda: float = 0.0
-
-
-RESONATOR_BOUNDS = [(4.5, 5.6), (10, 60), (30, 150)]
-
-
-def decode_resonator(x):
-    return ResonatorDesign(float(x[0]), int(np.floor(x[1] + .5)), float(x[2]))
-
-
-def resonator_admittance(d, provider, frequencies_hz):
-    """Adapt a resonator design to the full provider-visible geometry record."""
-    geometry = FilterDesign(
-        wavelength_um=d.wavelength_um,
-        io_idt_pairs=d.pairs,
-        aperture_um=d.aperture_um,
-    )
-    return _calculate_resonator_y(
-        geometry,
-        provider,
-        frequencies_hz,
-        pairs=d.pairs,
-        reflector_electrodes=d.reflector_electrodes,
-        gap_lambda=d.gap_lambda,
-    )
-
-
-STAGE4A_TOPOLOGIES = ("D", "P_D", "D_P", "P_D_P")
-
-
-def compose_stage4a_y(dms_y, topology, resonator_ys=()):
-    """Compose a current DMS two-port with zero, one, or two shunt resonators.
-
-    ``P_D`` places one one-port resonator at the source-side terminal, ``D_P``
-    at the load-side terminal, and ``P_D_P`` places one at each terminal.
-    Resonators are independent acoustic tracks and are connected electrically
-    in shunt.  A ``D`` call accepts no resonators and returns the DMS Y matrix
-    exactly through the same nodal-composition implementation.
-    """
-    if topology not in STAGE4A_TOPOLOGIES:
-        raise ValueError(f"unsupported Stage 4A topology {topology!r}")
-    ys = tuple(np.asarray(value, dtype=complex) for value in resonator_ys)
-    expected = {"D": 0, "P_D": 1, "D_P": 1, "P_D_P": 2}[topology]
-    if len(ys) != expected:
-        raise ValueError(f"{topology} requires exactly {expected} resonator admittances")
-    if topology == "D":
-        nodes, branches = (0, 1), []
-    elif topology == "P_D":
-        nodes, branches = (0, 1), [(0, -1)]
-    elif topology == "D_P":
-        nodes, branches = (0, 1), [(1, -1)]
-    else:
-        nodes, branches = (0, 1), [(0, -1), (1, -1)]
-    if ys:
-        branches = [(a, b, value) for (a, b), value in zip(branches, ys)]
-    return _circuit_y(dms_y, branches, dms_nodes=nodes, node_count=2)
-
-
-# (DMS nodes, resonator terminals, node count). Added resonators are independent.
-TOPOLOGIES = {
-    'D': ((0, 1), [], 2),
-    'S_D': ((2, 1), [(0, 2)], 3),
-    'D_S': ((0, 2), [(2, 1)], 3),
-    'P_D': ((0, 1), [(0, -1)], 2),
-    'D_P': ((0, 1), [(1, -1)], 2),
-    'S_D_S': ((2, 3), [(0, 2), (3, 1)], 4),
-    'P_D_P': ((0, 1), [(0, -1), (1, -1)], 2),
-    'SP_D': ((2, 1), [(0, 2), (2, -1)], 3),
-    'PS_D': ((2, 1), [(0, 2), (0, -1)], 3),
-    'D_SP': ((0, 2), [(2, 1), (1, -1)], 3),
-    'D_PS': ((0, 2), [(2, 1), (2, -1)], 3),
-    'S_D_P': ((2, 1), [(0, 2), (1, -1)], 3),
-    'P_D_S': ((0, 2), [(2, 1), (0, -1)], 3),
-}
-
-
-def layout(d, resonators, cfg):
-    dims, v = geometry(d, cfg['constraints'])
-    # Conservative row placement: each acoustic track gets a pad/wiring margin.
-    tracks = [(
-        dims['length_um'] + cfg['layout']['length_margin_um'],
-        d.aperture_um + cfg['layout']['width_margin_um'],
-    )]
-    total = dims['electrodes']
-    for r in resonators:
-        tracks.append((
-            r.wavelength_um*(r.pairs + r.reflector_electrodes + 2*r.gap_lambda)
-            + cfg['layout']['length_margin_um'],
-            r.aperture_um + cfg['layout']['width_margin_um'],
-        ))
-        total += 2*r.pairs + 2*r.reflector_electrodes
-    width = max(t[0] for t in tracks)
-    height = sum(t[1] for t in tracks)
-    die = cfg['layout']['die_um']
-    v += [
-        max(0, width/die[0] - 1),
-        max(0, height/die[1] - 1),
-        max(0, total/cfg['layout']['max_total_electrodes'] - 1),
-    ]
-    return dict(
-        footprint_width_um=width,
-        footprint_height_um=height,
-        footprint_mm2=width*height/1e6,
-        total_electrodes=total,
-    ), max(v)
 
 
 def _termination_from_cfg(cfg, explicit, key, default=50.0):
@@ -130,11 +26,10 @@ def _termination_from_cfg(cfg, explicit, key, default=50.0):
 
 
 def response(x, topology, wiring, cfg, f, rs=None, rl=None, *, measure_result=True):
-    """Evaluate one candidate at arbitrary positive-real source/load impedances.
+    """Evaluate one legacy candidate at positive-real source/load impedances.
 
-    Backward compatibility: if rs/rl are omitted, read
-    cfg['source_impedance_ohm'] / cfg['load_impedance_ohm']; if those keys are
-    absent, fall back to the historical 50-ohm behavior.
+    This seven-coordinate route is retained as evidence only. Stage-specific
+    current evaluation uses the shared DMS/hybrid design-space interface.
     """
     rs = _termination_from_cfg(cfg, rs, 'source_impedance_ohm')
     rl = _termination_from_cfg(cfg, rl, 'load_impedance_ohm')

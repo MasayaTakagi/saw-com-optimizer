@@ -11,7 +11,7 @@ import unittest
 
 from sawopt.physics.com import FixedProvider, block, simulate_filter
 from sawopt.physics.network import evaluate
-from sawopt.core.models import FilterDesign
+from sawopt.design.space import FilterDesign
 
 
 def test_synchronous_kappa_zero_analytic_limit():
