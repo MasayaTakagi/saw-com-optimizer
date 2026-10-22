@@ -22,7 +22,10 @@ jobs:
           version: "0.12.23"
 
       - name: Install locked package and test dependencies
-        run: uv sync --locked --extra test
+        run: uv sync --locked --extra test --extra benchmark
+
+      - name: Diagnose fixed-evaluation numerical reproducibility
+        run: uv run --locked --extra test --extra benchmark python tools/diagnostics/evaluation_repro.py
 
       - name: Run tests
         run: uv run --locked pytest
