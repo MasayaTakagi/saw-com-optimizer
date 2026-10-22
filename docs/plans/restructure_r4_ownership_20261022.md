@@ -52,8 +52,8 @@ Retain the 234 ordered initial-member seal, 4,096 unique search-FE-per-arm ceili
 - Locked full suite: `uv run --locked pytest` — **572 passed, 1 skipped**.
 - Q1-A canonicalization verification: public **92/92**, leaf **92/92**, both fixture SHA-256 `3763c5746f4bf800a54f310aeeb94f493520fc0962505b1eed85d3c32b589aa2`. Foundation and pure-leaf fresh-process guards both report no forbidden imports. Other frozen Q1-A fixture hashes were checked before editing and are unchanged in the worktree.
 - `uv sync --locked --extra test` and `uv run --locked python -m sawopt --help` pass. No COM/FE, research optimizer run, Q1 qualification, historical replay, raw/checkpoint mutation, or external-data action was performed.
+- GitHub Actions on the initial PR head `f64c11e61baf146bc32eaf9b2de0cac6b6796b1a` failed in `tests/unit/test_evaluation_contracts.py`: two exact response-array SHA checks observed `43271d532fbc3d2c86952b1bb0a68e8c7e92350bdee81fe4b1f4c04f9702b99d` instead of `6c21974996f08352b09f19d32f403cd13d5dc831d42cebe3157c7dbfa0ca49a5`, and `31a09b80249c8904c2679c649223ff29db1b65c6f54290e5a4807f0157804558` instead of `4ee60a4ae1831825d46fdbc7d82ab54264235642e02e54e0b639962a9d51dbdc`. The local full suite passes, but the cause is not established; this exact scientific-output mismatch blocks CI acceptance. No tolerances or expected hashes were changed.
 
-## Remaining R4 handoff
+## Handoff and stop condition
 
-1. Complete final source/provenance/link/status review and `git diff --check`.
-2. Push the focused branch and open a Draft PR with exact base/head SHAs and test evidence. Stop for independent review. R5, Q1 requalification, COM/FE, and all run/data actions require their separate gates.
+Draft PR [#68](https://github.com/MasayaTakagi/saw-com-optimizer/pull/68) is open against `main`, based on `81d18ba3bd3e29b13958d4b32dfec5585ab9d947`. Keep it in Draft and stop for independent review of the CI hash discrepancy before any merge or scientific change. R5, Q1 requalification, COM/FE, and all run/data actions require their separate gates.
