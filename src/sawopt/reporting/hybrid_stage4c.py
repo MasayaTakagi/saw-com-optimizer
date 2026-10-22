@@ -12,7 +12,7 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 
 from ..optimization.convergence_evidence import apply_checkpoint_evidence
-from ..optimizers.selection import DEFAULT_COMPARATOR
+from ..optimization.selection import DEFAULT_COMPARATOR
 from .candidate_integrity import validated_hybrid_rank_key
 from ..studies.hybrid_stage4c import (
     BUDGET, CHECKPOINTS, COMMON_GRID_ID, COMMON_GRID_SHA256, PROTOCOL_REVISION,

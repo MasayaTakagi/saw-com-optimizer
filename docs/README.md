@@ -35,10 +35,11 @@ supersede the five current sources above:
 - [R0 preflight inventory](../reports/restructure/r0_preflight_inventory_20261022.md),
   [reconstruction design](plans/repository_restructure_decisions_20261022.md),
   [migration plan](plans/repository_restructure_migration_plan_20261022.md),
-  and [R3 ownership/caller disposition](plans/restructure_r3_ownership_20261022.md)
+  [R3 ownership/caller disposition](plans/restructure_r3_ownership_20261022.md),
+  and [R4 optimizer ownership inventory](plans/restructure_r4_ownership_20261022.md)
   are records for the staged reconstruction. The R3 record is scoped to Issue
-  #65's explicit authorization; it does not authorize R4, Q1 work, scientific
-  changes, or new experiments.
+  #65's authorization; R4 scope is separately authorized and limited by Issue
+  #67. These records do not authorize Q1 qualification or new experiments.
 
 ## Legacy paths
 

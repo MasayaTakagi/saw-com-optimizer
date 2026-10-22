@@ -1,5 +1,5 @@
 from sawopt.optimization import convergence_evidence as canonical
-from sawopt.optimizers.selection import FeasibilityFirstComparator, GeometryFirstComparator
+from sawopt.optimization.selection import FeasibilityFirstComparator, GeometryFirstComparator
 
 
 def test_explicit_checkpoint_evidence_and_budget_overrides_have_fixed_output():

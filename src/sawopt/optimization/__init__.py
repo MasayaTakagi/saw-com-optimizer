@@ -1,1 +1,1 @@
-"""SAW-specific search orchestration and optimization services."""
+"""Optimizer strategies and shared search services."""

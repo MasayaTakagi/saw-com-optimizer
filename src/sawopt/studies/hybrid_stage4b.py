@@ -498,9 +498,9 @@ def _run_cell(
 ) -> dict[str, Any]:
     from ..design.topology import RESONATOR_BOUNDS
     from ..optimization.counters import GeometryGateCounters, evaluation_status
-    from ..optimizers.checkpoint_session import LShadeCheckpointSession
-    from ..optimizers.lshade import LShadeBackend
-    from ..optimizers.selection import GeometryFirstComparator
+    from ..optimization.checkpoint_session import LShadeCheckpointSession
+    from ..optimization.lshade import LShadeBackend
+    from ..optimization.selection import GeometryFirstComparator
 
     cfg = context["cfg"]
     space = context["spaces"][topology]

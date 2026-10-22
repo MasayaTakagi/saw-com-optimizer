@@ -94,7 +94,7 @@ def test_stage3_9b_config_fixes_overlap_population_schedule_and_budget():
     assert extended_settings["population_schedule_terminal_budget"] == 8000
     assert extended_settings["total_budget"] == extended_settings["hard_max_budget"] == 16000
 
-    from sawopt.optimizers.lshade import LShadeBackend
+    from sawopt.optimization.lshade import LShadeBackend
 
     old_backend = LShadeBackend(
         study.material_bounds(baseline, "MLIT", "T1_SYMMETRIC_5IDT")[0],

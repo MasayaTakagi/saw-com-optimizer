@@ -2,9 +2,9 @@ import numpy as np
 
 from sawopt.io.lifecycle import RunDisposition
 from sawopt.optimization.counters import GeometryGateCounters
-from sawopt.optimizers.checkpoint_session import LShadeCheckpointSession
-from sawopt.optimizers.lshade import LShadeBackend
-from sawopt.optimizers.selection import GeometryFirstComparator
+from sawopt.optimization.checkpoint_session import LShadeCheckpointSession
+from sawopt.optimization.lshade import LShadeBackend
+from sawopt.optimization.selection import GeometryFirstComparator
 from sawopt.studies.hybrid import (
     _stage4a_load_context,
     run_stage4a_implementation_validation,

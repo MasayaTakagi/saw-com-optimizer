@@ -2,8 +2,8 @@ import unittest
 
 import numpy as np
 
-from sawopt.optimizers.lshade import LShadeBackend
-from sawopt.optimizers.selection import GeometryFirstComparator
+from sawopt.optimization.lshade import LShadeBackend
+from sawopt.optimization.selection import GeometryFirstComparator
 
 
 def _record(vector):

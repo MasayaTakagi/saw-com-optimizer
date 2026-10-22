@@ -3,8 +3,8 @@ import unittest
 
 import numpy as np
 
-from sawopt.optimizers.lshade import LShadeBackend
-from sawopt.optimizers.selection import FeasibilityFirstComparator
+from sawopt.optimization.lshade import LShadeBackend
+from sawopt.optimization.selection import FeasibilityFirstComparator
 
 
 def _sphere(vector):

@@ -157,7 +157,7 @@ range. It is not an exact universal encoding of ranking. The reusable
 records by `(infeasible, max violation, sum violation, worst IL, ripple)`;
 hybrid `GeometryFirstComparator` prefixes geometry-validity and successful vs
 failed physics status before this rank. The exact tuple/API remains in
-`src/sawopt/optimizers/selection.py` and Q0 pins its existing comparator use.
+`src/sawopt/optimization/selection.py` and Q0 pins its existing comparator use.
 Do not silently change these semantics; preserve individual metrics and
 violations in reports.
 

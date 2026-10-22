@@ -26,8 +26,8 @@ from ..optimization.population import (
     independent_uniform_candidate as _independent_uniform_candidate_primitive,
     sample_independent_uniform_population as _sample_independent_uniform_rejection_population,
 )
-from ..optimizers.lshade import LShadeBackend
-from ..optimizers.selection import GeometryFirstComparator
+from ..optimization.lshade import LShadeBackend
+from ..optimization.selection import GeometryFirstComparator
 from ..design.topology import T0, T1, T2, DMS_TOPOLOGIES as TOPOLOGIES
 from ..reporting.review_bundle import write_review_bundle_archive
 from .dms_topology_common import (

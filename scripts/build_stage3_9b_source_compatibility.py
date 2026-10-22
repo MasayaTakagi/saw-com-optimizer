@@ -32,8 +32,8 @@ SOURCE_FILES = (
     "src/sawopt/studies/dms_topology_screening.py",
     "src/sawopt/studies/dms_topology_common.py",
     "src/sawopt/studies/audits/stage3_9b_overlap_parity.py",
-    "src/sawopt/optimizers/selection.py",
-    "src/sawopt/optimizers/lshade.py",
+    "src/sawopt/optimization/selection.py",
+    "src/sawopt/optimization/lshade.py",
     "src/sawopt/design/topology.py",
     "src/sawopt/design/space.py",
     "src/sawopt/design/geometry.py",
@@ -76,16 +76,19 @@ def _git_output(*args: str) -> str:
 
 def _tracked_source_comparison(canonical_head: str | None) -> dict[str, Any]:
     comparisons = {}
-    for relative in (
-        "src/sawopt/optimizers/lshade.py",
-        "src/sawopt/optimizers/selection.py",
-    ):
+    source_paths = {
+        "src/sawopt/optimization/lshade.py": "src/sawopt/optimizers/lshade.py",
+        "src/sawopt/optimization/selection.py": "src/sawopt/optimizers/selection.py",
+    }
+    for relative, historical_relative in source_paths.items():
         canonical_blob = (
-            _git_output("rev-parse", f"{canonical_head}:{relative}") if canonical_head else ""
+            _git_output("rev-parse", f"{canonical_head}:{historical_relative}")
+            if canonical_head else ""
         )
         current_clean_blob = _git_output("hash-object", f"--path={relative}", relative)
         current_path = ROOT / relative
         comparisons[relative] = {
+            "canonical_recorded_source_path": historical_relative,
             "canonical_recorded_head_blob_sha": canonical_blob or None,
             "current_worktree_clean_blob_sha": current_clean_blob or None,
             "current_worktree_raw_sha256": _sha256_file(current_path),
@@ -233,7 +236,7 @@ def _optimizer_config_check(
     configured_memory_batch = int(resolved.get("memory_update_batch_size", 0))
     effective_memory_batch = configured_memory_batch or effective_initial_population
     effective_history_size = int(resolved.get("history_size", 6))
-    selection_source = tracked_source_comparison.get("src/sawopt/optimizers/selection.py", {})
+    selection_source = tracked_source_comparison.get("src/sawopt/optimization/selection.py", {})
     selection_same = selection_source.get("identical_to_canonical_recorded_head") is True
     comparator_replay_pass = comparator_check.get("status") == "PASS"
     seed_results = {}
@@ -264,7 +267,7 @@ def _optimizer_config_check(
                 "canonical_checkpoint": len(checkpoint.get("m_cr", [])),
             }
         seed_results[str(seed)] = {"status": "PASS" if not differences else "FAIL", "differences": differences}
-    lshade_source = tracked_source_comparison.get("src/sawopt/optimizers/lshade.py", {})
+    lshade_source = tracked_source_comparison.get("src/sawopt/optimization/lshade.py", {})
     source_differences_explained = (
         lshade_source.get("identical_to_canonical_recorded_head") is True
         and (selection_same or comparator_replay_pass)

@@ -142,7 +142,7 @@ class _IntentionalStop(Exception):
 
 
 def _run_optimizer_smoke(context: dict[str, Any], root: Path) -> dict[str, Any]:
-    from sawopt.optimizers.checkpoint_session import LShadeCheckpointSession
+    from sawopt.optimization.checkpoint_session import LShadeCheckpointSession
     from sawopt.studies.hybrid_stage4b import read_source_state, run_matched_cell
 
     source_sha = read_source_state(ROOT)["head"]

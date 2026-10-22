@@ -15,8 +15,8 @@ from sawopt.io.legacy_lifecycle import (
     LEGACY_REVIEW_WAITING_MARKERS,
     legacy_process_disposition,
 )
-from sawopt.optimizers.checkpoint_session import LShadeCheckpointSession
-from sawopt.optimizers.lshade import LShadeBackend
+from sawopt.optimization.checkpoint_session import LShadeCheckpointSession
+from sawopt.optimization.lshade import LShadeBackend
 from sawopt.studies.lshade_records import lshade_record, serialize_lshade_record
 
 

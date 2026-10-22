@@ -147,7 +147,7 @@ def test_stage4c_fingerprint_separates_computation_from_reporting():
     reporting = {row["path"] for row in dependency_manifest["reporting"]}
     assert "src/sawopt/studies/hybrid_stage4c.py" in computation
     assert "src/sawopt/studies/hybrid_stage4b.py" in computation
-    assert "src/sawopt/optimizers/lshade.py" in computation
+    assert "src/sawopt/optimization/lshade.py" in computation
     assert CONFIG in computation
     assert "src/sawopt/reporting/hybrid_stage4c.py" in reporting
     assert "src/sawopt/reporting/hybrid_stage4c.py" not in computation

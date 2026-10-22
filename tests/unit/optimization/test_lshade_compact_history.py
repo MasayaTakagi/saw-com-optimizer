@@ -5,9 +5,9 @@ from pathlib import Path
 
 import numpy as np
 
-from sawopt.optimizers.checkpoint_session import LShadeCheckpointSession
-from sawopt.optimizers.lshade import LShadeBackend
-from sawopt.optimizers.selection import GeometryFirstComparator
+from sawopt.optimization.checkpoint_session import LShadeCheckpointSession
+from sawopt.optimization.lshade import LShadeBackend
+from sawopt.optimization.selection import GeometryFirstComparator
 
 
 def _record(vector, *, tie=False, grid=0, payload=""):
