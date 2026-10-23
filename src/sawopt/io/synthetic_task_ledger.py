@@ -126,17 +126,6 @@ def _safe_root(root: str | os.PathLike[str], *, require_ledger: bool) -> Path:
             raise SyntheticTaskError("TASK_ROOT_UNSAFE", "synthetic task roots may not be inside a repository")
     except ValueError:
         pass
-    configured_raw_root = os.environ.get("SAWOPT_DATA_ROOT")
-    if configured_raw_root:
-        configured_root = Path(os.path.abspath(configured_raw_root))
-        try:
-            if os.path.commonpath((str(candidate), str(configured_root))) == str(configured_root):
-                raise SyntheticTaskError(
-                    "TASK_ROOT_UNSAFE", "synthetic task roots may not use SAWOPT_DATA_ROOT or its descendants",
-                )
-        except ValueError:
-            pass
-
     current = Path(path.anchor)
     for part in path.parts[1:]:
         current = current / part
@@ -153,6 +142,34 @@ def _safe_root(root: str | os.PathLike[str], *, require_ledger: bool) -> Path:
         raise SyntheticTaskError("TASK_ROOT_UNSAFE", "task root must be owned by the current user")
     if stat.S_IMODE(info.st_mode) & 0o077:
         raise SyntheticTaskError("TASK_ROOT_UNSAFE", "task root permissions must exclude group and other users")
+    try:
+        resolved_candidate = path.resolve(strict=True)
+        if resolved_candidate != candidate:
+            raise SyntheticTaskError("TASK_ROOT_UNSAFE", "task-root canonical path changed during validation")
+    except (OSError, RuntimeError) as exc:
+        raise SyntheticTaskError("TASK_ROOT_UNSAFE", "cannot resolve explicit task root safely") from exc
+
+    configured_raw_root = os.environ.get("SAWOPT_DATA_ROOT")
+    if configured_raw_root:
+        if not os.path.isabs(configured_raw_root):
+            raise SyntheticTaskError("TASK_ROOT_UNSAFE", "configured SAWOPT_DATA_ROOT must be absolute")
+        try:
+            configured_root = Path(configured_raw_root).resolve(strict=True)
+            if not configured_root.is_dir():
+                raise SyntheticTaskError("TASK_ROOT_UNSAFE", "configured SAWOPT_DATA_ROOT is not a directory")
+        except SyntheticTaskError:
+            raise
+        except (OSError, RuntimeError) as exc:
+            raise SyntheticTaskError(
+                "TASK_ROOT_UNSAFE", "configured SAWOPT_DATA_ROOT cannot be resolved safely",
+            ) from exc
+        try:
+            if os.path.commonpath((str(resolved_candidate), str(configured_root))) == str(configured_root):
+                raise SyntheticTaskError(
+                    "TASK_ROOT_UNSAFE", "synthetic task roots may not use SAWOPT_DATA_ROOT or its descendants",
+                )
+        except ValueError:
+            pass
 
     try:
         entries = {entry.name for entry in os.scandir(path)}
@@ -741,27 +758,46 @@ class SyntheticTaskLedger:
             conn.commit()
             return self._snapshot(row, inspect_process=True)
 
-    def append_log(self, message: str) -> None:
-        path = _safe_root(self.root, require_ledger=True)
+    def append_log(self, message: str) -> bool:
+        """Best-effort bounded diagnostics; contention never blocks task progress."""
+        try:
+            path = _safe_root(self.root, require_ledger=True)
+        except SyntheticTaskError:
+            return False
         log_path = path / LOG_NAME
         message_bytes = (str(message).replace("\n", " ").replace("\r", " ")[:400] + "\n").encode("utf-8", "replace")
         flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
         try:
             fd = os.open(log_path, flags, 0o600)
-        except OSError as exc:
-            raise SyntheticTaskError("TASK_ROOT_UNSAFE", "cannot safely open bounded synthetic-task log") from exc
+        except OSError:
+            return False
+        import fcntl
+
+        locked = False
         try:
             info = os.fstat(fd)
             if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
-                raise SyntheticTaskError("TASK_ROOT_UNSAFE", "synthetic-task log identity or permissions are unsafe")
-            import fcntl
-
-            fcntl.flock(fd, fcntl.LOCK_EX)
+                return False
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                locked = True
+            except OSError:
+                return False
             size = os.fstat(fd).st_size
             remaining = MAX_LOG_BYTES - size
-            if remaining > 0:
-                os.write(fd, message_bytes[:remaining])
-        except OSError as exc:
-            raise SyntheticTaskError("LEDGER_UNAVAILABLE", "cannot append bounded synthetic-task log") from exc
+            if remaining <= 0:
+                return True
+            os.write(fd, message_bytes[:remaining])
+            return True
+        except OSError:
+            return False
         finally:
-            os.close(fd)
+            if locked:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+                except OSError:
+                    pass
+            try:
+                os.close(fd)
+            except OSError:
+                pass

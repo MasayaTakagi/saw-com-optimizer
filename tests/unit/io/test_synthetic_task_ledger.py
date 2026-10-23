@@ -114,6 +114,25 @@ def test_task_log_is_private_and_hard_bounded(tmp_path):
     assert log.stat().st_mode & 0o077 == 0
 
 
+def test_diagnostic_log_lock_contention_is_bounded_and_best_effort(tmp_path):
+    root = _root(tmp_path)
+    ledger = SyntheticTaskLedger(root)
+    task, _created = ledger.create_task("held-log", steps=1, interval_ms=10)
+    assert ledger.append_log("initial") is True
+    fd = os.open(root / "synthetic-tasks.log", os.O_WRONLY)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        started = time.monotonic()
+        assert ledger.append_log("must be skipped") is False
+        assert time.monotonic() - started < 0.5
+        status = ledger.get_status(task.run_id)
+        assert status.ledger_state == "CREATED"
+        assert status.state == "RECOVERY_REQUIRED"
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
 def test_sqlite_writer_lock_is_reported_without_repair_or_reset(tmp_path, monkeypatch):
     root = _root(tmp_path)
     ledger = SyntheticTaskLedger(root)

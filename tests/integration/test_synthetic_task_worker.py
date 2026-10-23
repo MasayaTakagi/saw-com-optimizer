@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import signal
@@ -255,6 +256,69 @@ def test_help_invalid_request_and_raw_root_selection_do_not_create_or_move_data(
     assert rejected.returncode != 0
     assert sentinel.read_text(encoding="utf-8") == "immutable"
     assert sorted(item.name for item in raw_root.iterdir()) == ["sentinel"]
+
+
+def test_raw_root_symlink_alias_is_rejected_without_artifacts_and_unrelated_root_works(tmp_path, monkeypatch):
+    raw_root = tmp_path / "raw-real"
+    raw_root.mkdir(mode=0o700)
+    sentinel = raw_root / "historic-sentinel"
+    sentinel.write_text("untouched", encoding="utf-8")
+    raw_alias = tmp_path / "raw-alias"
+    raw_alias.symlink_to(raw_root, target_is_directory=True)
+    forbidden_child = raw_root / "empty-child"
+    forbidden_child.mkdir(mode=0o700)
+    monkeypatch.setenv("SAWOPT_DATA_ROOT", str(raw_alias))
+
+    rejected = _invoke(
+        forbidden_child, "launch", "--idempotency-key", "alias", "--steps", "1", check=False,
+    )
+    assert rejected.returncode != 0
+    assert json.loads(rejected.stderr)["error"]["code"] == "TASK_ROOT_UNSAFE"
+    assert not list(forbidden_child.iterdir())
+    assert sentinel.read_text(encoding="utf-8") == "untouched"
+    assert sorted(item.name for item in raw_root.iterdir()) == ["empty-child", "historic-sentinel"]
+
+    unrelated_parent = tmp_path / "unrelated"
+    unrelated_parent.mkdir(mode=0o700)
+    unrelated_root = _root(unrelated_parent)
+    launched = _launch(unrelated_root, "not-raw", steps=1, interval_ms=10)
+    completed = _wait_status(
+        unrelated_root, launched["run_id"], lambda value: value["state"] == "COMPLETED",
+    )
+    assert completed["state"] == "COMPLETED"
+
+    broken_alias = tmp_path / "broken-raw-alias"
+    broken_alias.symlink_to(tmp_path / "missing-raw-target", target_is_directory=True)
+    monkeypatch.setenv("SAWOPT_DATA_ROOT", str(broken_alias))
+    unresolved_root = tmp_path / "unresolved-root"
+    unresolved_root.mkdir(mode=0o700)
+    rejected = _invoke(
+        unresolved_root, "launch", "--idempotency-key", "unresolved", "--steps", "1", check=False,
+    )
+    assert rejected.returncode != 0
+    assert json.loads(rejected.stderr)["error"]["code"] == "TASK_ROOT_UNSAFE"
+    assert not list(unresolved_root.iterdir())
+
+
+def test_held_diagnostic_log_lock_does_not_block_progress_or_cooperative_stop(tmp_path):
+    root = _root(tmp_path)
+    log_path = root / "synthetic-tasks.log"
+    log_path.touch(mode=0o600)
+    fd = os.open(log_path, os.O_WRONLY)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        launch = _launch(root, "held-log-lock", steps=40, interval_ms=50)
+        running = _wait_status(root, launch["run_id"], lambda value: value["progress_completed"] >= 1)
+        stop = _invoke(
+            root, "stop", "--run-id", launch["run_id"], "--attempt-id", launch["attempt_id"],
+        )
+        assert json.loads(stop.stdout)["state"] == "STOP_REQUESTED"
+        stopped = _wait_status(root, launch["run_id"], lambda value: value["state"] == "STOPPED")
+        assert stopped["progress_completed"] >= running["progress_completed"]
+        assert stopped["progress_completed"] < 40
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
 
 
 def test_invalid_roots_and_missing_explicit_root_do_not_create_task_data(tmp_path):
