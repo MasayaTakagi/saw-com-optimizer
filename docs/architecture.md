@@ -1,14 +1,17 @@
 # Architecture: current implementation and target ownership
 
 **Status:** R2 physics extraction, R3 design/evaluation separation, R4 optimizer
-consolidation, and R5 future-only raw/review storage are merged at verified R6
-baseline `8b03dda0a263a68d9899b35cce55fe67f5047555` (PR #70). R6 software and
-synthetic CLI work is owner-authorized and underway under Issue #71; retirement
-is gated on reviewed caller/evidence disposition. See the [R3
+consolidation, and R5 future-only raw/review storage merged at
+`8b03dda0a263a68d9899b35cce55fe67f5047555` (PR #70). R6-A's synthetic CLI
+merged to verified `main` at `d232ba7eb4ff88e0bec15e1406343981ab406bf3` (PR
+#72); R6-B remains blocked on live dependencies and R6-C cleanup is mandatory
+under Issue #75. Issue #74 authorizes R7 CI evidence and architecture audit
+only; it does not authorize legacy behavior changes or cleanup. See the [R3
 inventory](plans/restructure_r3_ownership_20261022.md), [R4
-inventory](plans/restructure_r4_ownership_20261022.md), and [R6
-inventory](plans/restructure_r6_ownership_20261023.md). R7 requires fresh owner
-approval. The R0 inventory counted 94 Python modules at main
+inventory](plans/restructure_r4_ownership_20261022.md), [R6
+inventory](plans/restructure_r6_ownership_20261023.md), and [R7 audit
+proposal](plans/r7_architecture_ci_audit_20261023.md). The R0 inventory counted
+94 Python modules at main
 `a4b3807d399cc78b10c280d41ee8cea476ade329` (pre-R2 baseline). Target APIs not
 yet implemented must not be treated as current.
 
@@ -91,15 +94,18 @@ orchestration retain legacy runtime cycles for later stages. The architecture
 refactor must move ownership and invert dependencies intentionally; renaming
 directories alone will not meet the target.
 
-R2, R3, R4, and R5 are merged. R3's ownership choices, caller list, and
+R2, R3, R4, R5 and R6-A are merged. R3's ownership choices, caller list, and
 evidence-only dispositions are explicit in the
 [R3 inventory](plans/restructure_r3_ownership_20261022.md). R4 consolidates
 optimization source ownership while leaving the dense boundary unchanged; its
 merge does not qualify Q1 or establish cross-CPU bitwise identity. R5
-implements only future raw/review storage contracts; R6's synthetic/injected
+implements only future raw/review storage contracts; R6-A's synthetic/injected
 vertical slice and deferred legacy-path disposition are owner-authorized under
 Issue #71. See the [R6 inventory](plans/restructure_r6_ownership_20261023.md).
-R7 requires fresh owner approval. Each stage remains a separate gate in the
+Issue #74 authorizes only audit/CI evidence work; the [R7 audit
+proposal](plans/r7_architecture_ci_audit_20261023.md) records pending owner
+decisions and is not R6-C authorization. Each stage remains a separate gate in
+the
 [migration plan](plans/repository_restructure_migration_plan_20261022.md). No
 stage grants permission to change equations, ranking, bounds, Q0/Q1 semantics,
 or run conditions.

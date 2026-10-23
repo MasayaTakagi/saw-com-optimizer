@@ -43,11 +43,17 @@ do not start gated follow-up work without the applicable owner decision.
   of the contract; justify numerical tolerances before use.
 
 The current CI is one locked full-pytest job, not the planned risk-lane system.
-Do not disable or weaken that job as a documentation or cleanup shortcut. CI
-lane definitions and measured test cost belong to a separately reviewed
-migration task. The `KNOWN_BASELINE_FAILURE` for the obsolete agent/model
-routing assertion in the R0 inventory is historical evidence; R1-B retires
-that non-product test without changing scientific tests or CI.
+Issue #74's measured baseline, fixed selectors and lane recommendation are in
+[R7 architecture/CI audit](plans/r7_architecture_ci_audit_20261023.md). That
+report does not split or weaken the workflow: retain the full Haswell-pinned
+pytest suite and fixed-evaluation diagnostic as exact-head checks and required
+scientific/regression milestones. Any future fast/docs lane is additive and
+must not create path-, label-, or docs-only bypasses. At the R7 audit, GitHub
+reported `main` as unprotected; the repository owner/admin must configure the
+full CI check as required before treating it as an enforced merge gate. The
+`KNOWN_BASELINE_FAILURE` for the obsolete agent/model routing assertion in the
+R0 inventory is historical evidence; R1-B retires that non-product test
+without changing scientific tests or CI.
 
 ## Environment and commands
 
