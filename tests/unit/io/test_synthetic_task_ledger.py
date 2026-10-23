@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import fcntl
+import os
 import sqlite3
+import time
 from pathlib import Path
 
 import pytest
@@ -55,6 +58,24 @@ def test_unsupported_schema_and_corrupt_database_fail_closed(tmp_path):
         ledger.get_status("0" * 32)
     assert unknown.value.code == "LEDGER_SCHEMA_UNKNOWN"
 
+    altered_root = _root(tmp_path / "altered")
+    altered = SyntheticTaskLedger(altered_root)
+    altered.create_task("altered", steps=1, interval_ms=10)
+    with sqlite3.connect(altered_root / "synthetic-tasks.sqlite3") as connection:
+        sql = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'",
+        ).fetchone()[0]
+        assert "CHECK(length(run_id)=32)" in sql
+        connection.execute("PRAGMA writable_schema=ON")
+        connection.execute(
+            "UPDATE sqlite_master SET sql=? WHERE type='table' AND name='tasks'",
+            (sql.replace("CHECK(length(run_id)=32)", "CHECK(length(run_id)>0)", 1),),
+        )
+        connection.execute("PRAGMA schema_version=100")
+    with pytest.raises(SyntheticTaskError) as altered_schema:
+        altered.get_status("0" * 32)
+    assert altered_schema.value.code == "LEDGER_SCHEMA_UNKNOWN"
+
     corrupt_root = _root(tmp_path / "other")
     corrupt = SyntheticTaskLedger(corrupt_root)
     corrupt.create_task("corrupt", steps=1, interval_ms=10)
@@ -62,6 +83,24 @@ def test_unsupported_schema_and_corrupt_database_fail_closed(tmp_path):
     with pytest.raises(SyntheticTaskError) as damaged:
         corrupt.get_status("0" * 32)
     assert damaged.value.code in {"LEDGER_CORRUPT", "LEDGER_SCHEMA_UNKNOWN"}
+
+
+def test_task_ledger_file_lock_has_a_bounded_timeout(tmp_path, monkeypatch):
+    root = _root(tmp_path)
+    ledger = SyntheticTaskLedger(root)
+    ledger.create_task("file-lock", steps=1, interval_ms=10)
+    fd = os.open(root / "synthetic-tasks.sqlite3", os.O_RDWR)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        monkeypatch.setattr("sawopt.io.synthetic_task_ledger.BUSY_TIMEOUT_MS", 50)
+        started = time.monotonic()
+        with pytest.raises(SyntheticTaskError) as locked:
+            ledger.get_status("0" * 32)
+        assert locked.value.code == "LEDGER_LOCKED"
+        assert time.monotonic() - started < 0.5
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
 
 
 def test_task_log_is_private_and_hard_bounded(tmp_path):

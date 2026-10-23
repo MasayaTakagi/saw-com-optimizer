@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import contextlib
+import errno
 import hashlib
 import json
 import os
@@ -9,6 +10,7 @@ import re
 import sqlite3
 import stat
 import sys
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -36,6 +38,32 @@ _ARTIFACTS = {
     DB_NAME, f"{DB_NAME}-wal", f"{DB_NAME}-shm", f"{DB_NAME}-journal", LOG_NAME,
 }
 _ID_RE = re.compile(r"^[0-9a-f]{32}$")
+_TASKS_SCHEMA = """CREATE TABLE tasks (
+    run_id TEXT PRIMARY KEY CHECK(length(run_id)=32),
+    request_json TEXT NOT NULL CHECK(length(request_json)<=256),
+    request_sha256 TEXT NOT NULL CHECK(length(request_sha256)=64),
+    idempotency_key TEXT NOT NULL UNIQUE CHECK(length(idempotency_key) BETWEEN 1 AND 128),
+    authorization_test_only INTEGER NOT NULL CHECK(authorization_test_only=1),
+    attempt_id TEXT NOT NULL CHECK(length(attempt_id)=32),
+    state TEXT NOT NULL CHECK(state IN (
+        'CREATED','STARTING','RUNNING','STOP_REQUESTED','STOPPED','COMPLETED','FAILED',
+        'LAUNCH_AMBIGUOUS','PROCESS_IDENTITY_UNKNOWN','RECOVERY_REQUIRED'
+    )),
+    progress_completed INTEGER NOT NULL DEFAULT 0 CHECK(progress_completed>=0 AND progress_completed<=120),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    started_at TEXT,
+    finished_at TEXT,
+    last_progress_at TEXT,
+    stop_requested_at TEXT,
+    owner_pid INTEGER,
+    owner_start_ticks INTEGER,
+    owner_boot_id TEXT,
+    error_code TEXT,
+    error_message TEXT CHECK(error_message IS NULL OR length(error_message)<=512),
+    CHECK((owner_pid IS NULL AND owner_start_ticks IS NULL AND owner_boot_id IS NULL)
+       OR (owner_pid>0 AND owner_start_ticks>=0 AND length(owner_boot_id) BETWEEN 1 AND 64))
+)"""
 _KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 
@@ -205,6 +233,23 @@ def _is_expected_worker(pid: int, root: str | os.PathLike[str], run_id: str, att
     return any(command[index : index + len(expected)] == expected for index in range(len(command) - len(expected) + 1))
 
 
+def _acquire_ledger_file_lock(fd: int, *, writable: bool) -> None:
+    import fcntl
+
+    operation = fcntl.LOCK_EX if writable else fcntl.LOCK_SH
+    deadline = time.monotonic() + BUSY_TIMEOUT_MS / 1000
+    while True:
+        try:
+            fcntl.flock(fd, operation | fcntl.LOCK_NB)
+            return
+        except OSError as exc:
+            if exc.errno not in (errno.EACCES, errno.EAGAIN):
+                raise SyntheticTaskError("LEDGER_UNAVAILABLE", "cannot acquire task-ledger file lock") from exc
+            if time.monotonic() >= deadline:
+                raise SyntheticTaskError("LEDGER_LOCKED", "task-ledger file lock timed out") from exc
+            time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
+
+
 def current_process_identity() -> tuple[int, int, str]:
     identity = _read_process_identity(os.getpid())
     if identity is None:
@@ -306,7 +351,7 @@ class SyntheticTaskLedger:
                 raise SyntheticTaskError("TASK_ROOT_UNSAFE", "ledger file identity or permissions are unsafe")
             import fcntl
 
-            fcntl.flock(fd, fcntl.LOCK_EX if writable else fcntl.LOCK_SH)
+            _acquire_ledger_file_lock(fd, writable=writable)
         except Exception:
             os.close(fd)
             raise
@@ -380,34 +425,7 @@ class SyntheticTaskLedger:
             }
             if version != 0 or tables:
                 raise SyntheticTaskError("LEDGER_SCHEMA_UNKNOWN", "new ledger file is not empty")
-            conn.execute(
-                """CREATE TABLE tasks (
-                    run_id TEXT PRIMARY KEY CHECK(length(run_id)=32),
-                    request_json TEXT NOT NULL CHECK(length(request_json)<=256),
-                    request_sha256 TEXT NOT NULL CHECK(length(request_sha256)=64),
-                    idempotency_key TEXT NOT NULL UNIQUE CHECK(length(idempotency_key) BETWEEN 1 AND 128),
-                    authorization_test_only INTEGER NOT NULL CHECK(authorization_test_only=1),
-                    attempt_id TEXT NOT NULL CHECK(length(attempt_id)=32),
-                    state TEXT NOT NULL CHECK(state IN (
-                        'CREATED','STARTING','RUNNING','STOP_REQUESTED','STOPPED','COMPLETED','FAILED',
-                        'LAUNCH_AMBIGUOUS','PROCESS_IDENTITY_UNKNOWN','RECOVERY_REQUIRED'
-                    )),
-                    progress_completed INTEGER NOT NULL DEFAULT 0 CHECK(progress_completed>=0 AND progress_completed<=120),
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    started_at TEXT,
-                    finished_at TEXT,
-                    last_progress_at TEXT,
-                    stop_requested_at TEXT,
-                    owner_pid INTEGER,
-                    owner_start_ticks INTEGER,
-                    owner_boot_id TEXT,
-                    error_code TEXT,
-                    error_message TEXT CHECK(error_message IS NULL OR length(error_message)<=512),
-                    CHECK((owner_pid IS NULL AND owner_start_ticks IS NULL AND owner_boot_id IS NULL)
-                       OR (owner_pid>0 AND owner_start_ticks>=0 AND length(owner_boot_id) BETWEEN 1 AND 64))
-                )""",
-            )
+            conn.execute(_TASKS_SCHEMA)
             conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             conn.commit()
         except Exception:
@@ -420,13 +438,20 @@ class SyntheticTaskLedger:
         version = conn.execute("PRAGMA user_version").fetchone()[0]
         if version != SCHEMA_VERSION:
             raise SyntheticTaskError("LEDGER_SCHEMA_UNKNOWN", f"unsupported SQLite task-ledger schema version {version}")
-        tables = {
-            row[0] for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+        objects = {
+            (row[0], row[1]) for row in conn.execute(
+                "SELECT type,name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'",
             )
         }
-        if tables != {"tasks"}:
-            raise SyntheticTaskError("LEDGER_SCHEMA_UNKNOWN", "SQLite task-ledger table set is unknown")
+        if objects != {("table", "tasks")}:
+            raise SyntheticTaskError("LEDGER_SCHEMA_UNKNOWN", "SQLite task-ledger object set is unknown")
+        schema_row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'",
+        ).fetchone()
+        if schema_row is None or not isinstance(schema_row[0], str):
+            raise SyntheticTaskError("LEDGER_SCHEMA_UNKNOWN", "SQLite task-ledger table definition is missing")
+        if " ".join(schema_row[0].split()) != " ".join(_TASKS_SCHEMA.split()):
+            raise SyntheticTaskError("LEDGER_SCHEMA_UNKNOWN", "SQLite task-ledger constraints do not match schema v1")
         columns = tuple(row[1] for row in conn.execute("PRAGMA table_info(tasks)"))
         expected = (
             "run_id", "request_json", "request_sha256", "idempotency_key", "authorization_test_only",
