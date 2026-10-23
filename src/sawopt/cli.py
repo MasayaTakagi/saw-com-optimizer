@@ -79,6 +79,27 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--config", required=True, help="explicit YAML config path")
     run.add_argument("--data-root", help="explicit external raw root; otherwise SAWOPT_DATA_ROOT is required")
     run.add_argument("--repository-root", help="review-package repository root; defaults to this source repository")
+
+    task = commands.add_parser(
+        "synthetic-task", help="launch or observe an isolated synthetic countdown task (Linux/WSL2 only)",
+    )
+    task_commands = task.add_subparsers(dest="task_command", required=True)
+    launch = task_commands.add_parser("launch", help="launch one bounded synthetic countdown worker")
+    launch.add_argument("--root", required=True, help="existing private empty synthetic-task directory")
+    launch.add_argument("--idempotency-key", required=True, help="stable key for this immutable synthetic request")
+    launch.add_argument("--steps", required=True, type=int, help="countdown steps (1..120)")
+    launch.add_argument("--interval-ms", type=int, default=100, help="delay per step (10..1000 ms; default 100)")
+    for name, help_text in (
+        ("status", "read-only synthetic task status/progress"),
+        ("attach", "read-only status/progress view; never starts or resumes work"),
+    ):
+        operation = task_commands.add_parser(name, help=help_text)
+        operation.add_argument("--root", required=True, help="explicit existing synthetic-task directory")
+        operation.add_argument("--run-id", required=True, help="32-character run ID returned by launch")
+    stop = task_commands.add_parser("stop", help="request cooperative stop at a countdown boundary")
+    stop.add_argument("--root", required=True, help="explicit existing synthetic-task directory")
+    stop.add_argument("--run-id", required=True, help="32-character run ID returned by launch")
+    stop.add_argument("--attempt-id", required=True, help="exact current attempt ID returned by launch/status")
     return parser
 
 
@@ -332,6 +353,71 @@ def run_experiment(
     }
 
 
+def _synthetic_task_main(args: argparse.Namespace) -> int:
+    from .io.synthetic_task_ledger import SyntheticTaskError, SyntheticTaskLedger
+
+    try:
+        if sys.platform != "linux":
+            raise SyntheticTaskError(
+                "PLATFORM_UNSUPPORTED", "detached synthetic tasks are supported only on Linux/WSL2",
+            )
+        ledger = SyntheticTaskLedger(args.root)
+        if args.task_command == "launch":
+            task, is_new = ledger.create_task(
+                args.idempotency_key, steps=args.steps, interval_ms=args.interval_ms,
+            )
+            if is_new:
+                ledger.begin_launch(task.run_id, task.attempt_id)
+                ledger.append_log(f"{task.run_id} synthetic launch intent committed")
+                worker_args = [
+                    sys.executable, "-m", "sawopt.synthetic_worker",
+                    "--root", os.fspath(args.root),
+                    "--run-id", task.run_id,
+                    "--attempt-id", task.attempt_id,
+                ]
+                worker_env = os.environ.copy()
+                worker_env.pop("PYTHONPATH", None)
+                worker_env.pop("PYTHONHOME", None)
+                worker_env["PYTHONUNBUFFERED"] = "1"
+                try:
+                    subprocess.Popen(
+                        worker_args,
+                        cwd=_project_root(),
+                        env=worker_env,
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        shell=False,
+                        close_fds=True,
+                        start_new_session=True,
+                    )
+                except OSError as exc:
+                    ledger.mark_launch_ambiguous(task.run_id, task.attempt_id, type(exc).__name__)
+                    raise SyntheticTaskError(
+                        "LAUNCH_AMBIGUOUS", "worker launch outcome is uncertain; no replacement will be started",
+                    ) from exc
+                task = ledger.get_status(task.run_id)
+            output = {**task.as_dict(), "created": is_new, "synthetic_only": True}
+        elif args.task_command in ("status", "attach"):
+            task = ledger.get_status(args.run_id)
+            output = {**task.as_dict(), "view": "read-only"}
+            if args.task_command == "attach":
+                output["attached"] = True
+        elif args.task_command == "stop":
+            task = ledger.request_stop(args.run_id, args.attempt_id)
+            output = {**task.as_dict(), "stop_requested": True}
+        else:
+            raise SyntheticTaskError("REQUEST_INVALID", "unknown synthetic task operation")
+        print(json.dumps(output, sort_keys=True))
+        return 0
+    except SyntheticTaskError as exc:
+        print(json.dumps({"error": {"code": exc.code, "message": exc.message}}, sort_keys=True), file=sys.stderr)
+        return 2
+    except Exception as exc:
+        print(json.dumps({"error": {"code": "SYNTHETIC_TASK_ERROR", "message": type(exc).__name__}}, sort_keys=True), file=sys.stderr)
+        return 2
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -345,6 +431,8 @@ def main(
 ) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command == "synthetic-task":
+        return _synthetic_task_main(args)
     try:
         config = load_synthetic_config(args.config)
         if args.command == "validate":
