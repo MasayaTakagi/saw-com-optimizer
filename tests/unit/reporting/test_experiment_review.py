@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from sawopt.io.experiment_store import create_experiment_run
+from sawopt.io.experiment_store import create_experiment_run, read_experiment_manifest
 from sawopt.reporting.experiment_review import ReviewPackageError, export_review_package
 
 
@@ -35,13 +35,14 @@ def _png_fixture(*, metadata=b""):
 
 
 def _create(tmp_path, *, experiment_id="review-schema-test", run_id=RUN_ID, require_comparison=False,
-            leave_unrun=False, include_large_raw=False, include_comparison=False, plot_metadata=None):
+            leave_unrun=False, all_completed=False, include_large_raw=False,
+            include_comparison=False, plot_metadata=None):
     expected_cells = [
-        {"cell_id": "arm-a-seed-1", "topology": "a", "method": "de", "seed": 1},
-        {"cell_id": "arm-b-seed-1", "topology": "b", "method": "de", "seed": 1},
+        {"cell_id": "screen-a-seed-1", "topology": "a", "method": "de", "seed": 1},
+        {"cell_id": "screen-b-seed-1", "topology": "b", "method": "de", "seed": 1},
     ]
     if leave_unrun:
-        expected_cells.append({"cell_id": "arm-c-seed-1", "topology": "c", "method": "de", "seed": 1})
+        expected_cells.append({"cell_id": "screen-c-seed-1", "topology": "c", "method": "de", "seed": 1})
     data_root = tmp_path / "external-data"
     data_root.parent.mkdir(parents=True, exist_ok=True)
     run = create_experiment_run(
@@ -65,9 +66,13 @@ def _create(tmp_path, *, experiment_id="review-schema-test", run_id=RUN_ID, requ
         validation_point_limit=3,
         review_context={
             "purpose": "Synthetic review package test",
-            "conditions": "Fixture records only; no optimizer or COM execution",
-            "findings": "One completed and one failed fixture cell",
-            "limitations": "No scientific result is claimed",
+            "conditions": (
+                "Synthetic paired-arm comparison fixture"
+                if require_comparison else
+                "Non-paired multi-topology screen; no comparison claim"
+            ),
+            "findings": "Fixture cells recorded without a scientific result",
+            "limitations": "Does not qualify any scientific behavior",
             "review_instructions": "Check the exact roster and hashes",
             "scientific_disposition": "CLAIM_PENDING_REVIEW",
             "requires_comparison": require_comparison,
@@ -75,29 +80,38 @@ def _create(tmp_path, *, experiment_id="review-schema-test", run_id=RUN_ID, requ
         },
     )
     run.record_cell(
-        "arm-a-seed-1", status="COMPLETED", executed=True, search_fes=12,
+        "screen-a-seed-1", status="COMPLETED", executed=True, search_fes=12,
         validation_points=3,
         result={"feasible": True, "worst_il_db": -18.0},
         design={"x": 0.25}, geometry={"area_um2": 12.0}, feasible=True,
         search_metrics={"worst_il_db": -18.0}, search_violations={"area": 0.0},
         validation_metrics={"worst_il_db": -17.5}, validation_violations={"area": 0.0},
     )
-    run.record_cell("arm-b-seed-1", status="FAILED", reason="synthetic injected failure",
-                    failure_class="MODEL", search_fes=4, validation_points=0,
-                    result={"feasible": None, "worst_il_db": None})
-    run.record_checkpoint("arm-a-seed-1", phase="SEARCH", search_fes=8,
+    if all_completed:
+        run.record_cell(
+            "screen-b-seed-1", status="COMPLETED", executed=True, search_fes=10,
+            validation_points=3,
+            result={"feasible": False, "worst_il_db": -14.0},
+            design={"x": 0.5}, geometry={"area_um2": 15.0}, feasible=False,
+            search_metrics={"worst_il_db": -14.0}, search_violations={"area": 1.0},
+            validation_metrics={"worst_il_db": -13.5}, validation_violations={"area": 1.0},
+        )
+    else:
+        run.record_cell("screen-b-seed-1", status="FAILED", reason="synthetic injected failure",
+                        failure_class="MODEL", search_fes=4, validation_points=0,
+                        result={"feasible": None, "worst_il_db": None})
+    run.record_checkpoint("screen-a-seed-1", phase="SEARCH", search_fes=8,
                           validation_points=0, metric_name="worst_il_db", metric_value=-17.0,
                           unit="dB", observed_at_utc="2026-10-23T12:01:00Z")
     if include_large_raw:
         run.write_raw_artifact("arrays/search-population.npy", bytes(range(256)) * 4096)
     if include_comparison:
-        run.write_artifact("artifacts/comparison.csv", b"cell_id,status,delta\narm-a-seed-1,OBSERVED,0.0\n")
+        run.write_artifact("artifacts/comparison.csv", b"cell_id,status,delta\nscreen-a-seed-1,OBSERVED,0.0\n")
     if plot_metadata is not None:
         run.write_artifact("artifacts/plots/convergence.png", _png_fixture(metadata=plot_metadata))
-    run.close(
-        status="INCOMPLETE" if leave_unrun else "FAILED",
-        errors=[{"classification": "MODEL", "message": "synthetic injected failure"}],
-    )
+    errors = [] if all_completed else [{"classification": "MODEL", "message": "synthetic injected failure"}]
+    final_status = "INCOMPLETE" if leave_unrun else "COMPLETED" if all_completed else "FAILED"
+    run.close(status=final_status, errors=errors)
     return run
 
 
@@ -128,9 +142,15 @@ def test_export_has_exact_schema_ids_all_cells_hashes_and_observed_checkpoints(t
     assert manifest["run_id"] == RUN_ID
     assert manifest["execution_source_sha"] == SOURCE_SHA
     assert manifest["package_status"] == "READY_FOR_REVIEW"
+    assert manifest["review_contract"]["requires_comparison"] is False
+    assert manifest["review_contract"]["requires_validation"] is False
+    assert manifest["topology"] == "MULTIPLE"
     assert [cell["status"] for cell in cells] == ["COMPLETED", "FAILED"]
     assert checks["expected_cell_count"] == checks["present_cell_count"] == 2
     assert checks["raw_review_ids_match"] is True
+    assert checks["comparison_required"] is False
+    assert checks["comparison_evidence_present"] is False
+    assert not (package / "comparison.csv").exists()
     convergence = (package / "convergence.csv").read_text(encoding="utf-8")
     assert (run.path / "convergence.csv").read_bytes() == convergence.encode("utf-8")
     assert convergence.count("OBSERVED") == 1
@@ -169,13 +189,32 @@ def test_optional_png_plot_metadata_is_stripped_before_review_export(tmp_path):
     assert "plots/convergence.png:png-metadata" in leaking_checks["redacted_fields"]
 
 
+def test_completed_raw_run_with_forged_run_error_cannot_claim_review_ready(tmp_path):
+    run = _create(
+        tmp_path, all_completed=True, run_id="20261023T120000Z-abcdef12",
+    )
+    manifest_path = run.path / "manifest.json"
+    raw_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    raw_manifest["errors"].append({
+        "classification": "MODEL", "message": "synthetic recorded contradiction",
+    })
+    manifest_path.write_text(json.dumps(raw_manifest, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    # The forged record does not alter frozen source/config/grid provenance;
+    # review-side terminal-state validation must independently reject it.
+    assert read_experiment_manifest(run.path)["status"] == "COMPLETED"
+    with pytest.raises(ReviewPackageError, match="run-level errors"):
+        _export(run, tmp_path)
+    assert not (tmp_path / "review-repository/reports/experiments"
+                / run.experiment_id / run.run_id).exists()
+
+
 def test_expected_cell_that_never_ran_is_included_as_not_started(tmp_path):
     run = _create(tmp_path, leave_unrun=True)
     result = _export(run, tmp_path)
     package = Path(result.path)
     cells = json.loads((package / "cells.json").read_text(encoding="utf-8"))
     assert len(cells) == 3
-    assert cells[2]["cell_id"] == "arm-c-seed-1"
+    assert cells[2]["cell_id"] == "screen-c-seed-1"
     assert cells[2]["status"] == "NOT_STARTED"
     assert cells[2]["executed"] is False
     checks = json.loads((package / "checks.json").read_text(encoding="utf-8"))
@@ -230,6 +269,8 @@ def test_package_export_is_deterministic_and_existing_output_is_not_overwritten(
 
 def test_required_comparison_artifact_and_run_review_ids_are_fail_closed(tmp_path):
     incomplete = _create(tmp_path, require_comparison=True)
+    assert incomplete.manifest["review_context"]["requires_comparison"] is True
+    assert "paired-arm" in incomplete.manifest["review_context"]["conditions"]
     destination_repo = tmp_path / "review-repository"
     destination_repo.mkdir()
     with pytest.raises(ReviewPackageError, match="comparison"):
@@ -247,6 +288,11 @@ def test_required_comparison_artifact_and_run_review_ids_are_fail_closed(tmp_pat
         )
     result = export_review_package(run.path, repository_root=destination_repo)
     assert (Path(result.path) / "comparison.csv").is_file()
+    checks = json.loads((Path(result.path) / "checks.json").read_text(encoding="utf-8"))
+    assert checks["comparison_required"] is True
+    assert checks["comparison_evidence_present"] is True
+    manifest = json.loads((Path(result.path) / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["review_contract"]["requires_comparison"] is True
 
 
 def test_raw_artifact_parent_symlink_is_rejected_during_descriptor_open(tmp_path):
@@ -283,7 +329,7 @@ def test_failed_or_incomplete_roster_is_never_dropped_and_missing_observations_a
     result = _export(run, tmp_path)
     package = Path(result.path)
     cells = json.loads((package / "cells.json").read_text(encoding="utf-8"))
-    assert {cell["cell_id"] for cell in cells} == {"arm-a-seed-1", "arm-b-seed-1"}
+    assert {cell["cell_id"] for cell in cells} == {"screen-a-seed-1", "screen-b-seed-1"}
     assert (package / "convergence.csv").read_text(encoding="utf-8").count("\n") == 2
     # No saved optimizer checkpoint is copied into the review package.
     assert not any("checkpoint" in path.name.lower() for path in package.rglob("*"))

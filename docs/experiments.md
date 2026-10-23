@@ -111,7 +111,11 @@ inventory and cannot be overridden by the caller. Worktree-discovery or
 path-trust uncertainty is a validation failure, not permission to fall back.
 Create the run exclusively and race-aware; on initialization failure, leave no
 partial manifest or misleading run. Preflight must not mutate a rejected
-destination.
+destination. If an artifact becomes visible but its manifest transaction fails,
+retain the orphan and the prior successful artifacts unchanged; do not auto-delete
+or repair it. Review export fails closed on the unregistered file/hash mismatch.
+Treat that raw run as invalid evidence and preserve it for incident review; use a
+new unique run ID for any separately authorized future work.
 
 The new versioned raw manifest freezes experiment/run identity, immutable
 execution source SHA (not a later PR HEAD), effective-config and model/search /
@@ -154,7 +158,10 @@ exactly:
 - `convergence.csv`: only observed common-budget checkpoints; never forward-fill
   missing measurements.
 - `checks.json`: expected/present cells, hash/config/source consistency,
-  counters, redaction, and checks run/not run. The package must not claim
+  counters, redaction, and checks run/not run. Its frozen `comparison_required`
+  declaration is true for paired-arm claims and false for explicitly non-paired
+  screening; topology multiplicity alone does not imply a paired comparison.
+  Required evidence presence is reported separately. The package must not claim
   `READY_FOR_REVIEW` unless required evidence, ID correlation, integrity,
   redaction, and size checks all pass.
 - `comparison.csv` for paired comparisons; `validation.csv` when response

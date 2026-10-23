@@ -119,6 +119,35 @@ def test_worktree_discovery_uncertainty_fails_closed_without_mutating_destinatio
     assert not destination.exists()
 
 
+def test_write_probe_collision_never_deletes_or_changes_preexisting_file(tmp_path, monkeypatch):
+    from sawopt.io import experiment_store
+
+    sentinel = tmp_path / ".sawopt-write-probe-0123456789abcdef"
+    sentinel.write_bytes(b"owned by another process")
+    original_stat = sentinel.stat()
+    names = iter(("0123456789abcdef", "fedcba9876543210"))
+    monkeypatch.setattr(experiment_store.secrets, "token_hex", lambda _size: next(names))
+
+    assert validate_data_root(tmp_path / "external-data", required_free_bytes=1) == tmp_path / "external-data"
+    assert sentinel.read_bytes() == b"owned by another process"
+    current_stat = sentinel.stat()
+    assert (current_stat.st_dev, current_stat.st_ino) == (original_stat.st_dev, original_stat.st_ino)
+    assert not (tmp_path / ".sawopt-write-probe-fedcba9876543210").exists()
+
+
+def test_write_probe_fsync_failure_cleans_only_its_owned_probe(tmp_path, monkeypatch):
+    from sawopt.io import experiment_store
+
+    monkeypatch.setattr(
+        experiment_store.os, "fsync",
+        lambda _fd: (_ for _ in ()).throw(OSError("injected fsync failure")),
+    )
+    with pytest.raises(experiment_store.RunStorageError, match="injected fsync failure"):
+        validate_data_root(tmp_path / "external-data", required_free_bytes=1)
+    assert not list(tmp_path.glob(".sawopt-write-probe-*"))
+    assert not (tmp_path / "external-data").exists()
+
+
 def test_data_root_permission_probe_failure_is_a_classified_io_error(tmp_path, monkeypatch):
     from sawopt.io import experiment_store
 
@@ -165,6 +194,11 @@ def test_raw_artifact_persistence_is_binary_safe_hash_registered_and_path_scoped
     from sawopt.io.experiment_store import read_experiment_manifest
 
     run = _create(tmp_path)
+    existing_payload = b"existing successful artifact"
+    run.write_raw_artifact("arrays/known.bin", existing_payload)
+    with pytest.raises(FileExistsError):
+        run.write_raw_artifact("arrays/known.bin", b"must not replace")
+    assert (run.path / "arrays/known.bin").read_bytes() == existing_payload
     payload = b"\x00\xffsynthetic raw cell payload"
     record = run.write_raw_artifact("cells/t0-de-seed1/result.bin", payload)
     assert record == {"sha256": hashlib.sha256(payload).hexdigest(), "bytes": len(payload)}
@@ -244,6 +278,75 @@ def test_nonfinite_values_are_rejected_but_explicit_null_with_status_is_preserve
     assert manifest["cells"][0]["status"] == "FAILED"
 
 
+def test_artifact_manifest_update_failure_leaves_auditable_orphan_and_preserves_prior_file(tmp_path, monkeypatch):
+    from sawopt.io import experiment_store
+    from sawopt.io.experiment_store import read_experiment_manifest
+    from sawopt.reporting.experiment_review import ReviewPackageError, export_review_package
+
+    run = _create(tmp_path)
+    prior = b"old registered artifact"
+    run.write_raw_artifact("arrays/prior.bin", prior)
+    original_manifest = run.manifest
+    original_replace = experiment_store.os.replace
+
+    def fail_manifest_replace(source, destination, *args, **kwargs):
+        if destination == "manifest.json":
+            raise OSError("injected manifest publication failure")
+        return original_replace(source, destination, *args, **kwargs)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(experiment_store.os, "replace", fail_manifest_replace)
+        with pytest.raises(experiment_store.RunStorageError, match="injected manifest publication failure"):
+            run.write_raw_artifact("arrays/orphan.bin", b"published before manifest failure")
+
+    after_failure = read_experiment_manifest(run.path)
+    assert after_failure["raw_artifact_sha256"] == original_manifest["raw_artifact_sha256"]
+    assert (run.path / "arrays/prior.bin").read_bytes() == prior
+    assert (run.path / "arrays/orphan.bin").read_bytes() == b"published before manifest failure"
+    assert "arrays/orphan.bin" not in after_failure["raw_artifact_sha256"]
+    run.close()
+    repository = tmp_path / "review-repository"
+    repository.mkdir()
+    with pytest.raises(ReviewPackageError, match="missing its manifest hash"):
+        export_review_package(run.path, repository_root=repository)
+    assert (run.path / "arrays/prior.bin").read_bytes() == prior
+
+
+def test_checkpoint_manifest_update_failure_leaves_stale_convergence_for_fail_closed_export(tmp_path, monkeypatch):
+    from sawopt.io import experiment_store
+    from sawopt.reporting.experiment_review import ReviewPackageError, export_review_package
+
+    run = _create(tmp_path)
+    run.record_cell("t0-de-seed1", status="COMPLETED", executed=True,
+                    search_fes=12, validation_points=3)
+    old_manifest = run.manifest
+    old_convergence = (run.path / "convergence.csv").read_bytes()
+    original_replace = experiment_store.os.replace
+
+    def fail_manifest_replace(source, destination, *args, **kwargs):
+        if destination == "manifest.json":
+            raise OSError("injected manifest publication failure")
+        return original_replace(source, destination, *args, **kwargs)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(experiment_store.os, "replace", fail_manifest_replace)
+        with pytest.raises(experiment_store.RunStorageError, match="injected manifest publication failure"):
+            run.record_checkpoint(
+                "t0-de-seed1", phase="SEARCH", search_fes=10, validation_points=0,
+                metric_name="objective", metric_value=-1.0, unit="score",
+                observed_at_utc="2026-10-23T12:02:00Z",
+            )
+
+    assert run.manifest["observed_checkpoints"] == old_manifest["observed_checkpoints"]
+    assert (run.path / "convergence.csv").read_bytes() != old_convergence
+    run.close()
+    repository = tmp_path / "review-repository"
+    repository.mkdir()
+    with pytest.raises(ReviewPackageError, match="hash mismatch: convergence.csv"):
+        export_review_package(run.path, repository_root=repository)
+    assert (run.path / "convergence.csv").read_bytes() != old_convergence
+
+
 def test_checkpoint_observations_require_execution_and_reconcile_to_final_cell_counters(tmp_path):
     run = _create(tmp_path)
     with pytest.raises(RunValidationError, match="executed"):
@@ -262,6 +365,39 @@ def test_checkpoint_observations_require_execution_and_reconcile_to_final_cell_c
                     reason="synthetic early failure", failure_class="MODEL")
     with pytest.raises(RunValidationError, match="exceed their cell"):
         run.close()
+
+
+@pytest.mark.parametrize("pass_error_to_close", [False, True])
+def test_completed_run_rejects_recorded_run_errors(tmp_path, pass_error_to_close):
+    run = _create(tmp_path)
+    for cell_id in ("t0-de-seed1", "t1-de-seed1"):
+        run.record_cell(cell_id, status="COMPLETED", executed=True, search_fes=1)
+    error = {"classification": "MODEL", "message": "synthetic run-level failure"}
+    if not pass_error_to_close:
+        run.record_error(**error)
+        with pytest.raises(RunValidationError, match="run-level errors"):
+            run.close(status="COMPLETED")
+    else:
+        with pytest.raises(RunValidationError, match="run-level errors"):
+            run.close(status="COMPLETED", errors=[error])
+    manifest = run.manifest
+    assert manifest["status"] != "COMPLETED"
+    assert manifest["errors"] == [error]
+
+
+def test_automatic_close_with_all_completed_cells_and_no_errors_is_completed(tmp_path):
+    run = _create(tmp_path)
+    for cell_id in ("t0-de-seed1", "t1-de-seed1"):
+        run.record_cell(cell_id, status="COMPLETED", executed=True, search_fes=1)
+    assert run.close()["status"] == "COMPLETED"
+
+
+def test_automatic_close_with_all_completed_cells_and_run_error_is_failed(tmp_path):
+    run = _create(tmp_path)
+    for cell_id in ("t0-de-seed1", "t1-de-seed1"):
+        run.record_cell(cell_id, status="COMPLETED", executed=True, search_fes=1)
+    run.record_error(classification="MODEL", message="synthetic run-level failure")
+    assert run.close()["status"] == "FAILED"
 
 
 def test_manifest_updates_are_atomic_and_concurrent_cell_commits_do_not_overwrite(tmp_path):

@@ -449,6 +449,8 @@ def _verify_manifest_and_raw(run_path: Path) -> tuple[dict[str, Any], dict[str, 
                 or cell["validation_points"] > manifest.get("validation_point_limit_per_cell", 0)):
             raise ReviewPackageError("cell validation count is outside its frozen per-cell limit")
     run_status = manifest.get("status")
+    if run_status == "COMPLETED" and manifest.get("errors"):
+        raise ReviewPackageError("completed run contains recorded run-level errors")
     if run_status == "COMPLETED" and any(cell["status"] != "COMPLETED" for cell in cells):
         raise ReviewPackageError("completed run contains a non-completed expected cell")
     if run_status == "FAILED" and not (
@@ -804,6 +806,10 @@ def export_review_package(
         "experiment_id": experiment_id,
         "run_id": run_id,
         "raw_review_ids_match": True,
+        "comparison_required": context["requires_comparison"],
+        "comparison_evidence_present": "artifacts/comparison.csv" in raw_bytes,
+        "validation_required": context["requires_validation"],
+        "validation_evidence_present": "artifacts/validation.csv" in raw_bytes,
         "execution_source_sha_valid": bool(re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", manifest["execution_source_sha"])),
         "frozen_provenance_sha256": manifest["frozen_provenance_sha256"],
         "config_sha256": manifest["scientific_config_sha256"],
@@ -847,6 +853,11 @@ def export_review_package(
         "finished_at_utc": manifest["finished_at_utc"],
         "execution_source_sha": manifest["execution_source_sha"],
         "frozen_provenance_sha256": manifest["frozen_provenance_sha256"],
+        "review_contract": {
+            "requires_comparison": context["requires_comparison"],
+            "requires_validation": context["requires_validation"],
+            "scientific_disposition": context["scientific_disposition"],
+        },
         "runtime": review_runtime,
         "method": manifest["method"],
         "topology": manifest["topology"],

@@ -199,22 +199,63 @@ def _discover_worktree_roots(repository_root: Path) -> tuple[Path, ...]:
 
 
 def _probe_writable(directory: Path) -> None:
-    probe = directory / f".sawopt-write-probe-{secrets.token_hex(8)}"
+    directory_fd = _open_directory_chain(directory)
     descriptor = None
+    probe_name = None
+    owned_identity = None
+    failure = None
+    cleanup_failure = None
     try:
-        descriptor = os.open(probe, os.O_CREAT | os.O_EXCL | os.O_WRONLY | _O_NOFOLLOW, 0o600)
-        os.fsync(descriptor)
+        for _attempt in range(16):
+            candidate = f".sawopt-write-probe-{secrets.token_hex(8)}"
+            try:
+                descriptor = os.open(
+                    candidate,
+                    os.O_CREAT | os.O_EXCL | os.O_WRONLY | _O_NOFOLLOW,
+                    0o600,
+                    dir_fd=directory_fd,
+                )
+            except FileExistsError:
+                # Never remove an entry this probe failed to create.
+                continue
+            probe_name = candidate
+            owned_identity = os.fstat(descriptor)
+            os.fsync(descriptor)
+            break
+        if descriptor is None:
+            raise RunStorageError("could not reserve a unique temporary storage probe after 16 collisions")
     except OSError as exc:
-        raise RunStorageError(f"external data location is not writable: {exc}") from exc
+        failure = exc
     finally:
         if descriptor is not None:
-            os.close(descriptor)
+            try:
+                os.close(descriptor)
+            except OSError as exc:
+                cleanup_failure = RunStorageError(f"could not close the temporary storage probe: {exc}")
+            if probe_name is not None and owned_identity is not None:
+                try:
+                    current = os.stat(probe_name, dir_fd=directory_fd, follow_symlinks=False)
+                    if (stat.S_ISREG(current.st_mode)
+                            and current.st_dev == owned_identity.st_dev
+                            and current.st_ino == owned_identity.st_ino):
+                        os.unlink(probe_name, dir_fd=directory_fd)
+                        os.fsync(directory_fd)
+                    else:
+                        cleanup_failure = RunStorageError(
+                            "temporary storage probe identity changed; unrelated entry left untouched"
+                        )
+                except FileNotFoundError:
+                    pass
+                except OSError as exc:
+                    cleanup_failure = RunStorageError(f"could not remove the owned temporary storage probe: {exc}")
         try:
-            probe.unlink()
-        except FileNotFoundError:
-            pass
+            os.close(directory_fd)
         except OSError as exc:
-            raise RunStorageError(f"could not remove the temporary storage probe: {exc}") from exc
+            cleanup_failure = RunStorageError(f"could not close the temporary storage directory: {exc}")
+    if failure is not None:
+        raise RunStorageError(f"external data location is not writable: {failure}") from failure
+    if cleanup_failure is not None:
+        raise cleanup_failure
 
 
 def validate_data_root(
@@ -776,7 +817,7 @@ class ExperimentRun:
                     os.unlink(temporary, dir_fd=directory_fd)
                 except FileNotFoundError:
                     pass
-        except (RunValidationError, RunStorageError):
+        except (RunValidationError, RunStorageError, FileExistsError):
             raise
         except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
             raise RunStorageError(f"atomic raw manifest update failed: {exc}") from exc
@@ -1124,6 +1165,8 @@ class ExperimentRun:
                 resolved_status = status
             if resolved_status not in {"COMPLETED", "FAILED", "INCOMPLETE"}:
                 raise RunValidationError("run close status must be COMPLETED, FAILED, or INCOMPLETE")
+            if resolved_status == "COMPLETED" and manifest["errors"]:
+                raise RunValidationError("run cannot be successful while run-level errors are recorded")
             if resolved_status == "COMPLETED" and any(item != "COMPLETED" for item in statuses):
                 raise RunValidationError("run cannot be successful unless every expected cell completed")
             if resolved_status == "FAILED" and not (any(item in {"FAILED", "NOT_RUN"} for item in statuses) or manifest["errors"]):
