@@ -1,0 +1,33 @@
+schema_version: 1
+experiment_id: r6-synthetic-smoke
+seed: 17
+search_fe_limit: 8
+required_free_bytes: 65536
+design:
+  name: scalar-offset
+  bounds: [-1.0, 1.0]
+model:
+  kind: synthetic-offset-response-v1
+  offset: 0.0
+search_grid:
+  kind: synthetic-response-points-v1
+  unit: dimensionless
+  points: [-0.5, 0.0, 0.5]
+validation_grid:
+  kind: synthetic-response-points-v1
+  unit: dimensionless
+  points: [-0.25, 0.1, 0.35]
+optimizer:
+  name: lshade
+  initial_population: 4
+  min_population: 4
+  history_size: 4
+review_context:
+  purpose: R6 software integration fixture only
+  conditions: Synthetic scalar response; no COM, FE, or physical-device evaluation.
+  findings: A synthetic metric was evaluated on explicit search and validation point sets.
+  limitations: No scientific, SAW, convergence, or production claim is made.
+  review_instructions: Verify source/config/input hashes, cell state, and separate search/validation accounting.
+  scientific_disposition: CLAIM_PENDING_REVIEW
+  requires_comparison: false
+  requires_validation: false

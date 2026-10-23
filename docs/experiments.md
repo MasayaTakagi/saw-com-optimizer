@@ -80,13 +80,15 @@ Historical status and caveats are traceable here:
 Stage 4C remains `STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED`; do not infer physical
 infeasibility, convergence, or topology selection.
 
-## R5 future raw-run storage contract (Issue #69; software-only authorization)
+## R5 future raw-run storage contract (implemented; future-only)
 
-Issue #69 authorizes implementing and synthetic-fixture testing the future raw
-store and review package. It does **not** authorize launching any run, COM/FE or
-optimizer evaluation, production work, checkpoint replay, migration, or
-historical-data operation. The target is an explicitly configured absolute
-`SAWOPT_DATA_ROOT` outside all registered worktrees and repository roots:
+PR #70 implements the future raw store and review package and verifies them with
+synthetic fixtures. This does **not** authorize launching a run, COM/FE or
+optimizer research/qualification, production work, checkpoint replay, migration,
+or historical-data operation. Issue #71 separately authorizes only the R6
+software/synthetic CLI integration using temporary fixtures. The target is an
+explicitly configured absolute `SAWOPT_DATA_ROOT` outside all registered
+worktrees and repository roots:
 
 ```text
 $SAWOPT_DATA_ROOT/runs/<experiment_id>/<run_id>/
@@ -94,8 +96,10 @@ $SAWOPT_DATA_ROOT/runs/<experiment_id>/<run_id>/
 
 The software API is separate in `sawopt.io.experiment_store`; compact export is
 `sawopt.reporting.experiment_review`. These APIs are not wired to the legacy
-CLI or research runners (R6 owns that vertical slice). A run caller can hash-
-register full cell outputs and logs under `cells/<cell_id>/`, `logs/`,
+CLI or research runners; R6 owns the synthetic/injected vertical slice. The
+raw tree is unsafe against a non-cooperating concurrent writer that changes
+files during review export; do not claim concurrent-writer safety. A run caller
+can register full cell outputs and logs under `cells/<cell_id>/`, `logs/`,
 `arrays/`, `populations/`, `caches/`, and `replay/`; checkpoint lifecycle files
 remain under `checkpoints/` and retain their existing schema. The review
 exporter validates the external root read-only and streams hashes for raw files

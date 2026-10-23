@@ -1,27 +1,26 @@
-# スクリプト構成
+# Legacy and evidence scripts
 
-## 実行環境と成果物の保存先
+This file is an inventory of retained scripts, not a current scientific-run
+procedure. The authoritative current operating and authorization policy is in
+[docs/README.md](../docs/README.md), especially
+[development](../docs/development.md) and
+[experiments/data](../docs/experiments.md). A script, config, old handoff, or
+passing fixture does not authorize COM/FE, optimizer research, production, Q1
+qualification, or historical-data access.
 
-正式環境はWSL2 Ubuntu + VS Code Remote WSL + Codex CLI + uvです。
-新規worktreeでは `uv sync --locked --extra test` を実行してください。
-詳細は [開発環境](../docs/guides/development_environment.md) を参照してください。
+The `scripts/` tree mixes historical analysis/launch artifacts with evidence
+verifiers. Preserve source-identity, parity, golden-fixture, and import-boundary
+verifiers until their evidence disposition has been reviewed. Do not run
+historical launchers or edit/migrate their raw inputs as part of R6.
 
-このディレクトリのPowerShellランチャーは旧Windows保存run向けの歴史的な
-補助ツールです。正式なWSL入口ではなく、Windows専用 `.venv` が既にある
-場合に限って利用します。新規Windows環境を作成する手順は提供しません。
+The active **software-only** R6 CLI is `uv run --locked sawopt` or
+`uv run --locked python -m sawopt.cli`; it currently supports only strict
+synthetic configuration validation and an explicitly requested synthetic
+fixture. It requires an external `SAWOPT_DATA_ROOT` for a run and does not
+invoke COM/FE. The separate legacy `python -m sawopt` dispatcher is not this
+new CLI and remains subject to the R6 caller/gate disposition.
 
-レビュー用ZIPはプロジェクトroot直下の
-`artifacts/review_bundles/` に固定し、`runs/` には保存しません。
-
-- `common/`: すべてのPowerShellランチャーが共有する環境設定とPython起動処理
-- `launchers/`: 解析・試行ごとの利用者向け起動ファイル
-- `analysis/`: 保存結果の解析
-
-旧Windows向けの入口は次の2つ。
-
-- `launchers/base-study.ps1`: 基本COMシミュレーションとインピーダンススイープ
-- `launchers/hybrid-50ohm.ps1`: 50 Ω固定のDMS＋ラダー探索
-
-現在のDMS topology studyは `uv run --locked python -m sawopt run-study --config
-configs/studies/dms_topology_screening.yaml --run runs/<name>` から実行します。
-30分以上かかる本番runは `uv run --locked python -m sawopt.orchestration.cli launch` を使います。
+`worktree_safety.py` delegates to the retained safety implementation in
+`sawopt.orchestration.worktree_safety`; see
+[the worktree safety guide](../docs/guides/worktree_safety.md). Preserve this
+safety path until a reviewed replacement exists.

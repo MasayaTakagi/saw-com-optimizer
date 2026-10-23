@@ -1,13 +1,14 @@
 # Architecture: current implementation and target ownership
 
-**Status:** Responsibility map; R2 physics extraction, R3 design/evaluation
-separation, and R4 optimizer consolidation are merged. R3 ownership and caller
-disposition is recorded in [the R3 inventory](plans/restructure_r3_ownership_20261022.md);
-R4 details are in [the R4 ownership inventory](plans/restructure_r4_ownership_20261022.md).
-R5 future-only external raw storage and compact review schema implementation
-is authorized under Issue #69; it does not authorize a run or historical-data
-operation. R6/R7 remain unstarted and separately gated. The R0 inventory
-counted 94 Python modules at main
+**Status:** R2 physics extraction, R3 design/evaluation separation, R4 optimizer
+consolidation, and R5 future-only raw/review storage are merged at verified R6
+baseline `8b03dda0a263a68d9899b35cce55fe67f5047555` (PR #70). R6 software and
+synthetic CLI work is owner-authorized and underway under Issue #71; retirement
+is gated on reviewed caller/evidence disposition. See the [R3
+inventory](plans/restructure_r3_ownership_20261022.md), [R4
+inventory](plans/restructure_r4_ownership_20261022.md), and [R6
+inventory](plans/restructure_r6_ownership_20261023.md). R7 requires fresh owner
+approval. The R0 inventory counted 94 Python modules at main
 `a4b3807d399cc78b10c280d41ee8cea476ade329` (pre-R2 baseline). Target APIs not
 yet implemented must not be treated as current.
 
@@ -64,7 +65,7 @@ no old-checkpoint reader is introduced.
 | `src/sawopt/studies/` | Live adapters, historical audits, stage-specific studies, Q1-A foundation. | Config-driven experiment inputs and only thin reusable orchestration; retire stage-specific runtime after explicit disposition. |
 | `src/sawopt/reporting/` | Historical/ad-hoc reports, bundles, legacy GitHub export and integrity. Issue #69 adds `reporting.experiment_review` for the separate compact review schema v1; old exports remain unchanged. | Compact review export in the data/review responsibility; plots in `plotting.py`; retain no agent coupling. |
 | `src/sawopt/orchestration/`, `runtime/` | Detached run lifecycle, process/storage safety, review publishing, agent-session queue/callback, execution environment. | User-run process supervision only where required; no AI session/queue. Preserve safety responsibilities until a reviewed replacement exists. |
-| `src/sawopt/__main__.py` | Existing CLI composition for `simulate`, `optimize`, `sweep`, `report`, and `run-study`. | A thin `cli.py` entry point after vertical-slice replacement; not yet implemented. |
+| `src/sawopt/cli.py`; `src/sawopt/__main__.py` | R6 adds the `sawopt` console entry point and `python -m sawopt.cli` for strict synthetic config validation/run through injected response metrics, optimizer, and R5 storage/export. `python -m sawopt` remains the legacy stage/config dispatcher during the reviewed migration. | Keep the thin CLI synthetic/injected-only until a separately authorized evaluator exists; retire or explicitly disposition the legacy dispatcher only after its callers, authorization gates, and evidence routes are reviewed. |
 
 The concrete inventory, module list, configs/tests, and observed package edges
 are recorded in the [R0 preflight inventory](../reports/restructure/r0_preflight_inventory_20261022.md).
@@ -90,14 +91,15 @@ orchestration retain legacy runtime cycles for later stages. The architecture
 refactor must move ownership and invert dependencies intentionally; renaming
 directories alone will not meet the target.
 
-R2, R3, and R4 are merged. R3's ownership choices, caller list, and
+R2, R3, R4, and R5 are merged. R3's ownership choices, caller list, and
 evidence-only dispositions are explicit in the
 [R3 inventory](plans/restructure_r3_ownership_20261022.md). R4 consolidates
 optimization source ownership while leaving the dense boundary unchanged; its
 merge does not qualify Q1 or establish cross-CPU bitwise identity. R5
-implements only future raw/review storage contracts under Issue #69; R6 owns
-the minimal user-facing vertical slice and deferred legacy-path disposition;
-R7 audits risk-based CI and cutover. Each is a separate gate in the
+implements only future raw/review storage contracts; R6's synthetic/injected
+vertical slice and deferred legacy-path disposition are owner-authorized under
+Issue #71. See the [R6 inventory](plans/restructure_r6_ownership_20261023.md).
+R7 requires fresh owner approval. Each stage remains a separate gate in the
 [migration plan](plans/repository_restructure_migration_plan_20261022.md). No
 stage grants permission to change equations, ranking, bounds, Q0/Q1 semantics,
 or run conditions.
