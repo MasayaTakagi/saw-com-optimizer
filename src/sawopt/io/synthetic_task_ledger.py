@@ -202,6 +202,61 @@ def _safe_root(root: str | os.PathLike[str], *, require_ledger: bool) -> Path:
     return path
 
 
+def _open_safe_task_root(
+    root: str | os.PathLike[str], *, require_ledger: bool,
+) -> tuple[Path, int]:
+    """Pin the already-validated root and recheck its contents through a directory fd."""
+    _safe_root(root, require_ledger=require_ledger)
+    candidate = Path(os.path.abspath(os.fspath(root)))
+    directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_CLOEXEC", 0)
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    try:
+        root_fd = os.open(candidate.anchor, directory_flags)
+        for component in candidate.parts[1:]:
+            child_fd = os.open(component, directory_flags | nofollow, dir_fd=root_fd)
+            os.close(root_fd)
+            root_fd = child_fd
+        info = os.fstat(root_fd)
+        opened_path = Path(f"/proc/self/fd/{root_fd}").resolve(strict=True)
+        if (
+            not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid()
+            or stat.S_IMODE(info.st_mode) & 0o077 or opened_path != candidate
+        ):
+            raise SyntheticTaskError("TASK_ROOT_UNSAFE", "task root changed during descriptor-relative validation")
+        entries = set(os.listdir(root_fd))
+        if entries - _ARTIFACTS:
+            raise SyntheticTaskError(
+                "TASK_ROOT_UNSAFE", "task root contains non-ledger data; use an empty synthetic-only directory",
+            )
+        if require_ledger and DB_NAME not in entries:
+            raise SyntheticTaskError("LEDGER_NOT_FOUND", "no synthetic task ledger exists in this root")
+        for name in entries:
+            try:
+                artifact = os.stat(name, dir_fd=root_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                if name in {f"{DB_NAME}-wal", f"{DB_NAME}-shm", f"{DB_NAME}-journal"}:
+                    continue
+                raise SyntheticTaskError("TASK_ROOT_UNSAFE", "cannot inspect a ledger artifact")
+            if (
+                not stat.S_ISREG(artifact.st_mode) or artifact.st_uid != os.getuid()
+                or stat.S_IMODE(artifact.st_mode) & 0o077
+            ):
+                raise SyntheticTaskError("TASK_ROOT_UNSAFE", "ledger artifacts must be private regular files")
+        return candidate, root_fd
+    except SyntheticTaskError:
+        try:
+            os.close(root_fd)
+        except (OSError, UnboundLocalError):
+            pass
+        raise
+    except (OSError, RuntimeError) as exc:
+        try:
+            os.close(root_fd)
+        except (OSError, UnboundLocalError):
+            pass
+        raise SyntheticTaskError("TASK_ROOT_UNSAFE", "cannot pin the explicit task root safely") from exc
+
+
 def _linux_boot_id() -> str:
     if sys.platform != "linux":
         raise SyntheticTaskError("PLATFORM_UNSUPPORTED", "synthetic detached tasks are supported only on Linux/WSL2")
@@ -298,9 +353,11 @@ class TaskSnapshot:
     owner_boot_id: str | None
     error_code: str | None
     error_message: str | None
+    attempt_generation: int | None = None
+    predecessor_attempt_id: str | None = None
 
     def as_dict(self) -> dict[str, object]:
-        return {
+        result = {
             "run_id": self.run_id,
             "attempt_id": self.attempt_id,
             "request_sha256": self.request_sha256,
@@ -326,18 +383,24 @@ class TaskSnapshot:
                 "message": self.error_message,
             },
         }
+        if self.attempt_generation is not None:
+            result["attempt_generation"] = self.attempt_generation
+            result["predecessor_attempt_id"] = self.predecessor_attempt_id
+        return result
 
 
-class SyntheticTaskLedger:
+class _SyntheticTaskLedgerV1:
     """One SQLite lifecycle ledger; no scientific/raw-store integration."""
 
     def __init__(self, root: str | os.PathLike[str]):
         self.root = root
 
     @contextlib.contextmanager
-    def _connection(self, *, writable: bool, create: bool = False) -> Iterator[sqlite3.Connection]:
-        path = _safe_root(self.root, require_ledger=not create)
-        db_path = path / DB_NAME
+    def _connection(
+        self, *, writable: bool, create: bool = False, schema_version: int = SCHEMA_VERSION,
+    ) -> Iterator[sqlite3.Connection]:
+        path, root_fd = _open_safe_task_root(self.root, require_ledger=not create)
+        db_path = Path(f"/proc/self/fd/{root_fd}/{DB_NAME}")
         created = False
         flags = os.O_RDWR
         if writable:
@@ -345,20 +408,24 @@ class SyntheticTaskLedger:
         else:
             flags = os.O_RDONLY
         flags |= getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
-        if create and writable:
-            try:
-                fd = os.open(db_path, flags | os.O_EXCL, 0o600)
-                created = True
-            except FileExistsError:
-                fd = os.open(db_path, flags)
-        else:
-            try:
-                fd = os.open(db_path, flags)
-            except FileNotFoundError as exc:
-                raise SyntheticTaskError("LEDGER_NOT_FOUND", "no synthetic task ledger exists in this root") from exc
+        try:
+            if create and writable:
+                try:
+                    fd = os.open(DB_NAME, flags | os.O_EXCL, 0o600, dir_fd=root_fd)
+                    created = True
+                except FileExistsError:
+                    fd = os.open(DB_NAME, flags, dir_fd=root_fd)
+            else:
+                fd = os.open(DB_NAME, flags, dir_fd=root_fd)
+        except FileNotFoundError as exc:
+            os.close(root_fd)
+            raise SyntheticTaskError("LEDGER_NOT_FOUND", "no synthetic task ledger exists in this root") from exc
+        except OSError as exc:
+            os.close(root_fd)
+            raise SyntheticTaskError("LEDGER_UNAVAILABLE", "cannot safely open the SQLite task ledger") from exc
         try:
             file_info = os.fstat(fd)
-            path_info = os.lstat(db_path)
+            path_info = os.stat(DB_NAME, dir_fd=root_fd, follow_symlinks=False)
             if (
                 not stat.S_ISREG(file_info.st_mode) or stat.S_ISLNK(path_info.st_mode)
                 or file_info.st_ino != path_info.st_ino or file_info.st_dev != path_info.st_dev
@@ -371,6 +438,7 @@ class SyntheticTaskLedger:
             _acquire_ledger_file_lock(fd, writable=writable)
         except Exception:
             os.close(fd)
+            os.close(root_fd)
             raise
 
         conn: sqlite3.Connection | None = None
@@ -394,17 +462,30 @@ class SyntheticTaskLedger:
                     raise SyntheticTaskError("LEDGER_SCHEMA_UNKNOWN", "task ledger is not in required WAL mode")
 
             if created:
-                self._initialize(conn)
-            self._validate_schema(conn)
+                if schema_version == 1:
+                    self._initialize(conn)
+                elif schema_version == 2:
+                    from .synthetic_task_recovery import _initialize_v2
+
+                    _initialize_v2(conn)
+                else:
+                    raise SyntheticTaskError("LEDGER_SCHEMA_UNKNOWN", "unsupported SQLite task-ledger schema")
+            if schema_version == 1:
+                self._validate_schema(conn)
+            elif schema_version == 2:
+                from .synthetic_task_recovery import _validate_schema_v2
+
+                _validate_schema_v2(conn)
+            else:
+                raise SyntheticTaskError("LEDGER_SCHEMA_UNKNOWN", "unsupported SQLite task-ledger schema")
             if writable:
-                os.chmod(db_path, 0o600)
+                os.fchmod(fd, 0o600)
             integrity = conn.execute("PRAGMA quick_check(1)").fetchone()
             if not integrity or integrity[0] != "ok":
                 raise SyntheticTaskError("LEDGER_CORRUPT", "SQLite ledger integrity check failed")
             for suffix in ("-wal", "-shm", "-journal"):
-                sidecar = Path(f"{db_path}{suffix}")
                 try:
-                    sidecar_info = os.lstat(sidecar)
+                    sidecar_info = os.stat(f"{DB_NAME}{suffix}", dir_fd=root_fd, follow_symlinks=False)
                 except FileNotFoundError:
                     continue
                 if (
@@ -427,6 +508,7 @@ class SyntheticTaskLedger:
                 fcntl.flock(fd, fcntl.LOCK_UN)
             finally:
                 os.close(fd)
+                os.close(root_fd)
             if old_umask is not None:
                 os.umask(old_umask)
 
@@ -761,22 +843,27 @@ class SyntheticTaskLedger:
     def append_log(self, message: str) -> bool:
         """Best-effort bounded diagnostics; contention never blocks task progress."""
         try:
-            path = _safe_root(self.root, require_ledger=True)
+            _path, root_fd = _open_safe_task_root(self.root, require_ledger=True)
         except SyntheticTaskError:
             return False
-        log_path = path / LOG_NAME
         message_bytes = (str(message).replace("\n", " ").replace("\r", " ")[:400] + "\n").encode("utf-8", "replace")
         flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
         try:
-            fd = os.open(log_path, flags, 0o600)
+            fd = os.open(LOG_NAME, flags, 0o600, dir_fd=root_fd)
         except OSError:
+            os.close(root_fd)
             return False
         import fcntl
 
         locked = False
         try:
             info = os.fstat(fd)
-            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
+            path_info = os.stat(LOG_NAME, dir_fd=root_fd, follow_symlinks=False)
+            if (
+                not stat.S_ISREG(info.st_mode) or stat.S_ISLNK(path_info.st_mode)
+                or info.st_ino != path_info.st_ino or info.st_dev != path_info.st_dev
+                or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077
+            ):
                 return False
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -801,3 +888,97 @@ class SyntheticTaskLedger:
                 os.close(fd)
             except OSError:
                 pass
+            try:
+                os.close(root_fd)
+            except OSError:
+                pass
+
+
+def _read_schema_version(root: str | os.PathLike[str]) -> int | None:
+    """Read the schema version without creating or mutating a ledger."""
+    _path, root_fd = _open_safe_task_root(root, require_ledger=False)
+    entries = set(os.listdir(root_fd))
+    if DB_NAME not in entries:
+        os.close(root_fd)
+        if entries & {f"{DB_NAME}-wal", f"{DB_NAME}-shm", f"{DB_NAME}-journal"}:
+            raise SyntheticTaskError("LEDGER_CORRUPT", "SQLite sidecars exist without the authoritative ledger")
+        return None
+    db_path = Path(f"/proc/self/fd/{root_fd}/{DB_NAME}")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    try:
+        fd = os.open(DB_NAME, flags, dir_fd=root_fd)
+    except OSError as exc:
+        os.close(root_fd)
+        raise SyntheticTaskError("LEDGER_UNAVAILABLE", "cannot read the task-ledger schema version") from exc
+    conn: sqlite3.Connection | None = None
+    try:
+        info = os.fstat(fd)
+        path_info = os.stat(DB_NAME, dir_fd=root_fd, follow_symlinks=False)
+        if (
+            not stat.S_ISREG(info.st_mode) or stat.S_ISLNK(path_info.st_mode)
+            or info.st_ino != path_info.st_ino or info.st_dev != path_info.st_dev
+            or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077
+        ):
+            raise SyntheticTaskError("TASK_ROOT_UNSAFE", "ledger file identity or permissions are unsafe")
+        import fcntl
+
+        _acquire_ledger_file_lock(fd, writable=False)
+        uri = db_path.as_uri() + "?mode=ro"
+        conn = sqlite3.connect(uri, uri=True, timeout=BUSY_TIMEOUT_MS / 1000)
+        conn.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
+        version = conn.execute("PRAGMA user_version").fetchone()[0]
+        if version not in (1, 2):
+            raise SyntheticTaskError("LEDGER_SCHEMA_UNKNOWN", f"unsupported SQLite task-ledger schema version {version}")
+        return int(version)
+    except SyntheticTaskError:
+        raise
+    except sqlite3.DatabaseError as exc:
+        raise SyntheticTaskError("LEDGER_CORRUPT", "SQLite task ledger is unavailable or invalid") from exc
+    except OSError as exc:
+        raise SyntheticTaskError("LEDGER_UNAVAILABLE", "cannot read the task-ledger schema version") from exc
+    finally:
+        if conn is not None:
+            conn.close()
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        except (OSError, UnboundLocalError):
+            pass
+        os.close(fd)
+        os.close(root_fd)
+
+
+class SyntheticTaskLedger:
+    """Version router for one SQLite ledger; v1 stays immutable, fresh roots use v2."""
+
+    def __init__(self, root: str | os.PathLike[str]):
+        self.root = root
+
+    def schema_version(self) -> int | None:
+        return _read_schema_version(self.root)
+
+    def _implementation(self):
+        version = self.schema_version()
+        if version == 1:
+            return _SyntheticTaskLedgerV1(self.root)
+        from .synthetic_task_recovery import SyntheticTaskRecoveryLedger
+
+        return SyntheticTaskRecoveryLedger(self.root)
+
+    def resume_task(self, run_id: str, expected_attempt_id: str) -> TaskSnapshot:
+        version = self.schema_version()
+        if version == 1:
+            raise SyntheticTaskError("RECOVERY_UNSUPPORTED", "schema-v1 synthetic task roots are read/operated without migration")
+        from .synthetic_task_recovery import SyntheticTaskRecoveryLedger
+
+        return SyntheticTaskRecoveryLedger(self.root).resume_task(run_id, expected_attempt_id)
+
+    def append_log(self, message: str) -> bool:
+        try:
+            return self._implementation().append_log(message)
+        except SyntheticTaskError:
+            return False
+
+    def __getattr__(self, name: str):
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return getattr(self._implementation(), name)
