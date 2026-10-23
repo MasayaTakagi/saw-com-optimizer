@@ -17,8 +17,10 @@ required.
 Stage 4C remains `STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED`. Q0 is
 `CLOSED / ACCEPTED`; Q1-A is `WORK_UNIT_READY / CLOSED`; no formal Q1 gate
 Q1-01…Q1-23 has passed, and Q1-B/C/D/E are `NOT AUTHORIZED / NOT STARTED`.
-The target `physics/design/evaluation/optimization/io` architecture and future
-experiment-storage schema are plans, not implemented package APIs.
+The target `physics/design/evaluation/optimization/io` architecture remains
+in migration. Issue #69 authorizes future-only external raw-store and review
+schema-v1 software, with synthetic fixtures only; it does not authorize a run,
+COM/FE, optimizer evaluation, or historical-data operation.
 
 ## Documentation
 
@@ -32,8 +34,9 @@ evidence and limitations.
 ## Existing prototype
 
 The current source remains under `src/sawopt/`; its CLI and study adapters are
-legacy implementation paths pending the staged reconstruction. Existing
-entrypoint help is available with:
+legacy implementation paths pending the staged reconstruction. Issue #69's
+future-only external raw-store and review APIs are separate from those legacy
+runners until the R6 vertical-slice gate. Existing entrypoint help is available with:
 
 ```bash
 uv run --locked python -m sawopt --help

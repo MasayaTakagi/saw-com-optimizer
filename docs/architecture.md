@@ -1,13 +1,15 @@
 # Architecture: current implementation and target ownership
 
-**Status:** Responsibility map; R2 physics extraction and R3 design/evaluation
-separation were merged before R4. R3 ownership and caller disposition is
-recorded in [the R3 inventory](plans/restructure_r3_ownership_20261022.md).
-R4 optimizer consolidation is being implemented under Issue #67; review and
-acceptance remain pending. See the [R4 ownership inventory](plans/restructure_r4_ownership_20261022.md).
-The R0 inventory counted 94 Python modules at main
-`a4b3807d399cc78b10c280d41ee8cea476ade329` (pre-R2 baseline). R5–R7 remain
-unstarted. Target APIs not yet implemented must not be treated as current.
+**Status:** Responsibility map; R2 physics extraction, R3 design/evaluation
+separation, and R4 optimizer consolidation are merged. R3 ownership and caller
+disposition is recorded in [the R3 inventory](plans/restructure_r3_ownership_20261022.md);
+R4 details are in [the R4 ownership inventory](plans/restructure_r4_ownership_20261022.md).
+R5 future-only external raw storage and compact review schema implementation
+is authorized under Issue #69; it does not authorize a run or historical-data
+operation. R6/R7 remain unstarted and separately gated. The R0 inventory
+counted 94 Python modules at main
+`a4b3807d399cc78b10c280d41ee8cea476ade329` (pre-R2 baseline). Target APIs not
+yet implemented must not be treated as current.
 
 ## Target dependency direction
 
@@ -58,9 +60,9 @@ no old-checkpoint reader is introduced.
 | Former `src/sawopt/core/metrics.py` | Legacy owner of frequency grids, response metrics, geometry and a scalar search surrogate; candidate comparison is separately owned by `optimization.selection`. R3 moves callers and removes the duplicate module. | Pure geometry to `design.geometry`; grids/metrics/feasibility and the unchanged scalar surrogate to `evaluation.py`. |
 | Former `src/sawopt/problem/design_space.py`, `dms_topologies.py`, `validation.py`; current `released_dms.py`, `hybrid.py`, `evaluator.py` | Mixed design/topology/geometry/evaluation responsibilities; `problem.evaluator.dense` owns adaptive/cache/counter orchestration. R3 moves design/geometry/evaluation owners and removes the duplicated mixed modules. `ReleasedFilterDesign` / `simulate_released_filter` remain exclusively as T0 parity evidence; ordinary T0 design/evaluation now uses `design.topology.ThreeIdtDesign` and the generalized evaluator. `problem.hybrid` remains only for the Q1-A public golden import path. | Pure records/spaces/canonicalization/geometry to `design/`; one-design response and metrics to `evaluation.py`. Preserve the `problem.evaluator.dense` adaptive/cache/counter orchestration and behavior for explicit R4 follow-up; the point-response dependency now delegates to evaluation. Released DMS code remains parity-only. |
 | `src/sawopt/optimization/` | After the Issue #67 source consolidation, owns L-SHADE/SciPy-DE strategies, the sole comparator, shared budget/cache/accounting/runner services, and the backend-specific checkpoint session. The separate `optimizers/` package is retired; overlapping polish APIs are owned here. | Keep the unified strategy/service owner; preserve `problem.evaluator.dense` as the deferred orchestration boundary and IO as durable checkpoint-store owner. |
-| `src/sawopt/io/` | Config, serialization, run stores, provenance, checkpoints and lifecycle. | `io/` config/results/checkpoint, with the approved external data contract. |
+| `src/sawopt/io/` | Config, serialization, legacy run stores, provenance, checkpoints and lifecycle. Issue #69 adds the separate future-only `io.experiment_store` API; it does not reinterpret legacy manifests or wire a research runner. | `io/` config/results/checkpoint and external raw ownership. |
 | `src/sawopt/studies/` | Live adapters, historical audits, stage-specific studies, Q1-A foundation. | Config-driven experiment inputs and only thin reusable orchestration; retire stage-specific runtime after explicit disposition. |
-| `src/sawopt/reporting/` | Historical/ad-hoc reports, bundles, GitHub review export and integrity. | Compact review export in the data/review responsibility; plots in `plotting.py`; retain no agent coupling. |
+| `src/sawopt/reporting/` | Historical/ad-hoc reports, bundles, legacy GitHub export and integrity. Issue #69 adds `reporting.experiment_review` for the separate compact review schema v1; old exports remain unchanged. | Compact review export in the data/review responsibility; plots in `plotting.py`; retain no agent coupling. |
 | `src/sawopt/orchestration/`, `runtime/` | Detached run lifecycle, process/storage safety, review publishing, agent-session queue/callback, execution environment. | User-run process supervision only where required; no AI session/queue. Preserve safety responsibilities until a reviewed replacement exists. |
 | `src/sawopt/__main__.py` | Existing CLI composition for `simulate`, `optimize`, `sweep`, `report`, and `run-study`. | A thin `cli.py` entry point after vertical-slice replacement; not yet implemented. |
 
@@ -88,15 +90,14 @@ orchestration retain legacy runtime cycles for later stages. The architecture
 refactor must move ownership and invert dependencies intentionally; renaming
 directories alone will not meet the target.
 
-R2 physics extraction is merged. R3 separates design and evaluation under
-Issue #65's owner authorization; the current ownership choices, caller list,
-and evidence-only dispositions are explicit in the
-[R3 inventory](plans/restructure_r3_ownership_20261022.md).
-R4 consolidates optimization source ownership while leaving the dense boundary
-unchanged; its independent review remains pending. R5 establishes future
-raw/review storage contracts; R6 builds a minimal user-facing vertical slice
-and considers the deferred legacy path; R7 audits risk-based CI and cutover.
-Each is a separate review gate in the
+R2, R3, and R4 are merged. R3's ownership choices, caller list, and
+evidence-only dispositions are explicit in the
+[R3 inventory](plans/restructure_r3_ownership_20261022.md). R4 consolidates
+optimization source ownership while leaving the dense boundary unchanged; its
+merge does not qualify Q1 or establish cross-CPU bitwise identity. R5
+implements only future raw/review storage contracts under Issue #69; R6 owns
+the minimal user-facing vertical slice and deferred legacy-path disposition;
+R7 audits risk-based CI and cutover. Each is a separate gate in the
 [migration plan](plans/repository_restructure_migration_plan_20261022.md). No
 stage grants permission to change equations, ranking, bounds, Q0/Q1 semantics,
 or run conditions.

@@ -80,36 +80,72 @@ Historical status and caveats are traceable here:
 Stage 4C remains `STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED`; do not infer physical
 infeasibility, convergence, or topology selection.
 
-## Future raw-run storage contract (not implemented)
+## R5 future raw-run storage contract (Issue #69; software-only authorization)
 
-For new studies after its implementation/review gate, the agreed target is an
-absolute persistent `SAWOPT_DATA_ROOT` outside every Git worktree:
+Issue #69 authorizes implementing and synthetic-fixture testing the future raw
+store and review package. It does **not** authorize launching any run, COM/FE or
+optimizer evaluation, production work, checkpoint replay, migration, or
+historical-data operation. The target is an explicitly configured absolute
+`SAWOPT_DATA_ROOT` outside all registered worktrees and repository roots:
 
 ```text
 $SAWOPT_DATA_ROOT/runs/<experiment_id>/<run_id>/
 ```
 
-The raw run owns full numerical outputs, every cell including failures and
-incomplete work, dense arrays, populations/caches, checkpoints, replay state,
-and complete logs. No repository-local fallback is allowed. Validate the
-resolved absolute location, worktree/symlink exclusion, permissions/capacity,
-unique IDs, and collision-safe creation before any mutation. Existing historical
-raw schemas (including recorded `external_persistent_v1`) remain as they are;
-this future contract does not imply a migration or current support for old
-checkpoint readers.
+The software API is separate in `sawopt.io.experiment_store`; compact export is
+`sawopt.reporting.experiment_review`. These APIs are not wired to the legacy
+CLI or research runners (R6 owns that vertical slice). A run caller can hash-
+register full cell outputs and logs under `cells/<cell_id>/`, `logs/`,
+`arrays/`, `populations/`, `caches/`, and `replay/`; checkpoint lifecycle files
+remain under `checkpoints/` and retain their existing schema. The review
+exporter validates the external root read-only and streams hashes for raw files
+it does not copy.
 
-## Future GitHub review package (review schema v1; not implemented)
+`experiment_id` is a lowercase hyphenated slug; `run_id` is a UTC timestamp
+plus random lowercase hex suffix. Reject missing/empty/relative roots, malformed
+IDs, unresolved or symlink/reparse path components, any worktree/repository
+containment, collisions, insufficient permissions, and inadequate declared
+free-space requirements. Run initialization requires a positive caller-declared
+free-space estimate. Worktree-discovery uses the package repository's Git
+inventory and cannot be overridden by the caller. Worktree-discovery or
+path-trust uncertainty is a validation failure, not permission to fall back.
+Create the run exclusively and race-aware; on initialization failure, leave no
+partial manifest or misleading run. Preflight must not mutate a rejected
+destination.
 
-Compact review evidence is intended at
-`reports/experiments/<experiment_id>/<run_id>/`, using the same IDs as raw. A
-package should contain:
+The new versioned raw manifest freezes experiment/run identity, immutable
+execution source SHA (not a later PR HEAD), effective-config and model/search /
+validation-grid SHA-256 identities, runtime/package and numerical-dispatch
+identity, method/topology/seed/budget limits, distinct search and validation
+counts, the exact expected cell roster and each cell's explicit state, creation
+and finish times, raw-artifact hashes, checkpoint/recovery consistency, and
+complete failure/error records. Method/topology summaries are derived from
+the roster (using `MULTIPLE` for mixed designs), and each cell remains the
+authoritative identity. Each expected cell exists from initialization; failed,
+not-started, and incomplete work remains visible. A cell is successful only
+when the caller records an observed success. Missing or nonfinite numeric
+values use explicit null/status information; nonstandard JSON NaN/Infinity is
+not permitted. Checkpoint schema and FE accounting remain unchanged.
+
+Legacy `io.run_store.initialize`, the Stage-specific `external_persistent_v1`
+manifests, and existing runners are not silently reinterpreted as this schema.
+This contract creates no old-checkpoint reader and migrates no historical raw
+run.
+
+## R5 future GitHub review package (review schema v1)
+
+Compact review evidence uses the same IDs at
+`reports/experiments/<experiment_id>/<run_id>/`. The required package contains
+exactly:
 
 - `README.md`: purpose, conditions, observed findings, limitations, review
   instructions, and scientific disposition as a claim awaiting review.
-- `manifest.json`: schema and IDs, immutable execution source SHA, times and
-  statuses, environment, method/topology/seeds/budget, full expected cell
-  roster, config/COM/grid hashes, raw artifact hashes, review artifact hashes,
-  completeness, and redaction status.
+- `manifest.json`: schema and exactly matching IDs, immutable execution source
+  SHA, creation/finish times and run/cell statuses, runtime and numerical
+  dispatch identity, method/topology/seeds/budget, full expected cell roster,
+  config/model/search-grid/validation-grid hashes, raw artifact hashes, review
+  artifact hashes (excluding the manifest's self-hash), completeness, and
+  redaction status.
 - `config.yaml`: exact effective frozen input with credentials and private
   absolute paths removed.
 - `cells.json`: every planned cell, including failed/incomplete cells, with
@@ -118,16 +154,24 @@ package should contain:
 - `convergence.csv`: only observed common-budget checkpoints; never forward-fill
   missing measurements.
 - `checks.json`: expected/present cells, hash/config/source consistency,
-  counters, redaction, and checks run/not run.
+  counters, redaction, and checks run/not run. The package must not claim
+  `READY_FOR_REVIEW` unless required evidence, ID correlation, integrity,
+  redaction, and size checks all pass.
 - `comparison.csv` for paired comparisons; `validation.csv` when response
   claims require independent metric recomputation; optional `plots/`.
+  These are the only optional top-level entries; the required package has no
+  unlisted files.
 
 Use explicit units, named columns, and explicit statuses/nulls for missing or
 nonfinite values. Include enough response data to reproduce cited metrics when
-required. Target ≤2 MiB per run; normal hard cap 10 MiB. An exception requires
-explicit approval and must not be met by deleting indispensable evidence. Do
-not commit full checkpoints/populations/caches/raw arrays/full logs, secrets,
-or personal paths. A package-ready state is not scientific acceptance; stop at
+required. Target ≤2 MiB per run; enforce a strict 10 MiB default hard cap after
+all files are serialized. An exception requires separate explicit approval and
+must not be met by deleting indispensable evidence. Do not commit full
+checkpoints/populations/caches/raw arrays/full logs, secrets, or personal paths.
+Sanitize allowlisted fields and paths, then scan the complete package as a
+backstop; fail closed on secrets or user-specific paths. Verify raw and review
+IDs and SHA-256 correlations before atomic publication; never overwrite an
+existing package. A package-ready state is not scientific acceptance; stop at
 `REVIEW_WAITING` for independent review. Raw deletion/archival requires a
 separate lifecycle decision after review and closeout.
 
