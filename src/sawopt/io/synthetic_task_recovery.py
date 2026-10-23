@@ -337,6 +337,13 @@ def _process_state(row: sqlite3.Row, expected_argv: list[str]) -> str:
         except OSError:
             return "UNKNOWN"
         return "UNKNOWN"
+    # A zombie cannot execute, and its PID cannot be reused before reaping.
+    # Its matching start ticks and boot ID identify the process claimed by the
+    # worker; Linux may expose empty cmdline and no /proc/<pid>/exe for zombies.
+    # Check this before resolving exe. Missing argv on any non-zombie remains
+    # unknown, as do all identity mismatches checked above.
+    if state == "Z" and not actual_argv:
+        return "DEAD"
     try:
         actual_executable = Path(f"/proc/{pid}/exe").resolve(strict=True)
         expected_executable = Path(sys.executable).resolve(strict=True)
@@ -345,11 +352,6 @@ def _process_state(row: sqlite3.Row, expected_argv: list[str]) -> str:
     if actual_executable != expected_executable:
         return "UNKNOWN"
     expected = tuple(os.fsencode(value) for value in expected_argv)
-    # The claimed worker recorded this complete argv before it could progress.
-    # Linux may hide a zombie's argv after the process has exited; its matching
-    # start ticks and boot ID still identify that already-claimed process.
-    if state == "Z" and not actual_argv:
-        return "DEAD"
     if len(actual_argv) < 2 or actual_argv[1:] != expected:
         return "UNKNOWN"
     if state == "Z":

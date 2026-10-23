@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import sqlite3
+import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -13,7 +16,7 @@ import sawopt.io.synthetic_task_ledger as ledger_module
 from sawopt.cli import build_parser
 from sawopt.io.synthetic_task_ledger import (
     DB_NAME, SyntheticTaskError, SyntheticTaskLedger, _TASKS_SCHEMA, _canonical_request,
-    _linux_boot_id, _read_process_identity,
+    _is_expected_worker, _linux_boot_id, _read_process_identity,
 )
 
 
@@ -217,31 +220,87 @@ def test_reboot_recovery_requires_absent_pid_and_all_other_identity_checks(tmp_p
         ).fetchone()[0] == 1
 
 
-def test_matching_zombie_identity_is_recoverable_without_signalling(tmp_path, monkeypatch):
-    root = tmp_path / "zombie-process"
-    ledger, run_id, attempt_id = _claimed_dead_v2_task(root)
-    pid = os.getpid()
-    start_ticks = 123456
-    boot_id = _linux_boot_id()
-    with sqlite3.connect(root / DB_NAME) as connection:
-        connection.execute(
-            "UPDATE tasks SET owner_pid=?,owner_start_ticks=?,owner_boot_id=? WHERE run_id=?",
-            (pid, start_ticks, boot_id, run_id),
-        )
-        connection.execute(
-            "UPDATE attempts SET owner_pid=?,owner_start_ticks=?,owner_boot_id=? WHERE run_id=?",
-            (pid, start_ticks, boot_id, run_id),
-        )
-    monkeypatch.setattr(
-        "sawopt.io.synthetic_task_recovery._proc_stat",
-        lambda observed_pid: (start_ticks, "Z") if observed_pid == pid else None,
+def test_real_unreaped_zombie_with_missing_exe_is_recoverable(tmp_path):
+    root = tmp_path / "real-zombie"
+    root.mkdir(mode=0o700)
+    ledger = SyntheticTaskLedger(root)
+    task, _created = ledger.create_task("real-zombie", steps=120, interval_ms=1000)
+    ledger.begin_launch(task.run_id, task.attempt_id)
+    repo_root = Path(__file__).resolve().parents[3]
+    worker_env = dict(os.environ)
+    worker_env.pop("PYTHONPATH", None)
+    worker_env.pop("PYTHONHOME", None)
+    worker_env["PYTHONUNBUFFERED"] = "1"
+    worker = subprocess.Popen(
+        [
+            sys.executable, "-m", "sawopt.synthetic_worker", "--root", str(root.resolve()),
+            "--run-id", task.run_id, "--attempt-id", task.attempt_id,
+        ],
+        cwd=repo_root,
+        env=worker_env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        shell=False,
+        close_fds=True,
+        start_new_session=True,
     )
-    monkeypatch.setattr("sawopt.io.synthetic_task_recovery._proc_argv", lambda _pid: ())
+    initial_identity = _read_process_identity(worker.pid)
+    try:
+        deadline = time.monotonic() + 20
+        task_row = attempt_row = None
+        while time.monotonic() < deadline:
+            with sqlite3.connect(root / DB_NAME) as connection:
+                connection.row_factory = sqlite3.Row
+                task_row = connection.execute(
+                    "SELECT * FROM tasks WHERE run_id=?", (task.run_id,),
+                ).fetchone()
+                attempt_row = connection.execute(
+                    "SELECT * FROM attempts WHERE run_id=? AND attempt_id=?",
+                    (task.run_id, task.attempt_id),
+                ).fetchone()
+            if task_row["state"] == "RUNNING" and task_row["owner_pid"] == worker.pid:
+                break
+            time.sleep(0.01)
+        else:
+            raise AssertionError("test-owned synthetic worker did not claim its attempt")
 
-    resumed = ledger.resume_task(run_id, attempt_id)
-    assert resumed.attempt_generation == 2
-    assert resumed.predecessor_attempt_id == attempt_id
-    assert resumed.progress_completed == 2
+        claimed_identity = _read_process_identity(worker.pid)
+        assert initial_identity is not None and claimed_identity is not None
+        assert claimed_identity[:2] == initial_identity[:2]
+        assert claimed_identity[:2] == (task_row["owner_boot_id"], task_row["owner_start_ticks"])
+        assert claimed_identity[2] != "Z"
+        assert _is_expected_worker(worker.pid, str(root.resolve()), task.run_id, task.attempt_id)
+        os.kill(worker.pid, signal.SIGKILL)
+
+        from sawopt.io.synthetic_task_recovery import _process_state, _proc_stat
+
+        deadline = time.monotonic() + 5
+        zombie_identity = None
+        while time.monotonic() < deadline:
+            zombie_identity = _proc_stat(worker.pid)
+            if zombie_identity is not None and zombie_identity[1] == "Z":
+                break
+            time.sleep(0.01)
+        assert zombie_identity is not None and zombie_identity[1] == "Z"
+        assert Path(f"/proc/{worker.pid}/cmdline").read_bytes() == b""
+        with pytest.raises(FileNotFoundError):
+            Path(f"/proc/{worker.pid}/exe").resolve(strict=True)
+        assert _process_state(task_row, json.loads(attempt_row["expected_argv_json"])) == "DEAD"
+
+        resumed = ledger.resume_task(task.run_id, task.attempt_id)
+        assert resumed.attempt_generation == 2
+        assert resumed.predecessor_attempt_id == task.attempt_id
+        assert resumed.progress_completed == 0
+    finally:
+        current_identity = _read_process_identity(worker.pid)
+        if (
+            current_identity is not None and initial_identity is not None
+            and current_identity[:2] == initial_identity[:2] and current_identity[2] != "Z"
+            and _is_expected_worker(worker.pid, str(root.resolve()), task.run_id, task.attempt_id)
+        ):
+            os.kill(worker.pid, signal.SIGKILL)
+        worker.wait(timeout=10)
 
 
 def test_missing_argv_for_live_pid_is_ambiguous_not_proof_of_death(tmp_path, monkeypatch):
