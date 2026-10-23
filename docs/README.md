@@ -37,11 +37,14 @@ supersede the five current sources above:
   [migration plan](plans/repository_restructure_migration_plan_20261022.md),
   [R3 ownership/caller disposition](plans/restructure_r3_ownership_20261022.md),
   [R4 optimizer ownership inventory](plans/restructure_r4_ownership_20261022.md),
-  and [R6 software/evidence inventory](plans/restructure_r6_ownership_20261023.md)
-  are records for the staged reconstruction. The R3 and R4 records are scoped
-  to Issues #65 and #67; R6 is scoped to Issue #71's software/synthetic-only
-  authorization. None authorizes Q1 qualification, real experiments, or
-  production runs.
+  [R6 software/evidence inventory](plans/restructure_r6_ownership_20261023.md),
+  and [R7 architecture/CI audit proposal](plans/r7_architecture_ci_audit_20261023.md)
+  record staged reconstruction work. The R3 and R4 records are scoped to
+  Issues #65 and #67; R6 is scoped to Issue #71's software/synthetic-only
+  authorization; R7 is an audit/CI evidence and owner-decision proposal under
+  Issue #74. The R7 legacy dispositions are not owner-approved and do not
+  authorize cleanup under Issue #75. None authorizes Q1 qualification, real
+  experiments, or production runs.
 
 ## Legacy paths
 
