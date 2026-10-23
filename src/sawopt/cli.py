@@ -96,6 +96,12 @@ def build_parser() -> argparse.ArgumentParser:
         operation = task_commands.add_parser(name, help=help_text)
         operation.add_argument("--root", required=True, help="explicit existing synthetic-task directory")
         operation.add_argument("--run-id", required=True, help="32-character run ID returned by launch")
+    resume = task_commands.add_parser(
+        "resume", help="explicitly resume a verified-dead synthetic countdown attempt; never scientific work",
+    )
+    resume.add_argument("--root", required=True, help="explicit existing private synthetic-task directory")
+    resume.add_argument("--run-id", required=True, help="32-character run ID returned by launch")
+    resume.add_argument("--expected-attempt-id", required=True, help="exact current predecessor attempt ID")
     stop = task_commands.add_parser("stop", help="request cooperative stop at a countdown boundary")
     stop.add_argument("--root", required=True, help="explicit existing synthetic-task directory")
     stop.add_argument("--run-id", required=True, help="32-character run ID returned by launch")
@@ -362,42 +368,58 @@ def _synthetic_task_main(args: argparse.Namespace) -> int:
                 "PLATFORM_UNSUPPORTED", "detached synthetic tasks are supported only on Linux/WSL2",
             )
         ledger = SyntheticTaskLedger(args.root)
+
+        def spawn_attempt(task):
+            ledger.append_log(f"{task.run_id} synthetic attempt {task.attempt_id} spawn intent committed")
+            worker_root = os.fspath(args.root)
+            if ledger.schema_version() == 2:
+                worker_root = str(Path(args.root).resolve(strict=True))
+            worker_args = [
+                sys.executable, "-m", "sawopt.synthetic_worker",
+                "--root", worker_root,
+                "--run-id", task.run_id,
+                "--attempt-id", task.attempt_id,
+            ]
+            worker_env = os.environ.copy()
+            worker_env.pop("PYTHONPATH", None)
+            worker_env.pop("PYTHONHOME", None)
+            worker_env["PYTHONUNBUFFERED"] = "1"
+            try:
+                subprocess.Popen(
+                    worker_args,
+                    cwd=_project_root(),
+                    env=worker_env,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    shell=False,
+                    close_fds=True,
+                    start_new_session=True,
+                )
+            except OSError as exc:
+                ledger.mark_launch_ambiguous(task.run_id, task.attempt_id, type(exc).__name__)
+                raise SyntheticTaskError(
+                    "LAUNCH_AMBIGUOUS", "worker launch outcome is uncertain; no replacement will be started",
+                ) from exc
+            return ledger.get_status(task.run_id)
+
         if args.task_command == "launch":
             task, is_new = ledger.create_task(
                 args.idempotency_key, steps=args.steps, interval_ms=args.interval_ms,
             )
             if is_new:
                 ledger.begin_launch(task.run_id, task.attempt_id)
-                ledger.append_log(f"{task.run_id} synthetic launch intent committed")
-                worker_args = [
-                    sys.executable, "-m", "sawopt.synthetic_worker",
-                    "--root", os.fspath(args.root),
-                    "--run-id", task.run_id,
-                    "--attempt-id", task.attempt_id,
-                ]
-                worker_env = os.environ.copy()
-                worker_env.pop("PYTHONPATH", None)
-                worker_env.pop("PYTHONHOME", None)
-                worker_env["PYTHONUNBUFFERED"] = "1"
-                try:
-                    subprocess.Popen(
-                        worker_args,
-                        cwd=_project_root(),
-                        env=worker_env,
-                        stdin=subprocess.DEVNULL,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        shell=False,
-                        close_fds=True,
-                        start_new_session=True,
-                    )
-                except OSError as exc:
-                    ledger.mark_launch_ambiguous(task.run_id, task.attempt_id, type(exc).__name__)
-                    raise SyntheticTaskError(
-                        "LAUNCH_AMBIGUOUS", "worker launch outcome is uncertain; no replacement will be started",
-                    ) from exc
-                task = ledger.get_status(task.run_id)
+                task = spawn_attempt(task)
             output = {**task.as_dict(), "created": is_new, "synthetic_only": True}
+        elif args.task_command == "resume":
+            task = ledger.resume_task(args.run_id, args.expected_attempt_id)
+            task = spawn_attempt(task)
+            output = {
+                **task.as_dict(),
+                "resumed": True,
+                "predecessor_attempt_id": args.expected_attempt_id,
+                "synthetic_only": True,
+            }
         elif args.task_command in ("status", "attach"):
             task = ledger.get_status(args.run_id)
             output = {**task.as_dict(), "view": "read-only"}

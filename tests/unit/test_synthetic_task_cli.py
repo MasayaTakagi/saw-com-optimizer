@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import sawopt.cli as cli
@@ -40,6 +43,36 @@ def test_spawn_return_without_worker_claim_is_ambiguous_and_not_retried(tmp_path
     assert second["state"] == "LAUNCH_AMBIGUOUS"
     assert len(spawn_calls) == 1
     assert SyntheticTaskLedger(root).get_status(first["run_id"]).owner_pid is None
+    assert cli.main([
+        "synthetic-task", "resume", "--root", str(root), "--run-id", first["run_id"],
+        "--expected-attempt-id", first["attempt_id"],
+    ]) == 2
+    assert json.loads(capsys.readouterr().err)["error"]["code"] == "RECOVERY_UNSUPPORTED"
+    assert len(spawn_calls) == 1
+
+
+def test_synthetic_task_imports_are_read_only_and_never_spawn(tmp_path):
+    import_root = tmp_path / "import-only"
+    import_root.mkdir(mode=0o700)
+    script = """
+import subprocess
+def deny_spawn(*args, **kwargs):
+    raise AssertionError('import spawned')
+subprocess.Popen = deny_spawn
+import sawopt.cli
+import sawopt.io.synthetic_task_ledger
+import sawopt.io.synthetic_task_recovery
+import sawopt.synthetic_worker
+"""
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[2] / "src")
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    result = subprocess.run(
+        [sys.executable, "-c", script], cwd=import_root, env=env,
+        text=True, capture_output=True, check=False, timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    assert list(import_root.iterdir()) == []
 
 
 def test_spawn_error_is_persisted_as_launch_ambiguous_without_relaunch(tmp_path, monkeypatch, capsys):

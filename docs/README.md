@@ -40,12 +40,15 @@ supersede the five current sources above:
   [R6 software/evidence inventory](plans/restructure_r6_ownership_20261023.md),
   [R7 architecture/CI audit proposal](plans/r7_architecture_ci_audit_20261023.md),
   [Issue #77 async/resume design](plans/issue77_async_resume_design_20261023.md),
-  and [Issue #80 synthetic task contract](plans/issue80_synthetic_task_contract_20261023.md)
+  [Issue #80 synthetic task contract](plans/issue80_synthetic_task_contract_20261023.md),
+  and [Issue #82 synthetic-recovery contract](plans/issue82_synthetic_recovery_contract_20261023.md)
   record staged reconstruction work. The R3 and R4 records are scoped to
   Issues #65 and #67; R6 is scoped to Issue #71's software/synthetic-only
   authorization; R7 is an audit/CI evidence and owner-decision proposal under
   Issue #74; Issue #77 is a design proposal; Issue #80 authorizes only isolated
-  synthetic PR-A implementation. The R7 legacy dispositions do not authorize
+  synthetic PR-A implementation; Issue #82 authorizes only isolated synthetic
+  countdown recovery and does not authorize scientific or Pi-session recovery.
+  The R7 legacy dispositions do not authorize
   cleanup under Issue #75. None authorizes Q1 qualification, real experiments,
   or production runs.
 

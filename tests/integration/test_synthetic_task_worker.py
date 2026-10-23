@@ -12,7 +12,9 @@ from pathlib import Path
 
 import pytest
 
-from sawopt.io.synthetic_task_ledger import SyntheticTaskError, SyntheticTaskLedger, _read_process_identity
+from sawopt.io.synthetic_task_ledger import (
+    SyntheticTaskError, SyntheticTaskLedger, _is_expected_worker, _read_process_identity,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -66,11 +68,14 @@ def _launch(root: Path, key: str, *, steps: int = 16, interval_ms: int = 100):
     return json.loads(result.stdout)
 
 
-def _kill_only_verified_test_child(snapshot: dict) -> None:
+def _kill_only_verified_test_child(snapshot: dict, root: Path) -> None:
     pid = snapshot.get("owner_pid")
     expected = (snapshot.get("owner_boot_id"), snapshot.get("owner_start_ticks"))
     observed = _read_process_identity(pid) if isinstance(pid, int) else None
-    if observed is not None and (observed[0], observed[1]) == expected and observed[2] != "Z":
+    if (
+        observed is not None and (observed[0], observed[1]) == expected and observed[2] != "Z"
+        and _is_expected_worker(pid, str(root.resolve()), snapshot["run_id"], snapshot["attempt_id"])
+    ):
         _ORIGINAL_OS_KILL(pid, signal.SIGKILL)
 
 
@@ -160,6 +165,13 @@ def test_stop_is_cooperative_and_is_bound_to_the_exact_attempt(tmp_path):
     terminal = _wait_status(root, run_id, lambda value: value["state"] == "STOPPED")
     assert terminal["progress_completed"] >= running["progress_completed"]
     assert terminal["progress_completed"] < 30
+    non_resumable = _invoke(
+        root, "resume", "--run-id", run_id, "--expected-attempt-id", attempt_id, check=False,
+    )
+    assert non_resumable.returncode != 0
+    assert json.loads(non_resumable.stderr)["error"]["code"] == "RECOVERY_UNSUPPORTED"
+    with sqlite3.connect(root / "synthetic-tasks.sqlite3") as connection:
+        assert connection.execute("SELECT count(*) FROM attempts WHERE run_id=?", (run_id,)).fetchone()[0] == 1
 
 
 def test_worker_death_is_recovery_required_and_duplicate_launch_never_restarts(tmp_path):
@@ -172,7 +184,8 @@ def test_worker_death_is_recovery_required_and_duplicate_launch_never_restarts(t
     assert identity[0] == running["owner_boot_id"]
     assert identity[1] == running["owner_start_ticks"]
     assert identity[2] != "Z"
-    _ORIGINAL_OS_KILL(running["owner_pid"], signal.SIGKILL)  # exact test-owned PID/start/boot identity was just verified
+    assert _is_expected_worker(running["owner_pid"], str(root.resolve()), run_id, launched["attempt_id"])
+    _ORIGINAL_OS_KILL(running["owner_pid"], signal.SIGKILL)  # exact test-owned PID/start/boot/argv verified
 
     interrupted = _wait_status(root, run_id, lambda value: value["state"] == "RECOVERY_REQUIRED")
     progress = interrupted["progress_completed"]
@@ -201,15 +214,25 @@ def test_pid_reuse_or_boot_mismatch_fails_closed_and_stop_never_signals_foreign_
             connection.execute(
                 "UPDATE tasks SET owner_start_ticks=owner_start_ticks+100 WHERE run_id=?", (run_id,),
             )
+            connection.execute(
+                "UPDATE attempts SET owner_start_ticks=owner_start_ticks+100 WHERE run_id=?", (run_id,),
+            )
         elif identity_field == "owner_boot_id":
             connection.execute(
                 "UPDATE tasks SET owner_boot_id=? WHERE run_id=?", ("0" * 36, run_id),
+            )
+            connection.execute(
+                "UPDATE attempts SET owner_boot_id=? WHERE run_id=?", ("0" * 36, run_id),
             )
         else:
             foreign = _read_process_identity(os.getpid())
             assert foreign is not None
             connection.execute(
                 "UPDATE tasks SET owner_pid=?,owner_start_ticks=?,owner_boot_id=? WHERE run_id=?",
+                (os.getpid(), foreign[1], foreign[0], run_id),
+            )
+            connection.execute(
+                "UPDATE attempts SET owner_pid=?,owner_start_ticks=?,owner_boot_id=? WHERE run_id=?",
                 (os.getpid(), foreign[1], foreign[0], run_id),
             )
 
@@ -227,7 +250,157 @@ def test_pid_reuse_or_boot_mismatch_fails_closed_and_stop_never_signals_foreign_
         "owner_pid": running["owner_pid"],
         "owner_boot_id": original_identity[0],
         "owner_start_ticks": original_identity[1],
-    })
+        "run_id": run_id,
+        "attempt_id": attempt_id,
+    }, root)
+
+
+def _kill_verified_synthetic_worker(root: Path, snapshot: dict) -> bool:
+    pid = snapshot.get("owner_pid")
+    observed = _read_process_identity(pid) if isinstance(pid, int) else None
+    if observed is None or observed[2] == "Z":
+        return False
+    if (
+        observed[0] != snapshot.get("owner_boot_id")
+        or observed[1] != snapshot.get("owner_start_ticks")
+        or not _is_expected_worker(pid, str(root.resolve()), snapshot["run_id"], snapshot["attempt_id"])
+    ):
+        return False
+    _ORIGINAL_OS_KILL(pid, signal.SIGKILL)
+    return True
+
+
+def test_explicit_resume_preserves_committed_progress_and_fences_old_attempt(tmp_path):
+    root = _root(tmp_path)
+    launch = _launch(root, "resume-success", steps=30, interval_ms=40)
+    run_id = launch["run_id"]
+    old_attempt_id = launch["attempt_id"]
+    initial_hash = launch["request_sha256"]
+
+    running = _wait_status(root, run_id, lambda value: value["progress_completed"] >= 2)
+    assert _kill_verified_synthetic_worker(root, running)
+    interrupted = _wait_status(root, run_id, lambda value: value["state"] == "RECOVERY_REQUIRED")
+    committed = interrupted["progress_completed"]
+
+    resumed_result = _invoke(
+        root, "resume", "--run-id", run_id, "--expected-attempt-id", old_attempt_id,
+    )
+    resumed = json.loads(resumed_result.stdout)
+    new_attempt_id = resumed["attempt_id"]
+    assert resumed["run_id"] == run_id
+    assert resumed["request_sha256"] == initial_hash
+    assert resumed["idempotency_key"] == "resume-success"
+    assert resumed["authorization_test_only"] is True
+    assert resumed["synthetic_only"] is True
+    assert resumed["resumed"] is True
+    assert resumed["attempt_generation"] == 2
+    assert resumed["predecessor_attempt_id"] == old_attempt_id
+    assert new_attempt_id != old_attempt_id
+    current_running = _wait_status(
+        root, run_id,
+        lambda value: value["attempt_id"] == new_attempt_id and value["ledger_state"] == "RUNNING",
+    )
+    with pytest.raises(SyntheticTaskError) as stale_worker:
+        SyntheticTaskLedger(root).record_step(run_id, old_attempt_id)
+    assert stale_worker.value.code == "PROCESS_IDENTITY_UNKNOWN"
+    after_stale_write = _status(root, run_id)
+    assert after_stale_write["attempt_id"] == new_attempt_id
+    assert current_running["progress_completed"] <= after_stale_write["progress_completed"] <= 30
+    old_stop = _invoke(
+        root, "stop", "--run-id", run_id, "--attempt-id", old_attempt_id, check=False,
+    )
+    assert old_stop.returncode != 0
+    assert json.loads(old_stop.stderr)["error"]["code"] == "ATTEMPT_MISMATCH"
+
+    # Repeating the original idempotent launch is observation only, not retry.
+    repeated = _launch(root, "resume-success", steps=30, interval_ms=40)
+    assert repeated["created"] is False
+    assert repeated["attempt_id"] == new_attempt_id
+
+    stale = _invoke(
+        root, "resume", "--run-id", run_id, "--expected-attempt-id", old_attempt_id, check=False,
+    )
+    assert stale.returncode != 0
+    assert json.loads(stale.stderr)["error"]["code"] == "ATTEMPT_MISMATCH"
+
+    terminal = _wait_status(root, run_id, lambda value: value["ledger_state"] == "COMPLETED")
+    assert terminal["progress_completed"] == terminal["progress_total"] == 30
+    assert terminal["attempt_id"] == new_attempt_id
+    with sqlite3.connect(root / "synthetic-tasks.sqlite3") as connection:
+        attempts = connection.execute(
+            "SELECT generation,attempt_id,predecessor_attempt_id,state,progress_start,progress_end "
+            "FROM attempts WHERE run_id=? ORDER BY generation", (run_id,),
+        ).fetchall()
+    assert len(attempts) == 2
+    assert attempts[0] == (1, old_attempt_id, None, "SUPERSEDED", 0, committed)
+    assert attempts[1] == (2, new_attempt_id, old_attempt_id, "COMPLETED", committed, 30)
+    terminal_resume = _invoke(
+        root, "resume", "--run-id", run_id, "--expected-attempt-id", new_attempt_id, check=False,
+    )
+    assert terminal_resume.returncode != 0
+    assert json.loads(terminal_resume.stderr)["error"]["code"] == "RECOVERY_UNSUPPORTED"
+    with sqlite3.connect(root / "synthetic-tasks.sqlite3") as connection:
+        assert connection.execute("SELECT count(*) FROM attempts WHERE run_id=?", (run_id,)).fetchone()[0] == 2
+
+
+def test_resume_while_live_rejects_without_new_attempt_or_worker(tmp_path):
+    root = _root(tmp_path)
+    launch = _launch(root, "resume-live", steps=20, interval_ms=60)
+    running = _wait_status(root, launch["run_id"], lambda value: value["progress_completed"] >= 1)
+
+    rejected = _invoke(
+        root, "resume", "--run-id", launch["run_id"],
+        "--expected-attempt-id", launch["attempt_id"], check=False,
+    )
+    assert rejected.returncode != 0
+    assert json.loads(rejected.stderr)["error"]["code"] == "WORKER_ACTIVE"
+    after = _status(root, launch["run_id"])
+    assert after["attempt_id"] == launch["attempt_id"]
+    assert after["attempt_generation"] == 1
+    assert after["owner_pid"] == running["owner_pid"]
+    attached = _invoke(root, "attach", "--run-id", launch["run_id"])
+    attached_status = json.loads(attached.stdout)
+    assert attached_status["owner_pid"] == running["owner_pid"]
+    repeated = _launch(root, "resume-live", steps=20, interval_ms=60)
+    assert repeated["created"] is False
+    assert repeated["attempt_id"] == launch["attempt_id"]
+    assert repeated["owner_pid"] == running["owner_pid"]
+    with sqlite3.connect(root / "synthetic-tasks.sqlite3") as connection:
+        assert connection.execute(
+            "SELECT count(*) FROM attempts WHERE run_id=?", (launch["run_id"],),
+        ).fetchone()[0] == 1
+    terminal = _wait_status(root, launch["run_id"], lambda value: value["ledger_state"] == "COMPLETED")
+    assert terminal["progress_completed"] == 20
+
+
+def test_concurrent_resume_of_dead_attempt_creates_one_successor(tmp_path):
+    root = _root(tmp_path)
+    launch = _launch(root, "resume-race", steps=25, interval_ms=50)
+    run_id, old_attempt_id = launch["run_id"], launch["attempt_id"]
+    running = _wait_status(root, run_id, lambda value: value["progress_completed"] >= 1)
+    assert _kill_verified_synthetic_worker(root, running)
+    _wait_status(root, run_id, lambda value: value["state"] == "RECOVERY_REQUIRED")
+
+    command = [
+        *CLI, "resume", "--root", str(root), "--run-id", run_id,
+        "--expected-attempt-id", old_attempt_id,
+    ]
+    children = [
+        subprocess.Popen(command, cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        for _ in range(2)
+    ]
+    results = [child.communicate(timeout=10) for child in children]
+    completed = [child.returncode == 0 for child in children]
+    assert sum(completed) == 1, results
+    accepted = json.loads(results[completed.index(True)][0])
+    rejected = json.loads(results[completed.index(False)][1])
+    assert rejected["error"]["code"] == "ATTEMPT_MISMATCH"
+    assert accepted["run_id"] == run_id
+    assert accepted["attempt_generation"] == 2
+    terminal = _wait_status(root, run_id, lambda value: value["ledger_state"] == "COMPLETED")
+    assert terminal["attempt_id"] == accepted["attempt_id"]
+    with sqlite3.connect(root / "synthetic-tasks.sqlite3") as connection:
+        assert connection.execute("SELECT count(*) FROM attempts WHERE run_id=?", (run_id,)).fetchone()[0] == 2
 
 
 def test_help_invalid_request_and_raw_root_selection_do_not_create_or_move_data(tmp_path, monkeypatch):
@@ -236,6 +409,11 @@ def test_help_invalid_request_and_raw_root_selection_do_not_create_or_move_data(
         [*CLI, "launch", "--help"], cwd=ROOT, text=True, capture_output=True, check=False,
     )
     assert help_result.returncode == 0
+    resume_help = subprocess.run(
+        [*CLI, "resume", "--help"], cwd=ROOT, text=True, capture_output=True, check=False,
+    )
+    assert resume_help.returncode == 0
+    assert "synthetic" in resume_help.stdout.lower()
     assert not list(root.iterdir())
 
     invalid = _invoke(
@@ -255,6 +433,12 @@ def test_help_invalid_request_and_raw_root_selection_do_not_create_or_move_data(
     )
     assert rejected.returncode != 0
     assert sentinel.read_text(encoding="utf-8") == "immutable"
+    assert sorted(item.name for item in raw_root.iterdir()) == ["sentinel"]
+    resume_rejected = _invoke(
+        raw_root, "resume", "--run-id", "a" * 32, "--expected-attempt-id", "b" * 32, check=False,
+    )
+    assert resume_rejected.returncode != 0
+    assert json.loads(resume_rejected.stderr)["error"]["code"] == "TASK_ROOT_UNSAFE"
     assert sorted(item.name for item in raw_root.iterdir()) == ["sentinel"]
 
 
@@ -327,6 +511,12 @@ def test_invalid_roots_and_missing_explicit_root_do_not_create_task_data(tmp_pat
     link.symlink_to(target, target_is_directory=True)
     rejected = _invoke(link, "status", "--run-id", "a" * 32, check=False)
     assert rejected.returncode != 0
+    assert not list(target.iterdir())
+    resume_rejected = _invoke(
+        link, "resume", "--run-id", "a" * 32, "--expected-attempt-id", "b" * 32, check=False,
+    )
+    assert resume_rejected.returncode != 0
+    assert json.loads(resume_rejected.stderr)["error"]["code"] == "TASK_ROOT_UNSAFE"
     assert not list(target.iterdir())
 
     traversal = str(tmp_path / "unused" / ".." / "synthetic-task-root")
