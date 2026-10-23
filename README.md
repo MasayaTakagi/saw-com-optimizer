@@ -18,9 +18,10 @@ Stage 4C remains `STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED`. Q0 is
 `CLOSED / ACCEPTED`; Q1-A is `WORK_UNIT_READY / CLOSED`; no formal Q1 gate
 Q1-01…Q1-23 has passed, and Q1-B/C/D/E are `NOT AUTHORIZED / NOT STARTED`.
 The target `physics/design/evaluation/optimization/io` architecture remains
-in migration. Issue #69 authorizes future-only external raw-store and review
-schema-v1 software, with synthetic fixtures only; it does not authorize a run,
-COM/FE, optimizer evaluation, or historical-data operation.
+in migration. R5's future-only external raw-store and review schema-v1 software
+was merged in PR #70. Issue #71 authorizes only the R6 synthetic/injected CLI
+slice and software tests; it does not authorize real COM/FE, optimizer research
+or qualification, production, Q1 work, or historical-data operations.
 
 ## Documentation
 
@@ -33,15 +34,20 @@ evidence and limitations.
 
 ## Existing prototype
 
-The current source remains under `src/sawopt/`; its CLI and study adapters are
-legacy implementation paths pending the staged reconstruction. Issue #69's
-future-only external raw-store and review APIs are separate from those legacy
-runners until the R6 vertical-slice gate. Existing entrypoint help is available with:
+The current source remains under `src/sawopt/`. The new `sawopt` console entry
+point (`uv run --locked sawopt`) and `python -m sawopt.cli` provide only strict
+synthetic config validation and the R6 synthetic vertical slice. They do not
+load COM data or support real SAW evaluation. The older `python -m sawopt`
+commands remain a separate legacy dispatcher pending reviewed caller/gate
+disposition; they are not the new CLI.
 
 ```bash
-uv run --locked python -m sawopt --help
+uv run --locked sawopt --help
+uv run --locked sawopt validate --config configs/examples/r6_synthetic_smoke.yaml
+uv run --locked python -m sawopt --help  # legacy help only; not a run authorization
 ```
 
-This command is informational; it does not authorize a numerical or production
-run. Use the locked Ubuntu/uv environment documented in
+No command above authorizes a scientific or production run. The explicit
+synthetic `run` command also requires an external `SAWOPT_DATA_ROOT` and a
+clean committed source tree. Use the locked Ubuntu/uv environment documented in
 [`docs/development.md`](docs/development.md).

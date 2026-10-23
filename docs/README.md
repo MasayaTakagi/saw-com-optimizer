@@ -15,7 +15,7 @@ evidence unless linked here as supporting references.
 - [Development](development.md) — Docs-first workflow, risk-based tests, PR
   responsibilities, environment commands, and CI status.
 - [Experiments and data](experiments.md) — authorization, frozen conditions,
-  historical preservation, raw storage, and future review schema.
+  historical preservation, raw storage, and the review schema.
 
 ## Authoritative supporting records
 
@@ -36,10 +36,12 @@ supersede the five current sources above:
   [reconstruction design](plans/repository_restructure_decisions_20261022.md),
   [migration plan](plans/repository_restructure_migration_plan_20261022.md),
   [R3 ownership/caller disposition](plans/restructure_r3_ownership_20261022.md),
-  and [R4 optimizer ownership inventory](plans/restructure_r4_ownership_20261022.md)
-  are records for the staged reconstruction. The R3 record is scoped to Issue
-  #65's authorization; R4 scope is separately authorized and limited by Issue
-  #67. These records do not authorize Q1 qualification or new experiments.
+  [R4 optimizer ownership inventory](plans/restructure_r4_ownership_20261022.md),
+  and [R6 software/evidence inventory](plans/restructure_r6_ownership_20261023.md)
+  are records for the staged reconstruction. The R3 and R4 records are scoped
+  to Issues #65 and #67; R6 is scoped to Issue #71's software/synthetic-only
+  authorization. None authorizes Q1 qualification, real experiments, or
+  production runs.
 
 ## Legacy paths
 
