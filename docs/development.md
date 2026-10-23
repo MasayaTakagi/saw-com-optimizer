@@ -48,9 +48,11 @@ Issue #74's measured baseline, fixed selectors and lane recommendation are in
 report does not split or weaken the workflow: retain the full Haswell-pinned
 pytest suite and fixed-evaluation diagnostic as exact-head checks and required
 scientific/regression milestones. Any future fast/docs lane is additive and
-must not create path-, label-, or docs-only bypasses. At the R7 audit, GitHub
-reported `main` as unprotected; the repository owner/admin must configure the
-full CI check as required before treating it as an enforced merge gate. The
+must not create path-, label-, or docs-only bypasses. At the R7 audit, the Pi Code GitHub request reported a 404 for main branch
+protection; independent GitHub App access returned 403 (insufficient access).
+Required-check enforcement is therefore **not independently verified**. The
+repository owner/admin must inspect branch protection and rulesets and require
+the full CI check before treating it as an enforced merge gate. The
 `KNOWN_BASELINE_FAILURE` for the obsolete agent/model routing assertion in the
 R0 inventory is historical evidence; R1-B retires that non-product test
 without changing scientific tests or CI.

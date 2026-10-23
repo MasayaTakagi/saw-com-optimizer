@@ -13,7 +13,7 @@
 
 - Keep the existing Haswell-pinned full `pytest` suite and fixed-evaluation reproducibility diagnostic as the complete scientific/regression gate. It passed locally at this exact baseline (`619 passed, 1 skipped`) and the corresponding exact-head GitHub Actions run succeeded.
 - Do **not** split or weaken CI in this R7 change. One Actions baseline and one local baseline establish selector costs but not stable cold/warm distributions or a material end-to-end saving from extra jobs. The ~8–10 second focused groups are useful developer feedback, but remain additive, not substitutes for the current full gate.
-- The repository currently has one CI job for PRs and main pushes, but GitHub's branch-protection endpoint returned `404 Branch not protected` for `main`. A passing Actions job therefore cannot be represented as an enforced required merge check. A repository owner/admin must decide and configure the full check as required before relying on it as a merge gate.
+- The repository currently has one CI job for PRs and main pushes. Pi Code's GitHub API request reported `404 Branch not protected` for `main`, whereas independent GitHub App access returned `403 Resource not accessible by integration`; a read-only repository rulesets listing returned `[]`. These observations do **not** establish the actual required-check enforcement state. A passing Actions job cannot alone be represented as an enforced merge check. The repository owner/admin must inspect branch protection and ruleset settings and require the full check before relying on it as a merge gate.
 - No safe legacy-runtime deletion is established by this audit. Codex queue/callback code is coupled to worker lifecycle, schema-v1–v4 state/recovery, publication, config-driven legacy dispatch and (for the callback) Stage 4B source fingerprints. Hooks and C2C wrappers have repository-local references, and external invocations remain unknown. Follow-up implementation belongs to #75 after explicit owner decisions.
 - Keep R6-C and migration parent #53 open. R7 CI success is not the final architecture cutover.
 
@@ -63,14 +63,14 @@ Measured in a fresh Ubuntu 24.04 WSL2 worktree at `d232ba7`, Python 3.12.3, uv-m
 
 The seven inspected recent successful job intervals range from 56–88 seconds. Historical failed runs span changing commits and known workflow/test changes; they cannot be counted as flakes without commit, failure-mode and environment classification. The three inspected failures share the reproducible missing-Haswell condition, while the recent pinned jobs passed. This sample does not establish a flake rate or a robust timing distribution.
 
-The GitHub branch-protection API returned `404 Branch not protected` for `main`. Required-check enforcement and merge queue/ruleset settings were therefore **not verified as active**; the run succeeding is not the same as an enforced check.
+Pi Code's branch-protection API check returned `404 Branch not protected` for `main`. Independent GitHub App access returned **403 Resource not accessible by integration**, and the accessible repository rulesets list was empty. Required-check enforcement and merge queue/other protection settings are therefore **not independently verified**; an Actions success is not proof of an enforced check. The repo owner/admin must verify the actual settings.
 
 ### Recommended CI disposition
 
 1. Keep `uv sync --locked --extra test --extra benchmark`, the fixed-evaluation diagnostic, and the full Haswell-pinned `pytest` intact. Preserve all Q1-A, R2–R4, Stage 4 and R5/R6 safety regressions in that full suite.
 2. Do not introduce lane-specific skips, path/label-based bypass, docs-only exemption, or a manually-dispatched-only science suite. A lightweight lane, if later justified, is additive; the full scientific/regression job must remain an exact-head PR check and a required milestone check.
 3. Candidate future layout: a quick docs/static/light-software lane for Markdown/link/static checks and narrowly scoped synthetic smoke/import checks; a science/full lane retaining the fixed-evaluation diagnostic plus all tests under Haswell. Collect repeated cold/warm install and per-step Actions data and inspect actual ruleset/branch-protection required statuses first. The current measured focused suites demonstrate early-feedback potential, but the available CI evidence does not yet demonstrate a meaningful end-to-end benefit from another hosted job.
-4. Ask the repository owner/admin to make the full CI check required (or explicitly accept that it remains advisory). Do not change repository rules from this code PR.
+4. Ask the repository owner/admin to verify protection/ruleset status and make the full CI check required (or explicitly accept that it remains advisory). The audit itself could not verify enforcement; do not change repository rules from this code PR.
 
 ## 3. Architecture and caller/evidence matrix
 
