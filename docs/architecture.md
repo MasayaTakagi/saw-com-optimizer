@@ -7,9 +7,10 @@ Pi protocol are also merged; they do not qualify scientific optimizer/FE
 recovery or real Pi exact-session continuation. R6-C1 retired the active legacy
 Codex queue/callback runtime and unsupported Stage 4B/4C production entrypoints
 in PR #109, merged at `604091d550c8fad302ed179e3e177d3a1ee3c7c1`. Issue #111
-C2A removes the remaining project-local C2C/Codex hook utilities and updates
-stale current-facing guidance; its Draft PR is pending independent review. C2B
-per-symbol cleanup and R7 remain separate gates. The former Stage4B fingerprint
+C2A retires the remaining project-local C2C/Codex hook utilities and updates
+stale current-facing guidance under PR #112; that PR is the authoritative
+record of review and merge disposition. C2B per-symbol cleanup and R7 remain
+separate gates. The former Stage4B fingerprint
 reconstruction stop gate in Issue #106 is superseded; the frozen fingerprint,
 source commit, and reports remain historical facts only. See the [C1
 scope](plans/issue108_r6c1_codex_removal_20261024.md), [Issue #75 owner
