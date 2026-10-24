@@ -72,8 +72,10 @@ immutable evidence; do not migrate or repair them in this workflow.
 
 ## Retired procedures
 
-Do not use the former Codex/C2C queue, callback, `confirm-queue`, old
-orchestration launch/resume/recovery, or publication-finalizer procedures.
+Do not use the former Codex/C2C queue, callback, `confirm-queue`, or
+Codex-linked orchestration launch/resume/recovery and publication-finalizer
+procedures. Separately retained non-agent safety and observational APIs are
+not retired by this statement.
 The dated [Issue #108 C1 disposition](../plans/issue108_r6c1_codex_removal_20261024.md)
 records what was removed; the [Issue #111 C2A disposition](../plans/issue111_r6c2a_legacy_surface_disposition_20261024.md)
 records the remaining project-local hook/document cleanup and its explicit
