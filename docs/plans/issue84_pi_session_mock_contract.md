@@ -1,0 +1,24 @@
+# Issue #84 — mock-only exact Pi-session adapter contract
+
+**Status:** `MOCK_ONLY_IMPLEMENTATION_AUTHORIZED / REAL_PI_SESSION_NOT_AUTHORIZED / LEGACY_CUTOVER_NOT_AUTHORIZED`.
+**Baseline:** `main=7f3e75839cc542e56e60f8c8f2675fd4824beea4` (PR #83).
+**Tracking:** [Issue #84](https://github.com/MasayaTakagi/saw-com-optimizer/issues/84), mandatory R6-C cutover [Issue #75](https://github.com/MasayaTakagi/saw-com-optimizer/issues/75).
+
+This contract records the owner-authorized software-only increment. It implements an opt-in, isolated Python state boundary that accepts only an injected deterministic fake RPC transport. The local Pi 1.4.0 CLI version/help were checked read-only; no Pi subprocess, session, provider, extension, user credential, or transcript was opened or invoked. Mock results are `MOCK_PROTOCOL_PASS`, never `REAL_PI_SESSION_RESTORED`.
+
+## Scope and identity
+
+- Keep the adapter in a separate module with no import from `sawopt.cli`, `synthetic_worker`, or the SQLite synthetic task ledger. Import it only by explicit caller action; no Pi package, binary, RPC process, or model is required.
+- Persist one explicit **test-only** session reference in a caller-supplied private Linux directory. The mapping binds a distinct local association key, exact Pi session ID, expected Pi version, exact session-file reference and local file identity, and optional branch-leaf / entry cursor. Keep the file reference out of `repr`, output, logs, and exception text. Use only private roots/files (0700/0600), reject symlinks, traversal, foreign/out-of-root files and `~/.pi`; never discover or fall back to a home session directory. Never read session-file contents.
+- `status` and `attach_exact` are explicit and observational. Exact attach uses only the exact persisted file reference and fake `switch_session`; it does not create a session. Verify returned session ID, file reference and version, then verify the recorded branch leaf / entry cursor through fake `get_entries`. Absence or mismatch fails closed with typed states/errors.
+- Do not add a prompt-dispatch API, worker launch, synthetic task transition, shell execution, user-session discovery, Codex queue/callback change, or scientific state. `DISCONNECTED`, `SESSION_MISSING`, `SESSION_IDENTITY_MISMATCH`, `SESSION_CURSOR_UNKNOWN`, `ATTACHED`, `PROMPT_PENDING`, `SETTLED`, and `DISPATCH_AMBIGUOUS` must remain distinct. A prompt acknowledgement alone is `PROMPT_PENDING`, not completion. Lost acknowledgement, missing `agent_settled`, or client/process failure with dispatch outcome unknown is `DISPATCH_AMBIGUOUS`; never automatically resend.
+
+## Fake protocol and limits
+
+The injectable fake transport models request IDs plus response/event interleaving for `get_state`, exact `switch_session`, and `get_entries`. Reject response-ID mismatch, duplicate/out-of-order fake event sequence, missing response, timeout/crash, unknown/mismatched session, version or cursor changes. The adapter does not implement or claim compatibility with Pi's live JSONL wire protocol; the fake envelope and event sequence are test fixtures only. The injected transport's `test_only` marker is an accidental-use guard, not a security sandbox; no real transport implementation is included. The exact absolute test-fixture path is necessarily present in the fake `switch_session` request parameters, but the adapter does not log or render RPC payloads. A separate client instance and test-owned subprocess must load the protected mapping and confirm the same synthetic session ID/cursor without printing the path. A fake adapter/client restart proves only persistence of mock identity/context metadata—not a real Pi session restore, scientific checkpoint replay, FE exactly-once, or Codex replacement.
+
+`synthetic-task` status/resume/worker and its SQLite ledger remain independent of Pi and must work when Pi is absent. The pure dispatch-outcome classifier only labels observations; it is not a dispatch workflow or retry-prevention mechanism. The adapter cannot perform an actual agent prompt/model/tool call. A real offline Pi session round trip remains blocked pending separate explicit owner authorization and safe test setup.
+
+## Validation boundary
+
+Use only disposable private fake-session directories and deterministic fake transports/processes. Cover negative identity/path/version/cursor cases, RPC ID/event ordering and disconnect faults, repeated observational attach, ACK-versus-settled, ambiguous dispatch classification/no resend, client restart, and absence of Pi imports/requirements in synthetic tasks. Preserve all scientific, Q1-A fixture, historical-data, legacy queue/callback and CI contracts. No COM/FE, optimizer qualification/study, production task, real Pi session/RPC, provider, or historical data access is authorized.
