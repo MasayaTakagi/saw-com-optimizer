@@ -1,9 +1,11 @@
 # Checkpoint lifecycle
 
-For the overall storage/retention policy, see
-[`data_storage_logging_review_policy.md`](data_storage_logging_review_policy.md).
-Full checkpoint state is recovery data and belongs with the external persistent
-raw run for new production studies.
+For current authorization and storage policy, see
+[`../experiments.md`](../experiments.md). This page records technical
+checkpoint-owner behavior; it is not a production or resume procedure. R5
+storage is future-only and tested synthetically. Do not start, resume, migrate,
+or alter a historical run based on this page. Full checkpoint state, when
+separately authorized, belongs with external raw data.
 
 ## Storage classes
 
@@ -40,8 +42,10 @@ live optimizer partially mutated. The L-SHADE study adapter
 `LShadeCheckpointSession` provides this behavior and preserves the legacy
 single-file `save_checkpoint`/`load_checkpoint` API.
 
-When an old run is resumed from its legacy file, that run continues using the
-legacy path; no migration is performed. A legacy run whose `manifest.json`
+Historical checkpoints retain their original schema and source identity; this
+page does not authorize their inspection, resume, or migration. PR #109 retired
+the old Codex-linked orchestration resume paths. Any historical run resume
+requires a separate explicit owner authorization. A legacy run whose `manifest.json`
 uses the historical v1 `run_store.initialize` fingerprint still requires its
 matching source checkout: that contract hashes every Python file and rejects a
 changed source tree. The checkpoint adapter does not bypass that manifest check
@@ -119,8 +123,8 @@ generic checkpoint store does not inspect Stage marker names. New studies
 should supply an explicit disposition and must not add Stage-specific markers
 to the generic checkpoint core. A later closeout after human review requires
 a dedicated reviewed-closeout action that records `COMPLETED` and updates the
-durable optimizer disposition. A callback/continuation success or a historical
-`REVIEWED` marker alone is not completion evidence and does not authorize raw
+durable optimizer disposition. A historical callback/continuation success or `REVIEWED` marker is a recorded
+value only; it is not current completion evidence and does not authorize raw
 run deletion.
 
 Direct Python calls to a study function do not imply successful completion.
@@ -138,22 +142,13 @@ closeout; later archive/deletion is a separate explicit lifecycle operation.
 
 ## GitHub review evidence
 
-For new production studies, do not package full checkpoints into GitHub review
-evidence. Use the canonical exporter:
-
-```text
-uv run --locked python -m sawopt export-review --run <run-dir>
-```
-
-and publish compact evidence under:
-
-```text
-reports/experiment_reviews/<stage>/<run_id>/
-```
-
-Include derived checkpoint/convergence/accounting summaries where needed, not
-intermediate full-state payloads. The production review contract is defined in
-[`postrun_review_contract.md`](postrun_review_contract.md).
+Historical GitHub exporters and `reports/experiment_reviews/...` packages are
+not the R5 schema. For any future authorized run, follow the future-only R5
+store/review contract in [`../experiments.md`](../experiments.md). Do not use
+`python -m sawopt export-review` as a production runner or publish a new
+production package through an old lifecycle path. Keep full checkpoints and
+raw arrays out of review packages; package integrity is not scientific
+acceptance.
 
 The historical/ad-hoc `ReviewBundleSpec` / `build_review_bundle` utility remains
 available for saved-run packaging. Its checkpoint filter excludes files in

@@ -1,12 +1,24 @@
-# Administrative production failure closeout
+# Administrative legacy-run failure closeout
 
-This procedure exists for a production run whose detached worker can no longer report a durable terminal optimizer result and whose worker and optimizer processes are both confirmed dead.
+> **Narrow safety procedure, not a production workflow.** PR #109 retired the
+> old orchestration production launcher and Codex continuation. This document
+> describes a retained administrative safety owner for an already-existing
+> legacy run only. It does not authorize inspection or operation of a run; an
+> explicit owner-approved scope is required before every use.
 
-It is not a scientific review path, not a resume path, and not authorization to launch a replacement production run.
+This procedure applies only to a legacy run whose detached worker can no
+longer report a durable terminal optimizer result and whose worker and
+optimizer processes are both confirmed dead. It is not a scientific review,
+resume, or relaunch path, and does not apply to R5 synthetic fixtures or a
+future production runner.
 
 ## Why this path is separate
 
-The normal `export-review` flow requires a complete terminal cell matrix. An orphaned run can be known to have failed while lacking that complete matrix, so it must not be forced through the scientific review exporter or represented as a completed experiment.
+A scientific review package must never be fabricated for an orphaned run that
+lacks a complete terminal cell matrix. R5's future-only exporter is a distinct
+schema and is not wired to a production runner; do not route a legacy closeout
+through an old `export-review` command or represent it as a completed
+experiment.
 
 Administrative closeout only records that the old run is abandoned as failed, preserves the raw run/checkpoints for investigation, and releases its active-run registry entry after a reviewed GitHub closeout record has been merged.
 

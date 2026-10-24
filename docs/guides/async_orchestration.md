@@ -1,7 +1,9 @@
 # 非同期オーケストレーション — historical record only
 
-> **廃止済み:** Issue #108 retires the legacy Codex queue/callback and Stage
-> 4B/4C production execution routes. This page is not an operational guide.
+> **廃止済み:** Merged PR #109 (Issue #108) retired the legacy Codex
+> queue/callback and Stage 4B/4C production execution routes. Issue #111 also
+> removes the remaining project-local hook/probe utilities. This page is not
+> an operational guide.
 > Do not use its former launch, resume, recovery, review, queue-confirmation,
 > publication, production, or shakedown commands. No replacement continuation
 > transport is provided.
@@ -10,7 +12,8 @@
 > [the Issue #106 inventory](../plans/issue106_r6c0_codex_removal_inventory_20261024.md)
 > and [the Issue #75 retirement decision](../plans/issue75_legacy_codex_retirement_decision_20261024.md).
 > The binding Issue #108 scope and fail-closed dispositions are in
-> [the Issue #108 plan](../plans/issue108_r6c1_codex_removal_20261024.md).
+> [the Issue #108 plan](../plans/issue108_r6c1_codex_removal_20261024.md)
+> and [the Issue #111 C2A disposition](../plans/issue111_r6c2a_legacy_surface_disposition_20261024.md).
 
 This document is intentionally limited to explaining why older asynchronous
 orchestration instructions are unsupported. It does not document a current

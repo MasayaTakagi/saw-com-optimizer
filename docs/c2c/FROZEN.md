@@ -1,8 +1,10 @@
 # C2C freeze record
 
-**Status:** FROZEN — suspended from normal project operation
+**Status:** RETIRED — historical archive only; no project-local C2C hook runtime
 
-**Effective date:** 2026-10-02
+**Initial freeze date:** 2026-10-02
+
+**Superseding retirement:** Issues #109/#111, 2026-10-24
 
 **Project dependency:** Removed
 
@@ -12,22 +14,25 @@ C2C is frozen because runtime, endpoint tracking, and state-access behavior
 remain operationally unqualified for dependable project use. This is an
 operational decision, not a SAW optimization or scientific conclusion.
 
-C2C is not required for progression of the SAW optimization roadmap. No
-additional C2C investigation is required before Stage 4 work continues. The
-project will use GitHub branches, commits, and pull requests for independent
-ChatGPT repository review, as described in
-[`../guides/github_review_workflow.md`](../guides/github_review_workflow.md).
+C2C is not required for progression of the SAW optimization roadmap. The
+project uses GitHub branches, commits, and pull requests for independent
+review; Pi Code implements scoped software changes and stops at a Draft PR as
+documented in the [current review workflow](../guides/github_review_workflow.md).
 
-Do not start the C2C runtime, run Doctor, send a queue request, call
-`workspace_info`, resume a session, qualify a checkpoint, rebuild the runtime,
-recreate a connector, or upgrade C2C as part of ordinary project work.
+The former project-local `.codex` hook configuration, C2C state-access
+preflight wrapper, and `.c2cignore` were removed under Issue #111. The old
+Codex queue/callback transport and legacy Stage 4B/4C production entrypoints
+were retired under Issue #109. Do not invoke C2C, Codex hooks, preflight
+wrappers, queue/callback commands, or former orchestration procedures. No
+user-level hook, external C2C checkout, or outside process was inspected or
+changed; their state remains outside this repository disposition.
 
-SAW production continuation does not use C2C or captured-session callbacks.
-The active contract for new production is queue-native exact-thread routing:
-the runtime supplies `CODEX_THREAD_ID`, orchestration binds it as
-`--thread-id`, and delivery uses `codex queue --thread`. Captured session IDs
-and related metadata remain only for historical recovery/compatibility; they
-are not new-production routing identities.
+There is no active Codex/C2C production continuation contract. Historical
+session, thread, callback, queue, and status values remain evidence only. The
+current R5 raw/review APIs and R6 synthetic CLI/Worker have strictly scoped
+software behavior; they are not production-runner or agent-session
+replacements. This record changes no experiment authorization or scientific
+status.
 
 ## Last recorded baseline and diagnosis
 
@@ -81,10 +86,13 @@ The diagnosis did not identify the cause of the endpoint tracking behavior or
 determine whether ChatGPT could reach the workspace. Do not infer either result
 from Doctor's status.
 
-## Reactivation conditions
+## Archived reactivation criteria — not current authorization
 
-Reactivation requires a separate explicit user decision and a fresh,
-project-independent qualification. At minimum, it must establish:
+The following criteria were recorded when C2C was frozen. They are not a
+current project plan or approval to restore C2C, its hook/probe, or the retired
+Codex transport. Any new proposal requires a separate owner decision and
+independent review. The former local integration files were removed in Issues
+#109/#111. The historical criteria were:
 
 1. The canonical C2C version and reviewed source SHA, plus a current security
    review.
@@ -97,9 +105,9 @@ project-independent qualification. At minimum, it must establish:
    ambiguous-delivery handling.
 6. A small project-independent pilot and independent review of its evidence.
 
-Do not use a SAW production experiment to qualify C2C. Do not restore C2C as
-an active gate until the user separately approves reactivation after those
-checks.
+Do not use a SAW production experiment to qualify C2C. This archive does not
+plan or authorize C2C reactivation; any future proposal requires a separate
+owner decision and independent review.
 
 ## Repository dependency audit
 
@@ -108,10 +116,11 @@ checks.
   session state, or queue operations.
 - `docs/c2c/README.md`, `OPERATIONS.md`, `SECURITY_BASELINE.md`, and
   `UPGRADE_POLICY.md` are marked frozen historical references.
-- `baseline.json`, historical reports, previous experiment review provenance,
-  handoff records, `.c2cignore`, and C2C runtime/tests are retained. Runtime
-  code and tests are not removed as part of this dependency change.
-- The async orchestration guide documents the active queue-native exact-thread
-  flow independently of C2C. Historical captured-session and C2C continuation
-  evidence remains preserved in old run records and the engineering decision
-  register.
+- `baseline.json`, historical reports, prior experiment-review provenance,
+  and handoff records remain unchanged. The project-local probe, hook
+  container, `.c2cignore`, and dedicated test were removed under Issue #111.
+  The [Issue #111 disposition](../plans/issue111_r6c2a_legacy_surface_disposition_20261024.md)
+  records exact callers and the remaining out-of-scope safety owners.
+- The async orchestration guide is a retirement notice, not a queue-native
+  workflow. Historical captured-session and C2C continuation evidence remains
+  preserved in old run records and the engineering decision register.

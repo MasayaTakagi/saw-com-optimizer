@@ -1,15 +1,20 @@
-# WSL2 core qualification
+# WSL2 core qualification — historical record
 
-## Current development status
+> **ARCHIVAL / NON-OPERATIONAL.** This qualification plan predates the current
+> Pi Code/GitHub workflow and contains Codex CLI bootstrap plus legacy Stage
+> 4B/4C smoke code. Do not run its scripts, install Codex, or execute its
+> numerical/optimizer checks under this record. The active Stage 4B/4C
+> production routes were retired by PR #109; no WSL qualification or
+> experiment is authorized here. See the [current development environment](../guides/development_environment.md),
+> [experiments policy](../experiments.md), and [Issue #111 disposition](../plans/issue111_r6c2a_legacy_surface_disposition_20261024.md).
 
-The official environment is now [WSL2 Ubuntu + uv](../guides/development_environment.md),
-with VS Code Remote WSL and Linux Codex CLI, using Ubuntu system Python 3.12.
-The setup below records the original Windows-to-WSL qualification preparation;
-its Case A inventory is historical, not the current WSL installation status.
-The bootstrap now uses `uv sync --locked --extra test`, with system-only Python
-and no Python downloads. Do not run final `qualify-core.sh` while this migration
-worktree exists: multiple worktrees intentionally trigger `WORKTREE_BASELINE`.
-No final WSL qualification is claimed by the environment formalization.
+## Historical status
+
+The procedure below records an earlier Windows-to-WSL qualification plan. It
+is not the current setup or an executable authorization. Its Case A inventory
+is historical, and no final WSL qualification was claimed by the environment
+formalization. The mixed `tools/wsl/` scripts are retained for separate
+per-file owner disposition and were neither run nor modified in Issue #111.
 
 ## Historical scope and stop point
 

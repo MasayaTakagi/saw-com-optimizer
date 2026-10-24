@@ -1,23 +1,16 @@
 # Review bundle usage — historical / ad-hoc packaging
 
+> This describes a retained saved-run packaging utility, not a new-run
+> workflow. No production run or historical-data access is authorized here.
+> The former `python -m sawopt export-review` flow and
+> `reports/experiment_reviews/...` convention are not the R5 schema and are
+> not a current production publication path.
+
 `artifacts/review_bundles/` and `sawopt.reporting.review_bundle` are retained for
-manual packaging of historical or ad-hoc saved runs. They are **not** the
-canonical review path for new production studies.
-
-For new production runs use:
-
-```text
-uv run --locked python -m sawopt export-review --run <run-dir>
-```
-
-with canonical GitHub evidence under:
-
-```text
-reports/experiment_reviews/<stage>/<run_id>/
-```
-
-See [`data_storage_logging_review_policy.md`](data_storage_logging_review_policy.md)
-and [`postrun_review_contract.md`](postrun_review_contract.md).
+manual packaging of already-authorized historical or ad-hoc saved runs. They
+are not the canonical review path for future R5 runs. Follow
+[`../experiments.md`](../experiments.md) for authorization, data boundaries,
+and the future-only R5 package contract.
 
 ## When this legacy/manual utility is appropriate
 
@@ -29,8 +22,8 @@ run outside the active production publication flow, for example:
 - forensic preservation;
 - compatibility with an older review workflow.
 
-Do not substitute this ZIP flow for the canonical `export-review` publication
-contract of a new production run.
+This ZIP helper is not a replacement for the future-only R5 exporter and does
+not establish scientific review readiness or authorize reading a raw run.
 
 ## Builder usage
 

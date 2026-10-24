@@ -1,9 +1,11 @@
 # C2C security baseline reference
 
-> **FROZEN / HISTORICAL REFERENCE — effective 2026-10-02.** These security
-> records are preserved for a future explicit requalification. They do not
-> authorize or require C2C use in the current project workflow. See
-> [FROZEN.md](FROZEN.md).
+> **RETIRED / HISTORICAL REFERENCE — effective 2026-10-02.** These security
+> records preserve the former C2C integration only. The project-local
+> `.c2cignore` and hook/preflight tools have been removed; nothing here is a
+> current data-protection mechanism or authorization to use C2C. Follow the
+> active storage/worktree safeguards in `docs/experiments.md` and
+> `docs/guides/worktree_safety.md`. See [FROZEN.md](FROZEN.md).
 
 ## Approved dependency
 

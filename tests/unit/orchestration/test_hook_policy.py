@@ -1,26 +1,22 @@
-import json
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[3]
 
 
-def test_project_codex_hooks_do_not_enable_retired_callback_or_queue_behavior():
-    config = json.loads((ROOT / ".codex" / "hooks.json").read_text(encoding="utf-8"))
-    assert config.get("hooks", {}) == {}
-    assert not (ROOT / ".codex" / "hooks" / "capture_session.py").exists()
-    assert not (ROOT / ".codex" / "hooks" / "capture_session.cmd").exists()
-    # The standalone C2C path-access preflight is safety tooling, not a session
-    # capture, queue sender, or callback substitute.
-    assert (ROOT / ".codex" / "hooks" / "c2c_state_access_preflight.py").is_file()
+def test_repository_does_not_reintroduce_project_local_agent_hooks_or_c2c_config():
+    # A removed hook configuration must not return as an empty or disabled
+    # project-local container that could later activate retired utilities.
+    assert not (ROOT / ".codex").exists()
+    assert not (ROOT / ".c2cignore").exists()
 
-
-def test_legacy_orchestration_guides_are_explicitly_non_operational():
-    for relative_path in (
-        "docs/guides/async_orchestration.md",
-        "docs/guides/github_review_workflow.md",
-        "docs/c2c/OPERATIONS.md",
-    ):
-        text = (ROOT / relative_path).read_text(encoding="utf-8")
-        assert "Issue #108" in text
-        assert "retire" in text.casefold() or "廃止" in text
+    # Keep the retired state probe out of executable source and wrappers too;
+    # historical documentation and evidence are intentionally not scanned.
+    for relative_root in ("src", "scripts"):
+        root = ROOT / relative_root
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            text = path.read_text(encoding="utf-8", errors="replace")
+            assert "c2c_state_access_preflight" not in text, path
+            assert ".codex/hooks" not in text, path
