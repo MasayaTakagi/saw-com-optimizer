@@ -44,22 +44,29 @@ to external run/checkpoint data.
 
 ## Tests, docs, and validation
 
-- Removed only tests dedicated to obsolete Stage 4C shakedown reporting, the
-  Stage 4C coordinate-probe audit, and the retired WSL report collector.
-- Added `test_stage4c_shakedown_execution_entrypoint_is_absent`; retained
-  Stage 4C production rejection, frozen protocol/manifest/report tests, and all
-  unrelated scientific/safety regressions.
+- Removed nine obsolete test cases: seven Stage 4C coordinate-probe audit
+  cases, one Stage 4C shakedown-report case, and one retired WSL report
+  collector case. Added one API-absence regression; PR #116's 752 collected
+  baseline therefore becomes 744 collected (net -8).
+- Retained Stage 4C production rejection, frozen protocol/manifest/report
+  tests, Q1-A, and all unrelated scientific/safety regressions. The full CI
+  includes Q1-A public and leaf verifier checks (92/92 each) and both
+  fresh-process import guards.
 - Updated the current development-environment guide and archival WSL page so
   they no longer direct users to deleted commands; added this record to the
   active documentation index. Historical inventories remain dated evidence
   and were not rewritten.
-- Correct worktree-specific `.venv` was absent, so no local project tests were
-  run; no dependency sync/install or borrowed editable environment was used.
-  Static source/caller searches, `compileall`, `git diff --check`, changed-doc
-  link checks, focused GitHub Actions, and the exact PR-head locked Haswell
-  full CI are required before handoff. Record exact commands, counts and the
-  final Actions URL/SHA in the Issue #118 work-order handoff; a previous/base
-  CI result is not a substitute for final PR-head CI.
+- The correct worktree-specific `.venv` was absent, so no local project tests
+  were run; no dependency sync/install or borrowed editable environment was
+  used. `/usr/bin/python3.12 -m compileall -q src tests`, `git diff --check`,
+  static source/caller searches, and relative links for the four changed
+  Markdown files passed.
+- Exact PR-head locked Haswell CI at implementation HEAD
+  `75823409fdfd08e92e349c58fe3720059ff9f6fb` completed successfully:
+  [Actions #40099722977](https://github.com/miyabimm/saw-com-optimizer/actions/runs/40099722977),
+  **744 collected / 744 passed**. This CI was the exact Draft PR head when
+  run; the final post-record update HEAD must receive its own exact-head CI
+  before handoff.
 
 ## Rollback and stop
 
