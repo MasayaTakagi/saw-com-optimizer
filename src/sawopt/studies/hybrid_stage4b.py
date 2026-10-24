@@ -1,15 +1,13 @@
-"""Matched Stage 4B hybrid topology production protocol.
+"""Retained Stage 4B hybrid topology contract, report helpers, and cell code.
 
-The runner reuses Stage 4A's physical model, design spaces, evaluator, and
-L-SHADE checkpoint implementation. This module only owns the fixed Stage 4B
-matrix, cell lifecycle, and production authorization binding.
+Legacy Stage 4B launch and authorization entrypoints have been retired. The
+frozen matrix and historical cell implementation remain for report/evidence
+interpretation; this module is not a current study entrypoint.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import os
-import subprocess
 import time
 import traceback
 from datetime import datetime, timezone
@@ -23,7 +21,6 @@ from .hybrid import (
     stage4a_clean,
     stage4a_counter_snapshot,
     stage4a_evaluate,
-    stage4a_load_context,
 )
 
 
@@ -36,9 +33,6 @@ BUDGET = 24000
 CHECKPOINTS = (4000, 8000, 16000, 24000)
 INITIAL_POPULATION_MULTIPLIER = 18
 FINALIST_COUNT = 16
-SHAKEDOWN_SEED = 20261001
-SHAKEDOWN_BUDGET = 512
-SHAKEDOWN_CHECKPOINTS = (400, 512)
 
 
 def _atomic_json(path: Path, value: Any) -> None:
@@ -54,22 +48,6 @@ def _atomic_json(path: Path, value: Any) -> None:
 
 def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
-
-
-def _git_value(root: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", *args], cwd=root, capture_output=True, text=True,
-        encoding="utf-8", errors="replace", check=True,
-    )
-    return result.stdout.strip()
-
-
-def _source_state(root: Path) -> dict[str, Any]:
-    return {
-        "branch": _git_value(root, "branch", "--show-current"),
-        "head": _git_value(root, "rev-parse", "HEAD"),
-        "status_short": _git_value(root, "status", "--short"),
-    }
 
 
 def _expected_matrix(*, seeds: Sequence[int] = SEEDS, budget: int = BUDGET,
@@ -92,60 +70,6 @@ def _expected_matrix(*, seeds: Sequence[int] = SEEDS, budget: int = BUDGET,
         }
         for topology in TOPOLOGIES for seed in seeds
     ]
-
-
-def load_stage4b_context(config_path: str | Path) -> dict[str, Any]:
-    """Retired legacy Stage 4B runtime context/fingerprint builder."""
-    raise RuntimeError("legacy Stage 4B context and fingerprint regeneration are retired")
-
-
-def build_authorization_metadata(
-    context: Mapping[str, Any], *, source_commit_sha: str, run_id: str,
-    authorized_at: str,
-) -> dict[str, Any]:
-    """Build immutable metadata for the user's one-shot production approval."""
-    if not source_commit_sha or not run_id or not authorized_at:
-        raise ValueError("Stage 4B authorization metadata requires source, run id, and timestamp")
-    return {
-        "study_type": STUDY_TYPE,
-        "protocol_revision": PROTOCOL_REVISION,
-        "fingerprint_schema_version": 2,
-        "computation_fingerprint": context["fingerprint"]["computation_fingerprint"],
-        "source_commit_sha": str(source_commit_sha),
-        "user_authorized_production": True,
-        "authorization_scope": AUTHORIZATION_SCOPE,
-        "authorized_at": str(authorized_at),
-        "run_id": str(run_id),
-        "topologies": list(TOPOLOGIES),
-        "seeds": list(SEEDS),
-        "budget_per_cell": BUDGET,
-        "population_schedule_terminal_budget": BUDGET,
-        "checkpoints": list(CHECKPOINTS),
-        "matrix": context["matrix"],
-        "total_unique_evaluations": BUDGET * len(TOPOLOGIES) * len(SEEDS),
-        "cold_start": True,
-        "warm_start": False,
-        "parent_transfer": False,
-        "topology_transfer": False,
-    }
-
-
-def authorization_claim_id(metadata: Mapping[str, Any]) -> str:
-    payload = "|".join((
-        str(metadata.get("authorization_scope", "")),
-        str(metadata.get("computation_fingerprint", "")),
-        str(metadata.get("source_commit_sha", "")),
-    ))
-    if not all(payload.split("|")):
-        raise ValueError("Stage 4B authorization claim key is incomplete")
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
-def verify_production_manifest(
-    context: Mapping[str, Any], run_path: str | Path, authorization_manifest_path: str | Path,
-) -> dict[str, Any]:
-    """Retired historical production-authorization verifier."""
-    raise RuntimeError("legacy Stage 4B production authorization is retired")
 
 
 def _sample_stage4b_population(space, cfg, seed: int, topology: str, population_size: int):
@@ -579,152 +503,11 @@ def _run_cell(
         raise
 
 
-def _initialize_batch_run(run: Path, context: Mapping[str, Any], *, mode: str,
-                          source_commit_sha: str, authorization: Mapping[str, Any] | None,
-                          resume: bool) -> dict[str, Any]:
-    manifest_path = run / "metadata" / "stage4b_run_manifest.json"
-    if manifest_path.exists():
-        saved = _read_json(manifest_path)
-        matrix = context["matrix"] if mode == "production" else _expected_matrix(
-            seeds=(SHAKEDOWN_SEED,), budget=SHAKEDOWN_BUDGET,
-            checkpoints=SHAKEDOWN_CHECKPOINTS, terminal_budget=SHAKEDOWN_BUDGET,
-        )
-        expected = {
-            "schema_version": 1,
-            "protocol_revision": PROTOCOL_REVISION,
-            "mode": mode,
-            "computation_fingerprint": context["fingerprint"]["computation_fingerprint"],
-            "reporting_fingerprint": context["fingerprint"]["reporting_fingerprint"],
-            "source_commit_sha": source_commit_sha,
-            "fingerprint_schema_version": 2,
-            "contract": context["contract"],
-            "matrix": matrix,
-            "budget_per_cell": BUDGET if mode == "production" else SHAKEDOWN_BUDGET,
-            "population_schedule_terminal_budget": BUDGET if mode == "production" else SHAKEDOWN_BUDGET,
-            "checkpoints": list(CHECKPOINTS if mode == "production" else SHAKEDOWN_CHECKPOINTS),
-            "seeds": list(SEEDS if mode == "production" else (SHAKEDOWN_SEED,)),
-            "topologies": list(TOPOLOGIES),
-            "initial_population_rule": "18 * dimension",
-            "cold_start": True,
-            "warm_start": False,
-            "common_validation_grid_id": context["common_grid_id"],
-            "common_validation_grid_sha256": context["grid_metadata"]["sha256"],
-            "production_authorized": mode == "production",
-            "user_authorized_production": mode == "production",
-            "authorization_scope": AUTHORIZATION_SCOPE if mode == "production" else None,
-            "user_authorized_at": (
-                authorization["metadata"].get("authorized_at") if authorization is not None else None
-            ),
-            "ranking_eligibility": (
-                "only-after-complete-20-cell-integrity-check" if mode == "production" else "never"
-            ),
-            "authorization_claim_id": authorization["claim_id"] if authorization is not None else None,
-            "authorization_claim_path": (
-                str(authorization["claim_path"].resolve()) if authorization is not None else None
-            ),
-            "orchestration_manifest_sha256": (
-                authorization["manifest_sha256"] if authorization is not None else None
-            ),
-            "codex_session_id": (
-                authorization["manifest"].codex_session_id if authorization is not None else None
-            ),
-            "callback_enabled": authorization is not None,
-            "review_after_completion": authorization is not None,
-        }
-        if any(saved.get(key) != value for key, value in expected.items()):
-            raise RuntimeError("existing Stage 4B run manifest fingerprint/source mismatch")
-        if mode == "production":
-            if (saved.get("authorization_claim_id") != authorization.get("claim_id")
-                    or saved.get("orchestration_manifest_sha256") != authorization.get("manifest_sha256")):
-                raise RuntimeError("existing Stage 4B run is bound to a different authorization manifest")
-            snapshot = run / "metadata" / "orchestration_run_manifest.json"
-            if (not snapshot.is_file()
-                    or hashlib.sha256(snapshot.read_bytes()).hexdigest() != authorization["manifest_sha256"]):
-                raise RuntimeError("saved orchestration manifest snapshot is missing or changed")
-        return saved
-    if resume:
-        raise FileNotFoundError("cannot resume Stage 4B without its original run manifest")
-    if run.exists() and any(run.iterdir()):
-        raise FileExistsError(f"Stage 4B output directory is non-empty without a run manifest: {run}")
-    payload = {
-        "schema_version": 1,
-        "protocol_revision": PROTOCOL_REVISION,
-        "mode": mode,
-        "created_at_utc": datetime.now(timezone.utc).isoformat(),
-        "source_commit_sha": source_commit_sha,
-        "fingerprint_schema_version": 2,
-        "computation_fingerprint": context["fingerprint"]["computation_fingerprint"],
-        "reporting_fingerprint": context["fingerprint"]["reporting_fingerprint"],
-        "contract": context["contract"],
-        "matrix": context["matrix"] if mode == "production" else _expected_matrix(
-            seeds=(SHAKEDOWN_SEED,), budget=SHAKEDOWN_BUDGET,
-            checkpoints=SHAKEDOWN_CHECKPOINTS, terminal_budget=SHAKEDOWN_BUDGET,
-        ),
-        "budget_per_cell": BUDGET if mode == "production" else SHAKEDOWN_BUDGET,
-        "population_schedule_terminal_budget": BUDGET if mode == "production" else SHAKEDOWN_BUDGET,
-        "checkpoints": list(CHECKPOINTS if mode == "production" else SHAKEDOWN_CHECKPOINTS),
-        "seeds": list(SEEDS if mode == "production" else (SHAKEDOWN_SEED,)),
-        "topologies": list(TOPOLOGIES),
-        "initial_population_rule": "18 * dimension",
-        "cold_start": True,
-        "warm_start": False,
-        "common_validation_grid_id": context["common_grid_id"],
-        "common_validation_grid_sha256": context["grid_metadata"]["sha256"],
-        "production_authorized": mode == "production",
-        "user_authorized_production": False if authorization is None else True,
-        "authorization_scope": None if authorization is None else AUTHORIZATION_SCOPE,
-        "user_authorized_at": None if authorization is None else authorization["metadata"].get("authorized_at"),
-        "ranking_eligibility": "only-after-complete-20-cell-integrity-check" if mode == "production" else "never",
-        "authorization_claim_id": None if authorization is None else authorization["claim_id"],
-        "authorization_claim_path": None if authorization is None else str(authorization["claim_path"].resolve()),
-        "orchestration_manifest_sha256": None if authorization is None else authorization["manifest_sha256"],
-        "codex_session_id": None if authorization is None else authorization["manifest"].codex_session_id,
-        "callback_enabled": False if authorization is None else True,
-        "review_after_completion": False if authorization is None else True,
-    }
-    run.mkdir(parents=True, exist_ok=True)
-    _atomic_json(run / "metadata" / "protocol_snapshot.json", context["contract"])
-    if authorization is not None:
-        authorized_manifest = Path(authorization["manifest_path"])
-        if hashlib.sha256(authorized_manifest.read_bytes()).hexdigest() != authorization["manifest_sha256"]:
-            raise RuntimeError("orchestration authorization manifest changed after preflight")
-        (run / "metadata" / "orchestration_run_manifest.json").write_bytes(authorized_manifest.read_bytes())
-    (run / "metadata" / "config_snapshot.yaml").write_text(
-        context["config_path"].read_text(encoding="utf-8"), encoding="utf-8",
-    )
-    _atomic_json(manifest_path, payload)
-    return payload
-
-
-def run_stage4b_shakedown(
-    config_path: str | Path, run_path: str | Path, *, resume: bool = False,
-) -> dict[str, Any]:
-    """Reject the retired Stage 4B runtime qualification entrypoint."""
-    raise RuntimeError("legacy Stage 4B shakedown execution is retired")
-
-
-def run_stage4b_production(
-    config_path: str | Path, run_path: str | Path, authorization_manifest_path: str | Path,
-) -> dict[str, Any]:
-    """Reject the retired Stage 4B production execution entrypoint."""
-    raise RuntimeError("legacy Stage 4B production execution is retired")
-
-
 __all__ = [
     "AUTHORIZATION_SCOPE", "BUDGET", "CHECKPOINTS", "FINALIST_COUNT",
     "INITIAL_POPULATION_MULTIPLIER", "PROTOCOL_REVISION", "SEEDS",
-    "SHAKEDOWN_BUDGET", "SHAKEDOWN_CHECKPOINTS", "SHAKEDOWN_SEED",
-    "STUDY_TYPE", "TOPOLOGIES", "authorization_claim_id",
-    "build_authorization_metadata", "load_stage4b_context",
-    "run_stage4b_production", "run_stage4b_shakedown",
-    "verify_production_manifest",
-    "write_atomic_json", "matched_cell_paths", "read_source_state",
-    "run_matched_cell",
+    "STUDY_TYPE", "TOPOLOGIES", "matched_cell_paths", "write_atomic_json",
 ]
 
-# Public, unchanged production primitives reused by the confirmatory adapter.
-# The Stage 4B entry points and scientific protocol remain unchanged.
 write_atomic_json = _atomic_json
 matched_cell_paths = _cell_paths
-read_source_state = _source_state
-run_matched_cell = _run_cell

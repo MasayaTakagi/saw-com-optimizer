@@ -1,8 +1,0 @@
-base_config: ../base/b28_dms_baseline.yaml
-study:
-  type: postrun_workflow_qualification
-  review_spec_id: postrun_workflow_qualification
-  review_stage: qualification
-  comparison_arms: [fixture]
-  seeds: [qualification]
-  expected_cell_count: 1
