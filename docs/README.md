@@ -51,9 +51,9 @@ supersede the five current sources above:
   are dated records; the old Codex queue/callback runtime and legacy Stage 4B/4C
   production entrypoints were retired in merged PR #109 at
   `604091d550c8fad302ed179e3e177d3a1ee3c7c1`. The [Issue #111 C2A disposition](plans/issue111_r6c2a_legacy_surface_disposition_20261024.md)
-  records the remaining project-local hook and current-facing documentation
-  cleanup; this Draft PR is awaiting independent review. C2B and R7 remain
-  separate future owner gates. Historical documents that describe earlier
+  records the project-local hook and current-facing documentation cleanup
+  submitted in PR #112; its review and merge disposition are tracked by that
+  PR, not by this index. C2B and R7 remain separate future owner gates. Historical documents that describe earlier
   active paths remain dated evidence, not current instructions. The R3 and R4
   records are scoped to Issues #65 and #67; R6 is scoped to Issue #71's
   software/synthetic-only authorization; R7 is an audit/CI evidence and
