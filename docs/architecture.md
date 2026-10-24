@@ -6,8 +6,15 @@ consolidation, and R5 future-only raw/review storage merged at
 merged in PR #72; R6-C's isolated synthetic task/recovery (#80/#82) and
 mock-only Pi adapter (#84) are also merged within those scopes. They do not
 qualify scientific optimizer/FE recovery, real Pi exact-session continuation,
-or legacy cutover. Issue #94 authorizes only a docs/static design audit; #75
-and #53 remain open pending separately reviewed migration and owner decisions.
+or legacy cutover. Issue #94 records the docs/static design audit; #75
+and #53 remain open pending actual cleanup. A later [2026-10-24 owner
+retirement decision](plans/issue75_legacy_codex_retirement_decision_20261024.md)
+**supersedes the former requirement to qualify an agent-session replacement
+before fully removing old Codex queue/callback**. The old mechanisms will be
+retired during R6-C reconstruction, but have not yet been removed. Historic
+manifest/status interpretation, Stage4B source fingerprints and Q1-A evidence
+remain protected; no actual code deletion or scientific change is authorized
+by this policy record.
 The R7 audit is recorded in [its proposal](plans/r7_architecture_ci_audit_20261023.md);
 it does not authorize legacy behavior changes or cleanup. See the [R3
 inventory](plans/restructure_r3_ownership_20261022.md), [R4
@@ -70,7 +77,7 @@ no old-checkpoint reader is introduced.
 | `src/sawopt/io/` | Config, serialization, legacy run stores, provenance, checkpoints and lifecycle. Issue #69 adds the separate future-only `io.experiment_store` API; Issue #80 adds `io.synthetic_task_ledger` for one isolated synthetic countdown worker, not a raw store or scientific-run ledger. Neither reinterprets legacy manifests or wires a research runner. | `io/` config/results/checkpoint and external raw ownership; the Issue #80 ledger remains synthetic-only and local to an explicit private test root. |
 | `src/sawopt/studies/` | Live adapters, historical audits, stage-specific studies, Q1-A foundation. | Config-driven experiment inputs and only thin reusable orchestration; retire stage-specific runtime after explicit disposition. |
 | `src/sawopt/reporting/` | Historical/ad-hoc reports, bundles, legacy GitHub export and integrity. Issue #69 adds `reporting.experiment_review` for the separate compact review schema v1; old exports remain unchanged. | Compact review export in the data/review responsibility; plots in `plotting.py`; retain no agent coupling. |
-| `src/sawopt/orchestration/`, `runtime/` | Detached run lifecycle, process/storage safety, review publishing, agent-session queue/callback, execution environment. | User-run process supervision only where required; no AI session/queue. Preserve safety responsibilities until a reviewed replacement exists. |
+| `src/sawopt/orchestration/`, `runtime/` | Detached run lifecycle, process/storage safety, review publishing, agent-session queue/callback, execution environment. | Remove all active Codex queue/callback runtime without requiring a Pi or agent-resume replacement. Audit old live callers and preserve required non-agent safety, read-only historic status, and source provenance by per-symbol disposition; no blanket package deletion. |
 | `src/sawopt/cli.py`; `src/sawopt/__main__.py` | R6 adds the `sawopt` console entry point and `python -m sawopt.cli` for strict synthetic config validation/run through injected response metrics, optimizer, and R5 storage/export. Issue #80 adds only an explicit Linux/WSL2 `synthetic-task launch/status/attach/stop` group using the isolated countdown worker/SQLite ledger; it does not change `sawopt run/validate`. `python -m sawopt` remains the legacy stage/config dispatcher. | Keep both new paths synthetic/injected-only; the task ledger is not scientific task/optimizer resume. Retire or explicitly disposition the legacy dispatcher only after its callers, authorization gates, and evidence routes are reviewed. |
 
 The concrete inventory, module list, configs/tests, and observed package edges
