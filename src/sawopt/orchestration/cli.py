@@ -59,7 +59,7 @@ def _build_optimizer_command(
 
 
 def _write_resume_checkpoint(run_dir: Path, *, mode: str, resume_count: int) -> Path:
-    path = Path(run_dir) / "resume_checkpoint.json"
+    path = Path(run_dir) / "session_checkpoint.json"
     manifest = load_manifest(Path(run_dir))
     from .run_manager import atomic_write_json
 
@@ -69,6 +69,7 @@ def _write_resume_checkpoint(run_dir: Path, *, mode: str, resume_count: int) -> 
         "run_dir": str(Path(run_dir).resolve()),
         "mode": mode,
         "resume_count": int(resume_count),
+        "session_id": None,  # Retained metadata shape; no agent session is resumed.
         "updated_at": utc_now(),
     })
     return path
