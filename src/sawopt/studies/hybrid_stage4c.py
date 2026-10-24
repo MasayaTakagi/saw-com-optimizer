@@ -610,55 +610,6 @@ def run_stage4c_production(
 ) -> dict[str, Any]:
     """Reject the retired Stage 4C production execution entrypoint."""
     raise RuntimeError("legacy Stage 4C production execution is retired")
-    from .hybrid_stage4b import read_source_state, run_matched_cell
-
-    context = load_stage4c_context(config_path)
-    authorization = verify_stage4c_authorization(context, authorization_manifest_path)
-    raw = authorization["manifest"]
-    source = read_source_state(Path(context["root"]))
-    if source["head"] != raw.get("source_commit_sha") or source["status_short"]:
-        raise PermissionError("Stage 4C production source must match the clean authorized commit")
-    run = Path(run_path)
-    if not run.is_absolute():
-        raise ValueError("Stage 4C production run directory must be absolute")
-    run = run.resolve()
-    parent_run = Path(raw["run_dir"]).resolve()
-    if run != Path(raw["optimizer_run_dir"]).resolve():
-        raise PermissionError("Stage 4C optimizer path differs from its authorized orchestration manifest")
-    if not _is_within(parent_run, PRODUCTION_RUN_ROOT):
-        raise PermissionError("Stage 4C run directory is outside the frozen external production destination")
-    if _is_within(parent_run, context["root"]):
-        raise PermissionError("Stage 4C production run directory is inside the repository worktree")
-    existing_manifest = run / "metadata" / "stage4c_run_manifest.json"
-    resume = existing_manifest.is_file()
-    expected_manifest = build_stage4c_run_manifest(
-        context, run_id=str(raw["run_id"]), source_commit_sha=str(raw["source_commit_sha"]),
-    )
-    run_manifest, manifest_created = ensure_stage4c_run_manifest(existing_manifest, expected_manifest)
-    if manifest_created:
-        (run / "metadata").mkdir(parents=True, exist_ok=True)
-        _atomic_json(run / "metadata" / "protocol_snapshot.json", context["contract"])
-        _atomic_json(run / "metadata" / "integrity_check.json", {
-            "status": "RUNNING", "complete": False, "cells_present": 0,
-            "cells_completed": 0, "expected_cells": 10,
-        })
-        (run / "metadata" / "config_snapshot.yaml").write_text(
-            Path(context["config_path"]).read_text(encoding="utf-8"), encoding="utf-8",
-        )
-    results = []
-    for item in context["matrix"]:
-        results.append(run_matched_cell(
-            context, run, topology=item["topology"], seed=item["seed"],
-            budget=BUDGET, checkpoints=CHECKPOINTS, terminal_budget=BUDGET,
-            finalist_count=FINALIST_COUNT, mode="production",
-            source_commit_sha=str(raw["source_commit_sha"]),
-            resume=resume, compact_history_cache=True,
-        ))
-    from ..reporting.hybrid_stage4c import write_stage4c_reports
-    report = write_stage4c_reports(run, context, results)
-    return {"status": report["integrity"]["status"], "run_dir": str(run),
-            "cells": results, "integrity": report["integrity"],
-            "classification": report["classification"]}
 
 
 def run_stage4c_shakedown(
