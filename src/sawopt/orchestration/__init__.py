@@ -1,8 +1,8 @@
-"""Asynchronous run orchestration for long-running optimizer jobs.
+"""Historical run-state records and independent lifecycle safety helpers.
 
-The orchestration package owns process lifetime, durable run state, and the
-optional Codex review callback.  COM and optimizer modules remain unaware of
-Codex and can still be run synchronously through the existing entry points.
+The legacy detached launch/worker interface has been retired. The package
+continues to own recorded status, guarded review publication, administrative
+closeout, and worktree/storage/process safety responsibilities.
 """
 
 from .models import (

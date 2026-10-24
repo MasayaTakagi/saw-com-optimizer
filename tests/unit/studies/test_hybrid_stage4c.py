@@ -7,7 +7,6 @@ import subprocess
 
 import pytest
 
-from sawopt.orchestration import cli as orchestration_cli
 from sawopt.orchestration.persistent_storage import validate_persistent_run_location
 from sawopt.reporting.github_review import ReviewExportError, _canonical_json_sha256, export_review, load_review_spec
 from sawopt.reporting.hybrid_stage4c import (
@@ -279,17 +278,6 @@ def test_stage4c_external_storage_gate_rejects_repository_local_output(tmp_path)
     )
     assert accepted.passed
     assert not rejected.passed
-
-
-def test_stage4c_orchestration_launch_is_retired_before_output(monkeypatch, tmp_path):
-    monkeypatch.setattr(orchestration_cli, "project_root", lambda: Path.cwd())
-    args = orchestration_cli.build_parser().parse_args([
-        "launch", "--config", CONFIG, "--run-dir", str(tmp_path / "must-not-exist"),
-        "--continuation-mode", "disabled",
-    ])
-    with pytest.raises(RuntimeError, match="retired"):
-        orchestration_cli.launch(args)
-    assert not (tmp_path / "must-not-exist").exists()
 
 
 def _synthetic_review_run(tmp_path, *, repository_root, context):
@@ -665,8 +653,3 @@ def test_stage4c_model_materiality_threshold_and_feasibility_equivalence_rules()
         feasibility_cells, feasibility_checkpoints, feasibility_pairs,
     )
     assert feasibility_wins["classification"] == "STAGE4C_CLEAR_CONFIRMATORY_WINNER"
-
-
-def test_stage4c_production_authorization_cli_flag_is_retired():
-    with pytest.raises(RuntimeError, match="retired"):
-        orchestration_cli.main(["launch", "--authorize-stage4c-production"])

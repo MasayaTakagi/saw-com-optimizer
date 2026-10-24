@@ -34,17 +34,19 @@ evidence and limitations.
 
 ## Existing prototype
 
-The current source remains under `src/sawopt/`. The new `sawopt` console entry
+The current source remains under `src/sawopt/`. The `sawopt` console entry
 point (`uv run --locked sawopt`) and `python -m sawopt.cli` provide only strict
 synthetic config validation and the R6 synthetic vertical slice. They do not
-load COM data or support real SAW evaluation. The older `python -m sawopt`
-commands remain a separate legacy dispatcher pending reviewed caller/gate
-disposition; they are not the new CLI.
+load COM data or support real SAW evaluation. The legacy `python -m sawopt`
+entry point is now limited to `export-review` for saved legacy review evidence;
+its old simulation, optimization, study, report, and shakedown commands have
+been removed. This exporter is distinct from the future-only R5 review schema
+and is not a scientific runner.
 
 ```bash
 uv run --locked sawopt --help
 uv run --locked sawopt validate --config configs/examples/r6_synthetic_smoke.yaml
-uv run --locked python -m sawopt --help  # legacy help only; not a run authorization
+uv run --locked python -m sawopt export-review --help
 ```
 
 No command above authorizes a scientific or production run. The explicit

@@ -16,10 +16,10 @@ historical launchers or edit/migrate their raw inputs as part of R6.
 The active **software-only** R6 CLI is `uv run --locked sawopt` or
 `uv run --locked python -m sawopt.cli`; it supports strict synthetic
 configuration validation and explicitly injected synthetic fixtures. It is
-not a COM/FE runner. The separate legacy `python -m sawopt` dispatcher is not
-this new CLI; after PR #109 its Stage 4B/4C production paths are unsupported
-and fail closed. Remaining legacy dispatcher symbols are deferred to a
-separate per-symbol C2B review.
+not a COM/FE runner. The separate `python -m sawopt` module is now an
+`export-review`-only entry point for saved legacy review evidence. Its former
+simulation, optimization, study, report, and shakedown commands were removed;
+the exporter is not a scientific runner or the future-only R5 review schema.
 
 `worktree_safety.py` delegates to the retained safety implementation in
 `sawopt.orchestration.worktree_safety`; see

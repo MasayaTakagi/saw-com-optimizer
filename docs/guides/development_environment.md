@@ -22,7 +22,8 @@ For normal project commands, use the locked environment:
 
 ```bash
 uv run --locked pytest
-uv run --locked python -m sawopt --help
+uv run --locked sawopt --help
+uv run --locked python -m sawopt export-review --help
 ```
 
 This general setup instruction does not authorize execution of a scientific

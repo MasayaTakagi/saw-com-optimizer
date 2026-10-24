@@ -7,12 +7,14 @@ Pi protocol are also merged; they do not qualify scientific optimizer/FE
 recovery or real Pi exact-session continuation. R6-C1 retired the active legacy
 Codex queue/callback runtime and unsupported Stage 4B/4C production entrypoints
 in PR #109, merged at `604091d550c8fad302ed179e3e177d3a1ee3c7c1`. Issue #111
-C2A retires the remaining project-local C2C/Codex hook utilities and updates
-stale current-facing guidance under PR #112; that PR is the authoritative
-record of review and merge disposition. C2B per-symbol cleanup and R7 remain
-separate gates. The former Stage4B fingerprint
-reconstruction stop gate in Issue #106 is superseded; the frozen fingerprint,
-source commit, and reports remain historical facts only. See the [C1
+C2A retired the remaining project-local C2C/Codex hook utilities under PR #112.
+Issue #118 retired the obsolete Stage 4C execution and qualification tools under
+PR #120. Issue #119 now removes the legacy scientific CLI and detached
+orchestration launch/worker while retaining `export-review` and independently
+used safety/reporting owners. Further C2B cleanup and R7 remain separate gates.
+The former Stage4B fingerprint reconstruction stop gate in Issue #106 is
+superseded; the frozen fingerprint, source commit, and reports remain historical
+facts only. See the [C1
 scope](plans/issue108_r6c1_codex_removal_20261024.md), [Issue #75 owner
 policy](plans/issue75_legacy_codex_retirement_decision_20261024.md), [Issue #106
 inventory](plans/issue106_r6c0_codex_removal_inventory_20261024.md), and
@@ -77,8 +79,8 @@ no old-checkpoint reader is introduced.
 | `src/sawopt/io/` | Config, serialization, legacy run stores, provenance, checkpoints and lifecycle. Issue #69 adds the separate future-only `io.experiment_store` API; Issue #80 adds `io.synthetic_task_ledger` for one isolated synthetic countdown worker, not a raw store or scientific-run ledger. Neither reinterprets legacy manifests or wires a research runner. | `io/` config/results/checkpoint and external raw ownership; the Issue #80 ledger remains synthetic-only and local to an explicit private test root. |
 | `src/sawopt/studies/` | Live adapters, historical audits, stage-specific studies, Q1-A foundation. | Config-driven experiment inputs and only thin reusable orchestration; retire stage-specific runtime after explicit disposition. |
 | `src/sawopt/reporting/` | Historical/ad-hoc reports, bundles, legacy GitHub export and integrity. Issue #69 adds `reporting.experiment_review` for the separate compact review schema v1; old exports remain unchanged. | Compact review export in the data/review responsibility; plots in `plotting.py`; retain no agent coupling. |
-| `src/sawopt/orchestration/`, `runtime/` | Remaining legacy run lifecycle, process/storage/worktree safety, historical status/reporting, and execution-environment code. The active Codex queue/callback transport was removed in PR #109. | Preserve active non-agent safety and independently owned historical/reporting behavior. C2B must inventory remaining symbols and callers before any further deletion; no blanket package removal or assumption that Pi/session replacement exists. |
-| `src/sawopt/cli.py`; `src/sawopt/__main__.py` | R6 adds the `sawopt` console entry point and `python -m sawopt.cli` for strict synthetic config validation/run through injected response metrics, optimizer, and R5 storage/export. Issue #80 adds only an explicit Linux/WSL2 `synthetic-task launch/status/attach/stop` group using the isolated countdown worker/SQLite ledger. `python -m sawopt` remains a legacy stage/config dispatcher; its Stage 4B/4C production routes fail closed after PR #109. | Keep the new paths synthetic/injected-only; the task ledger is not scientific task/optimizer resume. The old dispatcher and remaining command symbols are a separate C2B caller-disposition task; do not delete or advertise its retired production modes. |
+| `src/sawopt/orchestration/`, `runtime/` | The obsolete detached legacy launch/resume/recover/worker path was removed in Issue #119. Retained responsibilities include historical status and guarded publication, administrative closeout, run-state records, active-run/worktree/persistent-path/PID safety, and execution-environment helpers. | Preserve independently used non-agent safety and historical/reporting behavior. Do not restore the retired launcher/worker or change run-state semantics as incidental cleanup. |
+| `src/sawopt/cli.py`; `src/sawopt/__main__.py` | R6 adds the `sawopt` console entry point and `python -m sawopt.cli` for strict synthetic config validation/run through injected response metrics, optimizer, and R5 storage/export. Issue #80 adds only an explicit Linux/WSL2 `synthetic-task launch/status/attach/stop` group using the isolated countdown worker/SQLite ledger. `python -m sawopt` now delegates only `export-review` to the retained legacy GitHub review exporter; old scientific commands are removed. | Keep the new paths synthetic/injected-only; the task ledger is not scientific task/optimizer resume. Keep legacy `export-review` separate from the R5 schema and do not restore retired scientific commands. |
 
 The concrete inventory, module list, configs/tests, and observed package edges
 are recorded in the [R0 preflight inventory](../reports/restructure/r0_preflight_inventory_20261022.md).
@@ -111,13 +113,15 @@ optimization source ownership while leaving the dense boundary unchanged; its
 merge does not qualify Q1 or establish cross-CPU bitwise identity. R5
 implements only future raw/review storage contracts. The R6 inventories and
 [#94 design](plans/issue94_r6c_three_resume_migration_design_20261024.md)
-document the limited synthetic/mock evidence. C1 has removed the old agent
-transport; the project-local hook/probe cleanup is in C2A. The legacy
-`python -m sawopt` dispatcher and mixed study/reporting/runtime modules remain
-for separate per-symbol disposition; this is not permission to delete them.
-The [R7 audit proposal](plans/r7_architecture_ci_audit_20261023.md) records
-owner decisions and is not authorization for unrelated cleanup. Each stage
-remains a separate gate in the [migration plan](plans/repository_restructure_migration_plan_20261022.md).
+document the limited synthetic/mock evidence. C1 removed the old agent
+transport; C2A retired the project-local hook/probe surface; Issue #118 retired
+Stage 4C execution and qualification tools; and Issue #119 removed the old
+scientific CLI and detached orchestration launch/worker. The `export-review`
+legacy evidence path and independently used status, publication, closeout, and
+worktree/storage/process safety responsibilities remain. The [R7 audit
+proposal](plans/r7_architecture_ci_audit_20261023.md) records owner decisions
+and is not authorization for unrelated cleanup. Each stage remains a separate
+gate in the [migration plan](plans/repository_restructure_migration_plan_20261022.md).
 No stage grants permission to change equations, ranking, bounds, Q0/Q1
 semantics, or run conditions.
 

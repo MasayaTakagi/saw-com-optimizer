@@ -2,9 +2,9 @@
 
 > This describes a retained saved-run packaging utility, not a new-run
 > workflow. No production run or historical-data access is authorized here.
-> The former `python -m sawopt export-review` flow and
-> `reports/experiment_reviews/...` convention are not the R5 schema and are
-> not a current production publication path.
+> The retained `python -m sawopt export-review` flow and
+> `reports/experiment_reviews/...` convention are legacy review evidence, not
+> the R5 schema or a current production publication path.
 
 `artifacts/review_bundles/` and `sawopt.reporting.review_bundle` are retained for
 manual packaging of already-authorized historical or ad-hoc saved runs. They
