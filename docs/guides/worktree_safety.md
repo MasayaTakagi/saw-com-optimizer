@@ -4,42 +4,41 @@ Git worktrees are disposable source checkouts. `git status --short` only reports
 Git-visible changes; it does not prove that ignored raw runs, test state, logs,
 or other local files are absent.
 
-For the canonical storage/logging/review split, see
+This guide documents retained worktree and data-safety mechanisms, not a
+supported production launcher. PR #109 retired the old orchestration launch,
+Codex continuation, and Stage 4B/4C production routes. R5 raw/review storage is
+future-only and tested synthetically; it is not wired to a production runner.
+Follow [`../experiments.md`](../experiments.md) for current storage contracts
+and authorization. For the overview, see
 [`data_storage_logging_review_policy.md`](data_storage_logging_review_policy.md).
 
 ## Durable run storage
 
-New user-authorized or ranking-eligible production runs must use an absolute
-persistent output location outside every registered Git worktree. Pass an
-existing external root with `--run-root`; orchestration creates a unique
-`<run_id>` child. An absolute `--run-dir` is also accepted. The launch gate
-checks all registered worktrees, `.git`, canonical review publication output,
-path reparse points, destination uniqueness, and parent writability before run
-creation. Git discovery and path checks fail closed. An invalid production
-path never falls back to repository `runs/`.
+The retained safety implementation validates persistent paths for legacy
+control records and protects worktree removal. This does not make retired
+launch commands supported or authorize a new run. Any future R5 store use must
+follow the external `SAWOPT_DATA_ROOT`, containment, identity, exclusivity, and
+fail-closed rules in `experiments.md`; it must not fall back to repository
+`runs/`.
 
-The raw orchestration and optimizer output, checkpoints, populations, raw logs,
-and recovery-critical artifacts belong in persistent storage. A lightweight
-review package remains under
-`reports/experiment_reviews/<stage>/<run_id>/` in the source repository. New
-production manifests record `run_storage_policy: external_persistent_v1`, the
-persistent root, repository root, and source worktree. Historical manifests
-without these optional fields remain readable.
+Historical orchestration manifests may contain old `external_persistent_v1`
+fields and review paths. They remain records, not a current R5 schema or a
+production-run procedure. Do not rewrite, migrate, or resume them under this
+guide.
 
-## Active production worktree protection
+## Active-run registry and worktree protection
 
-New production launches also require the shared active-run registry in Git's
-common directory. Before reserving a run directory, claiming Stage 4B
-authorization, or starting the worker, launch records the run ID, external run
-directory, source worktree, branch, and source commit. The record remains a
-removal blocker even after optimizer completion. It is removed only after
-`mark-review-published` has durably moved the run to `REVIEW_WAITING` with
-`review_evidence_state: PUBLISHED`; repeating that publication command can
-clear a marker left behind by an interrupted finalization.
+The active-run registry, PID/process checks, path validation, locks, and
+worktree-removal protections remain independent safety owners. PR #109 did not
+remove them, and C2A must not weaken them. Old launch/review commands and
+publication finalizers described by historical run records are not active
+operations. Registry presence is not proof that all external or unregistered
+runs are known; never infer global absence from a repository-only check.
 
-For an existing repository, initialize the registry only after reconciling
-every known external production-run root and confirming there are no active
-unregistered runs:
+The following registry initialization operation is retained for the existing
+safety utility, but it is not an experiment authorization and does not scan
+arbitrary external disks. Only perform it under its own explicitly approved
+operational scope:
 
 ```bash
 uv run --locked python scripts/worktree_safety.py initialize-registry \
@@ -48,12 +47,12 @@ uv run --locked python scripts/worktree_safety.py initialize-registry \
 
 Initialization does not scan arbitrary external disks. The confirmation is an
 explicit operator assertion that prior runs have been reconciled. Missing,
-unreadable, or malformed registry data blocks both production launch and
-worktree removal. Do not delete stale records based only on optimizer state;
-investigate the referenced run and publication state first. Launch registration
-and the remover's final audits plus `git worktree remove` share one lock in the
-Git common directory, preventing a new production run from racing the final
-removal check.
+unreadable, or malformed registry data blocks any caller attempting active-run
+registration and blocks worktree removal. Do not delete stale records based
+only on optimizer state; investigate referenced control metadata under an
+explicitly authorized scope. Registry operations and the remover's final audits
+plus `git worktree remove` share one lock in the Git common directory, so a
+registered run cannot race the final removal check.
 
 ## Audit before removal
 

@@ -1,20 +1,26 @@
-# New experiment implementation guidance
+# Future experiment implementation notes — not an execution guide
 
-New experiments should reuse study, reporting, and search infrastructure
-instead of adding Stage-specific copies. Keep reusable topology definitions in
-`problem`, reusable counter/population/accounting logic in `optimization`, and
-experiment conditions in the study configuration and study adapter.
+> **No current production runner is authorized by this page.** R5 raw/review
+> storage and R6 CLI/Worker behavior are synthetic-only; former Codex
+> queue/callback and Stage 4B/4C production routes are retired. Do not invoke
+> an old `run-study`, `export-review`, checkpoint, or launcher command based
+> on this forward-looking note. Before implementation or execution, follow the
+> current [roadmap](../roadmap.md) and [experiment/data policy](../experiments.md)
+> and obtain every required owner decision.
+
+The architectural guidance below is retained for future design review only; it
+does not designate currently supported entrypoints or production capabilities.
 
 Use the shared checkpoint lifecycle in
 [`checkpoint_lifecycle.md`](checkpoint_lifecycle.md) for full-state recovery,
 rolling retention, and successful-run finalization. Keep analysis history in
 CSV/JSONL outputs and do not add per-study checkpoint rotation code.
 
-For new production studies, follow
-[`data_storage_logging_review_policy.md`](data_storage_logging_review_policy.md):
-raw/recovery-heavy output belongs in an external persistent run root, while
-compact GitHub evidence belongs under
-`reports/experiment_reviews/<stage>/<run_id>/`.
+For any separately authorized future study design, use the storage and review
+contracts in [`../experiments.md`](../experiments.md). The R5 future-only raw
+store and review package paths/schema are defined there; they are not the old
+`reports/experiment_reviews/<stage>/<run_id>/` convention and are not wired to
+a production runner.
 
 Every new study entry point must pass a `RunDisposition` explicitly to
 `sawopt.io.checkpoints.complete_study_run`. Use `COMPLETED` only when the study
@@ -27,21 +33,23 @@ checkpoints. Historical marker translation belongs in
 `sawopt.io.legacy_lifecycle`; new studies should not add marker-name checks to
 the checkpoint core.
 
-For new production review publication, declare the study-specific compact
-artifact requirements used by the generic `export-review` flow and the frozen
-review spec. Keep derived study summaries in the study's reporting module, but
-do not copy hashing, redaction, size-gate, Git publication, or package-layout
-logic into a study runner.
+Any future publication adapter needs a separately reviewed owner and contract.
+The old generic `export-review` flow is not a current production interface;
+R5's compact exporter is distinct and future-only. Keep integrity, redaction,
+size limits, and publication semantics in their approved owners.
 
 `ReviewBundleSpec` / `build_review_bundle` is a historical/ad-hoc saved-run ZIP
 utility, not the canonical publication path for a new production study. See
 [`review_bundles.md`](review_bundles.md).
 
-Use fingerprint schema v2 for new studies. Enumerate the full numerical source
-dependency set explicitly, including the study's numerical implementation,
-COM/network dependencies, topology, optimizer selection, counters, initializer,
-and the exact input configuration. Enumerate reporting code, plots, templates,
-and review-spec/export schema only in the reporting dependency set.
+For any separately approved future numerical-study implementation, the
+existing fingerprint-schema-v2 contract below remains unchanged. This guidance
+does not revive the retired Stage 4B fingerprint or production-verification
+path. Enumerate the full numerical source dependency set explicitly, including
+the study's numerical implementation, COM/network dependencies, topology,
+optimizer selection, counters, initializer, and exact input configuration.
+Enumerate reporting code, plots, templates, and review-spec/export schema only
+in the reporting dependency set.
 
 The schema-v2 `computation_fingerprint` identifies the scientific and
 computational inputs to the same numerical calculation. Scientific

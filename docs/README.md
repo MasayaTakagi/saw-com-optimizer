@@ -47,25 +47,25 @@ supersede the five current sources above:
   [Issue #96 N1 transaction/recovery contract](plans/issue96_n1_synthetic_transaction_recovery_20261024.md),
   and [Issue #75 Codex retirement policy (2026-10-24)](plans/issue75_legacy_codex_retirement_decision_20261024.md)
   record staged reconstruction work. The [Issue #106 C0 static caller/evidence inventory](plans/issue106_r6c0_codex_removal_inventory_20261024.md)
-  records the preflight; its historical-fingerprint reconstruction stop gate is superseded by the owner-authorized
-  [Issue #108 R6-C1 scope](plans/issue108_r6c1_codex_removal_20261024.md). The R3 and R4 records are scoped to
-  Issues #65 and #67; R6 is scoped to Issue #71's software/synthetic-only
-  authorization; R7 is an audit/CI evidence and owner-decision proposal under
-  Issue #74; Issue #77 is a design proposal; Issue #80 authorizes only isolated
-  synthetic PR-A implementation; Issue #82 authorizes only isolated synthetic
-  countdown recovery and does not authorize scientific or Pi-session recovery;
-  Issue #84 authorizes only an injected fake Pi-session adapter and does not
-  authorize real Pi runtime/session use; Issue #94 records a docs-only/static
-  design audit; Issue #96 authorizes only its bounded test-owned synthetic N1
-  implementation and software verification. Neither issue authorizes legacy
-  cutover, active-run inspection, real Pi runtime, or scientific work.
-  The later owner decisions for Issues #75 and #108 authorize scoped removal of
-  old Codex queue/callback behavior without Pi-session parity or historical
-  Stage4B fingerprint reconstruction; implementation must stop at a Draft PR
-  for independent review and retain frozen scientific evidence.
-  Earlier R7/#77 replacement-prerequisite statements are historical where they
-  conflict with that newer policy. No plan authorizes Q1 qualification, real
-  experiments, or production runs.
+  and [Issue #108 C1 disposition](plans/issue108_r6c1_codex_removal_20261024.md)
+  are dated records; the old Codex queue/callback runtime and legacy Stage 4B/4C
+  production entrypoints were retired in merged PR #109 at
+  `604091d550c8fad302ed179e3e177d3a1ee3c7c1`. The [Issue #111 C2A disposition](plans/issue111_r6c2a_legacy_surface_disposition_20261024.md)
+  records the project-local hook and current-facing documentation cleanup
+  submitted in PR #112; its review and merge disposition are tracked by that
+  PR, not by this index. C2B and R7 remain separate future owner gates. Historical documents that describe earlier
+  active paths remain dated evidence, not current instructions. The R3 and R4
+  records are scoped to Issues #65 and #67; R6 is scoped to Issue #71's
+  software/synthetic-only authorization; R7 is an audit/CI evidence and
+  owner-decision proposal under Issue #74; Issue #77 is a design proposal;
+  Issue #80 authorizes only isolated synthetic PR-A implementation; Issue #82
+  authorizes only isolated synthetic countdown recovery; Issue #84 authorizes
+  only a fake Pi-session adapter; Issue #94 records a docs-only/static design
+  audit; and Issue #96 authorized only its bounded test-owned synthetic N1
+  implementation. None authorizes real Pi runtime/session use or scientific
+  work. The owner-approved retirement does not require Pi-session parity or
+  historical Stage4B fingerprint reconstruction. No plan authorizes Q1
+  qualification, real experiments, or production runs.
 
 ## Legacy paths
 

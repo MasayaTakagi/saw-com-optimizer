@@ -1,19 +1,22 @@
 # Architecture: current implementation and target ownership
 
 **Status:** R2 physics extraction, R3 design/evaluation separation, R4 optimizer
-consolidation, and R5 future-only raw/review storage merged at
-`8b03dda0a263a68d9899b35cce55fe67f5047555` (PR #70). R6-A's synthetic CLI
-merged in PR #72; R6-C's isolated synthetic task/recovery (#80/#82) and
-mock-only Pi adapter (#84) are also merged within those scopes. They do not
-qualify scientific optimizer/FE recovery or real Pi exact-session continuation.
-Issue #108 authorizes C1 removal of the active legacy Codex queue/callback and
-unsupported legacy execution paths without a replacement or historical
-Stage4B fingerprint reconstruction. The former fingerprint reconstruction
-stop gate in Issue #106 is superseded; the frozen fingerprint, source commit,
-and reports remain historical facts only. The active-run safety gate and
-Draft PR review remain open. See the [C1 scope](plans/issue108_r6c1_codex_removal_20261024.md),
-[Issue #75 owner policy](plans/issue75_legacy_codex_retirement_decision_20261024.md),
-and [Issue #106 inventory](plans/issue106_r6c0_codex_removal_inventory_20261024.md).
+consolidation, and R5 future-only raw/review storage are merged. R6-A's
+synthetic CLI and the separately scoped synthetic task/recovery and mock-only
+Pi protocol are also merged; they do not qualify scientific optimizer/FE
+recovery or real Pi exact-session continuation. R6-C1 retired the active legacy
+Codex queue/callback runtime and unsupported Stage 4B/4C production entrypoints
+in PR #109, merged at `604091d550c8fad302ed179e3e177d3a1ee3c7c1`. Issue #111
+C2A retires the remaining project-local C2C/Codex hook utilities and updates
+stale current-facing guidance under PR #112; that PR is the authoritative
+record of review and merge disposition. C2B per-symbol cleanup and R7 remain
+separate gates. The former Stage4B fingerprint
+reconstruction stop gate in Issue #106 is superseded; the frozen fingerprint,
+source commit, and reports remain historical facts only. See the [C1
+scope](plans/issue108_r6c1_codex_removal_20261024.md), [Issue #75 owner
+policy](plans/issue75_legacy_codex_retirement_decision_20261024.md), [Issue #106
+inventory](plans/issue106_r6c0_codex_removal_inventory_20261024.md), and
+[Issue #111 C2A disposition](plans/issue111_r6c2a_legacy_surface_disposition_20261024.md).
 The R7 audit is recorded in [its proposal](plans/r7_architecture_ci_audit_20261023.md);
 it does not itself authorize unrelated legacy cleanup. See the [R3
 inventory](plans/restructure_r3_ownership_20261022.md), [R4
@@ -74,8 +77,8 @@ no old-checkpoint reader is introduced.
 | `src/sawopt/io/` | Config, serialization, legacy run stores, provenance, checkpoints and lifecycle. Issue #69 adds the separate future-only `io.experiment_store` API; Issue #80 adds `io.synthetic_task_ledger` for one isolated synthetic countdown worker, not a raw store or scientific-run ledger. Neither reinterprets legacy manifests or wires a research runner. | `io/` config/results/checkpoint and external raw ownership; the Issue #80 ledger remains synthetic-only and local to an explicit private test root. |
 | `src/sawopt/studies/` | Live adapters, historical audits, stage-specific studies, Q1-A foundation. | Config-driven experiment inputs and only thin reusable orchestration; retire stage-specific runtime after explicit disposition. |
 | `src/sawopt/reporting/` | Historical/ad-hoc reports, bundles, legacy GitHub export and integrity. Issue #69 adds `reporting.experiment_review` for the separate compact review schema v1; old exports remain unchanged. | Compact review export in the data/review responsibility; plots in `plotting.py`; retain no agent coupling. |
-| `src/sawopt/orchestration/`, `runtime/` | Detached run lifecycle, process/storage safety, review publishing, agent-session queue/callback, execution environment. | Remove all active Codex queue/callback runtime without requiring a Pi or agent-resume replacement. Audit old live callers and preserve required non-agent safety, read-only historic status, and source provenance by per-symbol disposition; no blanket package deletion. |
-| `src/sawopt/cli.py`; `src/sawopt/__main__.py` | R6 adds the `sawopt` console entry point and `python -m sawopt.cli` for strict synthetic config validation/run through injected response metrics, optimizer, and R5 storage/export. Issue #80 adds only an explicit Linux/WSL2 `synthetic-task launch/status/attach/stop` group using the isolated countdown worker/SQLite ledger; it does not change `sawopt run/validate`. `python -m sawopt` remains the legacy stage/config dispatcher. | Keep both new paths synthetic/injected-only; the task ledger is not scientific task/optimizer resume. Retire or explicitly disposition the legacy dispatcher only after its callers, authorization gates, and evidence routes are reviewed. |
+| `src/sawopt/orchestration/`, `runtime/` | Remaining legacy run lifecycle, process/storage/worktree safety, historical status/reporting, and execution-environment code. The active Codex queue/callback transport was removed in PR #109. | Preserve active non-agent safety and independently owned historical/reporting behavior. C2B must inventory remaining symbols and callers before any further deletion; no blanket package removal or assumption that Pi/session replacement exists. |
+| `src/sawopt/cli.py`; `src/sawopt/__main__.py` | R6 adds the `sawopt` console entry point and `python -m sawopt.cli` for strict synthetic config validation/run through injected response metrics, optimizer, and R5 storage/export. Issue #80 adds only an explicit Linux/WSL2 `synthetic-task launch/status/attach/stop` group using the isolated countdown worker/SQLite ledger. `python -m sawopt` remains a legacy stage/config dispatcher; its Stage 4B/4C production routes fail closed after PR #109. | Keep the new paths synthetic/injected-only; the task ledger is not scientific task/optimizer resume. The old dispatcher and remaining command symbols are a separate C2B caller-disposition task; do not delete or advertise its retired production modes. |
 
 The concrete inventory, module list, configs/tests, and observed package edges
 are recorded in the [R0 preflight inventory](../reports/restructure/r0_preflight_inventory_20261022.md).
@@ -101,21 +104,22 @@ orchestration retain legacy runtime cycles for later stages. The architecture
 refactor must move ownership and invert dependencies intentionally; renaming
 directories alone will not meet the target.
 
-R2, R3, R4, R5 and the synthetic/mock R6 increments are merged. R3's
-ownership choices, caller list, and evidence-only dispositions are explicit in
-the [R3 inventory](plans/restructure_r3_ownership_20261022.md). R4 consolidates
+R2–R5 and the authorized synthetic/mock R6 increments are merged. R3's
+ownership choices and evidence-only dispositions are explicit in the [R3
+inventory](plans/restructure_r3_ownership_20261022.md). R4 consolidates
 optimization source ownership while leaving the dense boundary unchanged; its
 merge does not qualify Q1 or establish cross-CPU bitwise identity. R5
 implements only future raw/review storage contracts. The R6 inventories and
 [#94 design](plans/issue94_r6c_three_resume_migration_design_20261024.md)
-document the limited synthetic/mock evidence and the remaining caller, resume
-and cutover gates. Legacy orchestration behavior remains unchanged. The [R7
-audit proposal](plans/r7_architecture_ci_audit_20261023.md) records owner
-decisions and is not authorization for R6-C cleanup. Each stage remains a
-separate gate in the
-[migration plan](plans/repository_restructure_migration_plan_20261022.md). No
-stage grants permission to change equations, ranking, bounds, Q0/Q1 semantics,
-or run conditions.
+document the limited synthetic/mock evidence. C1 has removed the old agent
+transport; the project-local hook/probe cleanup is in C2A. The legacy
+`python -m sawopt` dispatcher and mixed study/reporting/runtime modules remain
+for separate per-symbol disposition; this is not permission to delete them.
+The [R7 audit proposal](plans/r7_architecture_ci_audit_20261023.md) records
+owner decisions and is not authorization for unrelated cleanup. Each stage
+remains a separate gate in the [migration plan](plans/repository_restructure_migration_plan_20261022.md).
+No stage grants permission to change equations, ranking, bounds, Q0/Q1
+semantics, or run conditions.
 
 ## Q1-A implementation and evidence boundary
 
