@@ -48,8 +48,7 @@ CLI/script compatibility is explicitly accepted by the owner.
   required. The dedicated worktree has no `.venv`; local pytest will not be run
   using another worktree's editable environment, and no environment sync/install
   is performed without approval.
-- Exact PR-head full locked Haswell CI and final collected/passed counts: to be
-  recorded in the Draft PR / Issue #119 handoff after publication.
+- Exact implementation-head locked Haswell CI: [Actions #40103368612](https://github.com/miyabimm/saw-com-optimizer/actions/runs/40103368612), commit `fe8d01350f4fdff9adc3014d32b0c7be508cda19`, **721/721 passed** (net collected delta −23 from the 744-test base). The run completed the full `uv run --locked pytest` workflow. No source/test changes were made after this CI commit; the subsequent handoff-record commit is documentation-only and triggers the final PR-head CI, which will be reported in the PR / Issue #119.
 - Changed files: `AGENTS.md`, `README.md`, `scripts/README.md`,
   `docs/README.md`, `docs/architecture.md`, `docs/development.md`,
   `docs/guides/{development_environment,github_review_workflow,review_bundles}.md`,
