@@ -3,15 +3,18 @@
 **Status:** R2 physics extraction, R3 design/evaluation separation, R4 optimizer
 consolidation, and R5 future-only raw/review storage merged at
 `8b03dda0a263a68d9899b35cce55fe67f5047555` (PR #70). R6-A's synthetic CLI
-merged to verified `main` at `d232ba7eb4ff88e0bec15e1406343981ab406bf3` (PR
-#72); R6-B remains blocked on live dependencies and R6-C cleanup is mandatory
-under Issue #75. Issue #74 authorizes R7 CI evidence and architecture audit
-only; it does not authorize legacy behavior changes or cleanup. See the [R3
+merged in PR #72; R6-C's isolated synthetic task/recovery (#80/#82) and
+mock-only Pi adapter (#84) are also merged within those scopes. They do not
+qualify scientific optimizer/FE recovery, real Pi exact-session continuation,
+or legacy cutover. Issue #94 authorizes only a docs/static design audit; #75
+and #53 remain open pending separately reviewed migration and owner decisions.
+The R7 audit is recorded in [its proposal](plans/r7_architecture_ci_audit_20261023.md);
+it does not authorize legacy behavior changes or cleanup. See the [R3
 inventory](plans/restructure_r3_ownership_20261022.md), [R4
 inventory](plans/restructure_r4_ownership_20261022.md), [R6
-inventory](plans/restructure_r6_ownership_20261023.md), and [R7 audit
-proposal](plans/r7_architecture_ci_audit_20261023.md). The R0 inventory counted
-94 Python modules at main
+inventory](plans/restructure_r6_ownership_20261023.md), and [Issue #94
+design](plans/issue94_r6c_three_resume_migration_design_20261024.md). The R0
+inventory counted 94 Python modules at main
 `a4b3807d399cc78b10c280d41ee8cea476ade329` (pre-R2 baseline). Target APIs not
 yet implemented must not be treated as current.
 
@@ -94,18 +97,18 @@ orchestration retain legacy runtime cycles for later stages. The architecture
 refactor must move ownership and invert dependencies intentionally; renaming
 directories alone will not meet the target.
 
-R2, R3, R4, R5 and R6-A are merged. R3's ownership choices, caller list, and
-evidence-only dispositions are explicit in the
-[R3 inventory](plans/restructure_r3_ownership_20261022.md). R4 consolidates
+R2, R3, R4, R5 and the synthetic/mock R6 increments are merged. R3's
+ownership choices, caller list, and evidence-only dispositions are explicit in
+the [R3 inventory](plans/restructure_r3_ownership_20261022.md). R4 consolidates
 optimization source ownership while leaving the dense boundary unchanged; its
 merge does not qualify Q1 or establish cross-CPU bitwise identity. R5
-implements only future raw/review storage contracts; R6-A's synthetic/injected
-vertical slice and deferred legacy-path disposition are owner-authorized under
-Issue #71. See the [R6 inventory](plans/restructure_r6_ownership_20261023.md).
-Issue #74 authorizes only audit/CI evidence work; the [R7 audit
-proposal](plans/r7_architecture_ci_audit_20261023.md) records pending owner
-decisions and is not R6-C authorization. Each stage remains a separate gate in
-the
+implements only future raw/review storage contracts. The R6 inventories and
+[#94 design](plans/issue94_r6c_three_resume_migration_design_20261024.md)
+document the limited synthetic/mock evidence and the remaining caller, resume
+and cutover gates. Legacy orchestration behavior remains unchanged. The [R7
+audit proposal](plans/r7_architecture_ci_audit_20261023.md) records owner
+decisions and is not authorization for R6-C cleanup. Each stage remains a
+separate gate in the
 [migration plan](plans/repository_restructure_migration_plan_20261022.md). No
 stage grants permission to change equations, ranking, bounds, Q0/Q1 semantics,
 or run conditions.
