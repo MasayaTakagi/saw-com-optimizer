@@ -473,10 +473,10 @@ def complete_study_run(
 ) -> dict[str, Any]:
     """Persist an explicit lifecycle disposition and finalize completed runs.
 
-    Orchestrated callers only record the study result. The worker first stores
-    its authoritative optimizer status, then invokes ``finalize_run_checkpoints``.
-    Direct CLI callers own both steps. Missing disposition is UNKNOWN and keeps
-    runtime recovery generations intact.
+    Runs carrying a legacy orchestration manifest record completion here but do
+    not finalize its separately owned checkpoint lifecycle. Direct study callers
+    finalize managed checkpoints only with an explicit COMPLETED disposition.
+    Missing disposition is UNKNOWN and keeps runtime recovery generations intact.
     """
     root = Path(run_directory).resolve()
     if disposition is None or not isinstance(disposition, RunDisposition):

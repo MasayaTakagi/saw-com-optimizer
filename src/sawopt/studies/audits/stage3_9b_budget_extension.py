@@ -307,13 +307,6 @@ def run_config_preflight(
             "budget": [8000, 16000],
             "checkpoints": [list(OVERLAP_CHECKPOINTS), list(EXTENSION_CHECKPOINTS)],
         },
-        "launch_command": [
-            str(ROOT / ".venv/Scripts/python.exe"), "-m", "sawopt.orchestration.cli", "launch",
-            "--config", str(extension_config.resolve()),
-            "--run-dir", str(extension_control_root.resolve()),
-            "--experiment-name", "stage3_9b_budget_extension",
-            "--no-callback",
-        ],
         "errors": errors,
     }
     _write_json(output_dir / "config_preflight.json", summary)
@@ -334,7 +327,6 @@ def run_config_preflight(
         "## Errors", "",
     ]
     markdown.extend(f"- {error}" for error in errors) if errors else markdown.append("- None.")
-    markdown.extend(["", "## Conditional launch command", "", " ".join(summary["launch_command"]), ""])
     (output_dir / "config_preflight.md").write_text("\n".join(markdown), encoding="utf-8")
     return summary
 

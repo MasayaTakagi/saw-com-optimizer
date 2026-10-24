@@ -4,7 +4,7 @@ import sys
 import time
 import unittest
 
-from sawopt.orchestration import pid_utils, process_runner, run_manager
+from sawopt.orchestration import administrative_closeout, pid_utils, run_manager
 
 
 class PidLivenessTests(unittest.TestCase):
@@ -32,7 +32,7 @@ class PidLivenessTests(unittest.TestCase):
         self.assertFalse(pid_utils.pid_exists(child.pid))
 
     def test_all_orchestration_callers_share_platform_safe_implementation(self):
-        self.assertIs(process_runner.pid_exists, pid_utils.pid_exists)
+        self.assertIs(administrative_closeout.pid_exists, pid_utils.pid_exists)
         self.assertIs(run_manager._pid_exists, pid_utils.pid_exists)
 
 

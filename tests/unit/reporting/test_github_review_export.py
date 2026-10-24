@@ -1,5 +1,7 @@
+import contextlib
 import csv
 import hashlib
+import io
 import json
 import shutil
 import subprocess
@@ -10,6 +12,7 @@ from pathlib import Path
 
 import yaml
 
+from sawopt import __main__ as legacy_cli
 from sawopt.reporting.github_review import (
     ARTIFACT_COLUMNS,
     ReviewExportError,
@@ -116,6 +119,37 @@ def _fixture(root: Path, *, schema=2, oversized=False, run_directory: Path | Non
 
 
 class GitHubReviewExportTests(unittest.TestCase):
+    def test_python_module_export_review_works_and_never_overwrites_conflicting_destination(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            run = _fixture(base / "repo")
+            destination = base / "export"
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                self.assertEqual(legacy_cli.main([
+                    "export-review", "--run", str(run), "--destination", str(destination),
+                ]), 0)
+            self.assertEqual(json.loads(stdout.getvalue())["status"], "EXPORTED")
+
+            readme = destination / "README.md"
+            readme.write_text("tampered\n", encoding="utf-8")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as error:
+                legacy_cli.main([
+                    "export-review", "--run", str(run), "--destination", str(destination),
+                ])
+            self.assertEqual(error.exception.code, 2)
+            self.assertEqual(readme.read_text(encoding="utf-8"), "tampered\n")
+
+    def test_python_module_export_review_invalid_fixture_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            missing_run = Path(temporary) / "missing-run"
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as error:
+                legacy_cli.main(["export-review", "--run", str(missing_run)])
+            self.assertEqual(error.exception.code, 2)
+            self.assertFalse(missing_run.exists())
+
     def test_default_destination_uses_manifest_stage_and_run_id(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

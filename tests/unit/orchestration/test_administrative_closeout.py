@@ -11,9 +11,9 @@ from sawopt.orchestration.administrative_closeout import (
     AdministrativeCloseoutError,
     finalize_orphaned_failure,
 )
-from sawopt.orchestration.models import RunManifest
+from sawopt.orchestration.models import RunManifest, RunStatus
 from sawopt.orchestration.run_manager import (
-    create_run,
+    atomic_write_json,
     load_status,
     optimizer_completion_path,
     transition,
@@ -93,7 +93,13 @@ class AdministrativeCloseoutTests(unittest.TestCase):
         run_dir = root / "production" / "run-1"
         run_dir.parent.mkdir()
         manifest = _manifest(repo, run_dir, "run-1", source_sha)
-        create_run(manifest)
+        run_dir.mkdir(parents=True)
+        atomic_write_json(run_dir / "run_manifest.json", manifest.to_dict())
+        atomic_write_json(run_dir / "status.json", RunStatus(
+            state="CREATED", updated_at=manifest.created_at,
+            callback_enabled=False, continuation_mode="disabled",
+            continuation_state="DISABLED", review_output_dir=manifest.review_output_dir,
+        ).to_dict())
         transition(run_dir, "STARTING", worker_pid=111, optimizer_pid=222)
         transition(run_dir, "RUNNING")
         (run_dir / "optimizer" / "checkpoints").mkdir(parents=True)

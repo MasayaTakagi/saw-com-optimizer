@@ -44,10 +44,14 @@ questions. Do not rewrite historical evidence as part of routine cleanup.
 
 The supported R6 user-facing CLI is `sawopt` / `python -m sawopt.cli` for strict
 synthetic configuration validation and explicitly injected synthetic fixtures.
-The separate legacy `python -m sawopt` dispatcher is not a scientific product
-runner. Its Stage 4B/4C production paths are retired and fail closed. The old
-Codex queue/callback runtime and project-local C2C/Codex hook utilities are
-retired; there is no automatic agent handoff or session-continuation fallback.
+The separate legacy `python -m sawopt` module now exposes only
+`export-review --run PATH [--destination PATH]` for saved legacy review
+packages; it is not a scientific product runner or an alias for R5. Its former
+simulation, optimization, study, report, and shakedown commands, together with
+the detached orchestration launch/resume/recover/worker path, have been removed.
+The old Codex queue/callback runtime and project-local C2C/Codex hook utilities
+are retired; there is no automatic agent handoff or session-continuation
+fallback.
 
 The synthetic task Worker/ledger is a separate software-only path. It does not
 qualify scientific optimizer/FE recovery, authorize a real run, or replace the
@@ -72,10 +76,12 @@ immutable evidence; do not migrate or repair them in this workflow.
 
 ## Retired procedures
 
-Do not use the former Codex/C2C queue, callback, `confirm-queue`, or
-Codex-linked orchestration launch/resume/recovery and publication-finalizer
-procedures. Separately retained non-agent safety and observational APIs are
-not retired by this statement.
+Do not use or recreate the former Codex/C2C queue, callback, `confirm-queue`,
+legacy orchestration launch/resume/recovery, or detached worker procedures.
+The recorded `status` and guarded `mark-review-published` commands remain for
+historical status and publication semantics; administrative closeout and
+independent non-agent safety APIs also remain separately gated and must not be
+used to infer active-run absence or authorize a new run.
 The dated [Issue #108 C1 disposition](../plans/issue108_r6c1_codex_removal_20261024.md)
 records what was removed; the [Issue #111 C2A disposition](../plans/issue111_r6c2a_legacy_surface_disposition_20261024.md)
 records the remaining project-local hook/document cleanup and its explicit

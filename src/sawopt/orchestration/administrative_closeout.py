@@ -12,7 +12,7 @@ import sys
 from typing import Any, Mapping
 
 from .active_runs import active_runs_for_worktree, release_active_run
-from .process_runner import pid_exists
+from .pid_utils import pid_exists
 from .run_manager import (
     atomic_write_json,
     load_manifest,

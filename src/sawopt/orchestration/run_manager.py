@@ -189,32 +189,6 @@ def load_status(run_dir: Path) -> dict[str, Any]:
     return value
 
 
-def create_run(manifest: RunManifest) -> None:
-    """Create a new non-agent run directory without overwriting an existing run."""
-    if manifest.uses_retired_agent_transport or manifest.study_type in {
-        "hybrid_stage4b_topology_comparison", "hybrid_stage4c_confirmatory",
-    }:
-        raise RuntimeError("creating legacy Codex-linked and Stage 4B/4C runs is retired")
-    run_dir = Path(manifest.run_dir)
-    if run_dir.exists() and any(run_dir.iterdir()):
-        raise FileExistsError(f"run directory is not empty: {run_dir}")
-    optimizer_run_dir = Path(manifest.effective_optimizer_run_dir)
-    if optimizer_run_dir.exists() and any(optimizer_run_dir.iterdir()):
-        raise FileExistsError(
-            f"optimizer output directory is not empty: {optimizer_run_dir}"
-        )
-    run_dir.mkdir(parents=True, exist_ok=True)
-    atomic_write_json(manifest_path(run_dir), manifest.to_dict())
-    atomic_write_json(status_path(run_dir), RunStatus(
-        state="CREATED",
-        updated_at=manifest.created_at,
-        callback_enabled=manifest.callback_enabled,
-        continuation_mode=manifest.continuation_mode or "disabled",
-        continuation_state="PENDING" if manifest.continuation_mode == "queue" else "DISABLED",
-        review_output_dir=manifest.review_output_dir,
-    ).to_dict())
-
-
 def _mutate_status(run_dir: Path, mutator: Callable[[dict[str, Any]], None]) -> dict[str, Any]:
     run_dir = Path(run_dir)
     with exclusive_lock(run_dir / ".status.lock"):
@@ -487,7 +461,7 @@ def format_status(run_dir: Path) -> str:
 
 
 __all__ = [
-    "atomic_write_json", "continuation_delivery_path", "create_run",
+    "atomic_write_json", "continuation_delivery_path",
     "exclusive_lock", "format_status", "load_continuation_delivery",
     "load_manifest", "load_status", "lock_owner_pid", "manifest_path",
     "mark_review_exported", "mark_review_published", "optimizer_completion_path",
