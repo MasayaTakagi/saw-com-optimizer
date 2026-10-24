@@ -440,6 +440,7 @@ def test_configured_raw_root_and_symlink_alias_are_excluded_before_register_or_l
     session_file = session_root / "session.jsonl"
     session_file.write_text("test fixture only", encoding="utf-8")
     os.chmod(session_file, 0o600)
+    session_file_identity = session_file.stat()
     monkeypatch.setenv("SAWOPT_DATA_ROOT", str(configured_root))
     store = SessionReferenceStore(session_root)
 
@@ -466,7 +467,7 @@ def test_configured_raw_root_and_symlink_alias_are_excluded_before_register_or_l
     assert outcomes == ["SESSION_STORE_UNSAFE", "SESSION_STORE_UNSAFE"]
     assert metadata_absent
     assert sentinel.read_text(encoding="utf-8") == "synthetic preservation sentinel"
-    assert session_file.read_text(encoding="utf-8") == "test fixture only"
+    assert session_file.stat() == session_file_identity
 
 
 @pytest.mark.parametrize("invalid_kind", ["empty", "relative", "missing", "broken-alias", "non-directory", "unreadable"])
@@ -479,6 +480,7 @@ def test_invalid_configured_raw_root_fails_closed_before_session_metadata(
     session_file = session_root / "session.jsonl"
     session_file.write_text("test fixture only", encoding="utf-8")
     os.chmod(session_file, 0o600)
+    session_file_identity = session_file.stat()
     restore_mode = None
     if invalid_kind == "empty":
         configured_raw = ""
@@ -530,7 +532,7 @@ def test_invalid_configured_raw_root_fails_closed_before_session_metadata(
     metadata_absent = not (session_root / "session-reference.json").exists()
     assert outcomes == ["SESSION_STORE_UNSAFE", "SESSION_STORE_UNSAFE"]
     assert metadata_absent
-    assert session_file.read_text(encoding="utf-8") == "test fixture only"
+    assert session_file.stat() == session_file_identity
 
 
 def test_unrelated_private_session_fixture_still_works_with_configured_raw_root(tmp_path, monkeypatch):
