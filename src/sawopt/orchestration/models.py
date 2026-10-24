@@ -98,9 +98,9 @@ class RunManifest:
         if mode not in CONTINUATION_MODES:
             raise ValueError(f"unknown continuation mode: {mode}")
         if mode == "queue":
-            from .codex_queue import validate_thread_id
-            thread_id = validate_thread_id(self.original_thread_id or "")
-            if thread_id != str(self.original_thread_id).lower():
+            thread_id = str(self.original_thread_id or "")
+            if (not re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", thread_id)
+                    or thread_id != str(self.original_thread_id).lower()):
                 raise ValueError("queue manifest thread ID must use canonical lowercase UUID form")
             if not self.next_expected_step or len(self.next_expected_step) > 512:
                 raise ValueError("queue manifest requires a bounded NEXT_EXPECTED_STEP")
@@ -199,6 +199,25 @@ class RunManifest:
             value.pop("c2c_task_id", None)
             value.pop("plan_iteration", None)
         return value
+
+    @property
+    def uses_retired_agent_transport(self) -> bool:
+        """Whether this historical record is linked to Codex callback/queue behavior."""
+        return bool(
+            self.callback_enabled
+            or self.review_after_completion
+            or self.continuation_mode != "disabled"
+            or self.codex_session_id is not None
+            or self.codex_model is not None
+            or self.codex_session_source is not None
+            or self.callback_preflight is not None
+            or self.original_thread_id is not None
+            or self.c2c_task_id is not None
+            or self.plan_iteration is not None
+            or self.next_expected_step is not None
+            or self.delivery_sentinel is not None
+            or self.queue_preflight is not None
+        )
 
     @property
     def effective_optimizer_run_dir(self) -> str:

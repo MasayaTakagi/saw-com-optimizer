@@ -5,23 +5,20 @@ consolidation, and R5 future-only raw/review storage merged at
 `8b03dda0a263a68d9899b35cce55fe67f5047555` (PR #70). R6-A's synthetic CLI
 merged in PR #72; R6-C's isolated synthetic task/recovery (#80/#82) and
 mock-only Pi adapter (#84) are also merged within those scopes. They do not
-qualify scientific optimizer/FE recovery, real Pi exact-session continuation,
-or legacy cutover. Issue #94 records the docs/static design audit; #75
-and #53 remain open pending actual cleanup. A later [2026-10-24 owner
-retirement decision](plans/issue75_legacy_codex_retirement_decision_20261024.md)
-**supersedes the former requirement to qualify an agent-session replacement
-before fully removing old Codex queue/callback**. The old mechanisms will be
-retired during R6-C reconstruction, but have not yet been removed. Historic
-manifest/status interpretation, Stage4B source fingerprints and Q1-A evidence
-remain protected; no actual code deletion or scientific change is authorized
-by this policy record.
+qualify scientific optimizer/FE recovery or real Pi exact-session continuation.
+Issue #108 authorizes C1 removal of the active legacy Codex queue/callback and
+unsupported legacy execution paths without a replacement or historical
+Stage4B fingerprint reconstruction. The former fingerprint reconstruction
+stop gate in Issue #106 is superseded; the frozen fingerprint, source commit,
+and reports remain historical facts only. The active-run safety gate and
+Draft PR review remain open. See the [C1 scope](plans/issue108_r6c1_codex_removal_20261024.md),
+[Issue #75 owner policy](plans/issue75_legacy_codex_retirement_decision_20261024.md),
+and [Issue #106 inventory](plans/issue106_r6c0_codex_removal_inventory_20261024.md).
 The R7 audit is recorded in [its proposal](plans/r7_architecture_ci_audit_20261023.md);
-it does not authorize legacy behavior changes or cleanup. See the [R3
+it does not itself authorize unrelated legacy cleanup. See the [R3
 inventory](plans/restructure_r3_ownership_20261022.md), [R4
-inventory](plans/restructure_r4_ownership_20261022.md), [R6
-inventory](plans/restructure_r6_ownership_20261023.md), and [Issue #94
-design](plans/issue94_r6c_three_resume_migration_design_20261024.md). The R0
-inventory counted 94 Python modules at main
+inventory](plans/restructure_r4_ownership_20261022.md), and [R6
+inventory](plans/restructure_r6_ownership_20261023.md). The R0 inventory counted 94 Python modules at main
 `a4b3807d399cc78b10c280d41ee8cea476ade329` (pre-R2 baseline). Target APIs not
 yet implemented must not be treated as current.
 

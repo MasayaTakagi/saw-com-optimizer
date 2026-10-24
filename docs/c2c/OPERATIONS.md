@@ -1,5 +1,9 @@
 # C2C operations reference
 
+> Issue #108 also retires legacy Codex queue/callback behavior. This record
+> does not authorize C2C or provide a replacement agent transport; do not
+> execute any runner/handoff instruction here.
+>
 > **FROZEN / HISTORICAL REFERENCE — effective 2026-10-02.** This procedure is
 > retained for evidence and possible future requalification. It is not an
 > active workflow for SAW project tasks. Do not invoke C2C while frozen. See

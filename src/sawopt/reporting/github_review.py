@@ -435,6 +435,18 @@ def _safe_stage(stage: str, run_id: str) -> None:
         raise ReviewExportError("run ID is unsafe for a canonical review path")
 
 
+def _record_review_export_if_supported(run_root: Path) -> None:
+    """Keep report export available without writing retired run lifecycle state."""
+    from ..orchestration.run_manager import load_manifest, mark_review_exported
+
+    manifest = load_manifest(run_root)
+    if (manifest.uses_retired_agent_transport or manifest.study_type in {
+        "hybrid_stage4b_topology_comparison", "hybrid_stage4c_confirmatory",
+    }):
+        return
+    mark_review_exported(run_root)
+
+
 def export_review(run_directory: str | Path, *, destination: str | Path | None = None,
                   repository_root: str | Path | None = None) -> dict[str, Any]:
     """Export deterministic, hashed evidence without modifying run artifacts."""
@@ -516,8 +528,7 @@ def export_review(run_directory: str | Path, *, destination: str | Path | None =
             spec=spec, artifacts=artifacts,
         )
         if int(raw.get("schema_version", 1)) >= 4 and final == canonical_path:
-            from ..orchestration.run_manager import mark_review_exported
-            mark_review_exported(run_root)
+            _record_review_export_if_supported(run_root)
         return result
 
     before_hashes = {a.source_relative: _sha256(a.source) for a in artifacts}
@@ -646,8 +657,7 @@ def export_review(run_directory: str | Path, *, destination: str | Path | None =
         os.replace(stage_dir, final)
         stage_dir = None
         if int(raw.get("schema_version", 1)) >= 4 and final == canonical_path:
-            from ..orchestration.run_manager import mark_review_exported
-            mark_review_exported(run_root)
+            _record_review_export_if_supported(run_root)
         return {"status": "EXPORTED", "run_id": run_id, "path": str(final),
                 "canonical_path": expected_canonical, "files": len(package_index),
                 "bytes": total_bytes, "cell_count": completed_count,

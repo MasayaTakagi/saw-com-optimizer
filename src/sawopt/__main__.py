@@ -33,30 +33,14 @@ def _refinement_points(command, step, records, configured_resistances):
     return np.arange(max(20, resistance - 10), min(200, resistance + 10) + 1e-9, step).tolist()
 
 
-def _run_study(
-    config_path, run_path, *, resume=False,
-    stage4b_authorization_manifest=None,
-    stage4c_authorization_manifest=None,
-):
+def _run_study(config_path, run_path, *, resume=False):
     cfg = load_experiment_config(config_path)
     study = cfg.get("study", {})
     protocol = study.get("type") if isinstance(study, dict) else None
-    if protocol == "hybrid_stage4b_topology_comparison":
-        if not stage4b_authorization_manifest:
-            raise PermissionError("Stage 4B production requires a bound orchestration authorization manifest")
-        from .studies.hybrid_stage4b import run_stage4b_production
-
-        return run_stage4b_production(
-            config_path, run_path, stage4b_authorization_manifest,
-        )
-    if protocol == "hybrid_stage4c_confirmatory":
-        if not stage4c_authorization_manifest:
-            raise PermissionError("Stage 4C production requires a bound orchestration authorization manifest")
-        from .studies.hybrid_stage4c import run_stage4c_production
-
-        return run_stage4c_production(
-            config_path, run_path, stage4c_authorization_manifest,
-        )
+    if protocol in {
+        "hybrid_stage4b_topology_comparison", "hybrid_stage4c_confirmatory",
+    }:
+        raise RuntimeError(f"legacy {protocol} production execution is retired")
     if protocol == "postrun_workflow_qualification":
         from .studies.postrun_workflow_qualification import run_qualification_fixture
 
@@ -70,7 +54,12 @@ def _run_study(
     return run_dms_topology_screening(config_path, run_path, resume=resume)
 
 
-def main():
+def main(argv: list[str] | None = None):
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if any(argument in {
+        "--stage4b-authorization-manifest", "--stage4c-authorization-manifest",
+    } for argument in arguments):
+        raise RuntimeError("legacy Stage 4B/4C authorization-manifest routes are retired")
     parser = argparse.ArgumentParser(description="SAW COM impedance optimizer")
     parser.add_argument(
         "command", choices=["simulate", "optimize", "sweep", "report", "run-study", "stage4b-shakedown", "export-review"],
@@ -82,10 +71,8 @@ def main():
     parser.add_argument("--maxiter", type=int)
     parser.add_argument("--refine-step", type=float)
     parser.add_argument("--resume", action="store_true")
-    parser.add_argument("--stage4b-authorization-manifest")
-    parser.add_argument("--stage4c-authorization-manifest")
     parser.add_argument("--destination", help=argparse.SUPPRESS)
-    args = parser.parse_args()
+    args = parser.parse_args(arguments)
 
     if args.command == "export-review":
         from .reporting.github_review import main as export_main
@@ -97,11 +84,7 @@ def main():
         return
 
     if args.command == "run-study":
-        result = _run_study(
-            args.config, args.run, resume=args.resume,
-            stage4b_authorization_manifest=args.stage4b_authorization_manifest,
-            stage4c_authorization_manifest=args.stage4c_authorization_manifest,
-        )
+        result = _run_study(args.config, args.run, resume=args.resume)
         complete_study_run(
             args.run, result,
             disposition=legacy_process_disposition(args.run, return_code=0),
@@ -110,11 +93,7 @@ def main():
         return
 
     if args.command == "stage4b-shakedown":
-        from .studies.hybrid_stage4b import run_stage4b_shakedown
-
-        result = run_stage4b_shakedown(args.config, args.run, resume=args.resume)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-        return
+        raise RuntimeError("legacy Stage 4B shakedown execution is retired")
 
     if args.command == "report":
         print(json.dumps({"report": report(args.run)}))

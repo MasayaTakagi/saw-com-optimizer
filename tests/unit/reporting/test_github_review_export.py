@@ -184,6 +184,33 @@ class GitHubReviewExportTests(unittest.TestCase):
             }
             self.assertEqual(before, after)
 
+    def test_retired_queue_review_export_preserves_run_status(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run = _fixture(root, schema=4)
+            manifest_path = run / "run_manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            thread_id = "01a0e89c-1c65-72a3-beb6-489f0cf01b30"
+            manifest.update({
+                "continuation_mode": "queue", "review_after_completion": True,
+                "original_thread_id": thread_id, "next_expected_step": "publish_review_evidence",
+                "delivery_sentinel": "a" * 32, "queue_timeout_seconds": 120.0,
+                "queue_preflight": {
+                    "status": "PASS", "thread_id": thread_id,
+                    "codex_executable": "historical-codex", "codex_version": "historical",
+                    "explicit_thread": True, "explicit_message": True,
+                },
+            })
+            _write_json(manifest_path, manifest)
+            status_path = run / "status.json"
+            before = status_path.read_bytes()
+
+            result = export_review(run, repository_root=root)
+
+            self.assertEqual(result["status"], "EXPORTED")
+            self.assertTrue(Path(result["path"]).is_dir())
+            self.assertEqual(status_path.read_bytes(), before)
+
     def test_required_missing_artifact_and_traversal_fail_closed(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

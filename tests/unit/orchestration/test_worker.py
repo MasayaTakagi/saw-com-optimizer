@@ -173,50 +173,27 @@ class WorkerTests(unittest.TestCase):
             self.assertFalse(store.latest_path.exists())
             self.assertFalse(store.previous_path.exists())
 
-    def test_callback_failure_preserves_optimizer_result(self):
+    def test_callback_linked_manifest_is_rejected_before_optimizer_or_status_write(self):
         with TemporaryDirectory() as temporary:
-            run_dir = Path(temporary) / "run"
+            run_dir = Path(temporary) / "callback-linked"
             _create_manifest(run_dir, 0)
             manifest_path = run_dir / "run_manifest.json"
-            import json
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            manifest["callback_enabled"] = True
-            manifest["review_after_completion"] = True
-            manifest["codex_session_id"] = "session-1"
+            manifest.update({
+                "callback_enabled": True,
+                "review_after_completion": True,
+                "codex_session_id": "historical-session",
+            })
             manifest.pop("continuation_mode", None)
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            status_path = run_dir / "status.json"
+            original_status = status_path.read_bytes()
 
-            calls = []
-
-            def failed_callback(manifest, **kwargs):
-                calls.append((manifest.codex_session_id, kwargs))
-                return 9
-
-            status = execute_run(run_dir, callback_runner=failed_callback)
-            self.assertEqual(calls[0][0], "session-1")
-            self.assertEqual(status["state"], "CALLBACK_FAILED")
-            self.assertEqual(status["optimizer_state"], "COMPLETED")
-            self.assertEqual(status["callback_exit_code"], 9)
-            self.assertTrue((run_dir / "result.txt").exists())
-
-    def test_optimizer_failure_is_reviewed_without_hiding_failure(self):
-        with TemporaryDirectory() as temporary:
-            run_dir = Path(temporary) / "failed-review"
-            _create_manifest(run_dir, 3)
-            manifest_path = run_dir / "run_manifest.json"
-            import json
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            manifest["callback_enabled"] = True
-            manifest["review_after_completion"] = True
-            manifest["codex_session_id"] = "session-1"
-            manifest.pop("continuation_mode", None)
-            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-
-            status = execute_run(run_dir, callback_runner=lambda manifest, **kwargs: 0)
-            self.assertEqual(status["state"], "REVIEWED")
-            self.assertEqual(status["optimizer_state"], "FAILED")
-            self.assertEqual(status["exit_code"], 3)
-            self.assertTrue(status["callback_completed"])
+            with patch("sawopt.orchestration.worker._run_optimizer") as optimizer_mock:
+                with self.assertRaisesRegex(RuntimeError, "retired"):
+                    execute_run(run_dir)
+            optimizer_mock.assert_not_called()
+            self.assertEqual(status_path.read_bytes(), original_status)
 
 
 if __name__ == "__main__":

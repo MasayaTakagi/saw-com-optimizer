@@ -1,8 +1,17 @@
 # GitHub review workflow
 
+> **Historical operational details:** Issue #108 retires the legacy Codex
+> queue/callback and Stage 4B/4C execution routes. Do not use Codex handoff,
+> automatic callback, or old orchestration commands described below. The
+> repository review boundary remains GitHub PRs; see the
+> [current index](../README.md) and [Issue #108 scope](../plans/issue108_r6c1_codex_removal_20261024.md).
+
 This guide defines the active repository review path for `saw-com-optimizer`.
-ChatGPT reviews the pushed GitHub state; Codex implements changes, validates them,
-and publishes review evidence. C2C is frozen and is not part of this workflow.
+ChatGPT independently reviews the pushed GitHub state; Pi Code implements
+scoped software changes, validates them, and publishes a Draft PR for review.
+Scientific execution and project-stage transitions remain separately gated by
+the user and [`../experiments.md`](../experiments.md). C2C is frozen and is not
+part of this workflow.
 
 The GitHub branch, commit, and PR are the review surface. A local-only diff or a
 Codex self-review is not independent external review.
@@ -16,19 +25,20 @@ The package-level evidence contract is
 
 Use the following separation of responsibility.
 
-- **Codex:** implement, validate, execute an explicitly authorized production
-  run, export the required lightweight review evidence, commit/push it, and stop.
+- **Pi Code:** implement and validate scoped changes, then publish a Draft PR
+  and stop for independent review. It does not launch production or scientific
+  runs without separate user authorization.
 - **GitHub:** canonical review surface for source, configuration, provenance,
   lightweight experiment evidence, and closeout history.
 - **ChatGPT:** independently review the pushed source/evidence and make the
   scientific/engineering disposition.
-- **User:** authorize production execution and accept major project transitions
-  or merges.
+- **User:** authorize production execution and decide material scientific
+  changes, project-stage transitions, and merge acceptance.
 
-A post-run Codex continuation is therefore an **evidence publisher**, not the
-final scientific reviewer. It must not silently promote a topology, update the
-current scientific baseline, launch a follow-up production run, or merge the
-review PR before external review.
+The retired Codex queue/callback is not an evidence-publishing or review
+mechanism. A report's existence does not mean it was independently reviewed or
+scientifically accepted. No topology promotion, baseline update, follow-up run,
+or merge is implied by software validation.
 
 ## Code and documentation changes
 
@@ -87,33 +97,17 @@ review when applicable:
 ChatGPT can review the GitHub state before launch. This does not replace the
 user's separate authorization to start production.
 
-## Active post-run continuation contract
+## Retired Codex continuation
 
-New production runs use the qualified queue-native exact-thread contract:
+Issue #108 removes the active Codex queue/callback transport and disables the
+legacy Stage 4B/4C production entrypoints. Do not launch, resume, recover,
+confirm, or publish through the retired commands described in historical
+materials. No replacement continuation transport is part of this change.
 
-```text
-optimizer completion
-→ durable one-shot continuation claim
-→ exact original Codex thread ID captured before detach
-→ codex queue --thread <original-thread-id> --message <bounded handoff>
-→ same original thread resumes
-→ Codex exports/pushes review evidence
-→ publication finalizer
-→ REVIEW_WAITING
-→ STOP for external ChatGPT review
-```
-
-Session IDs and thread IDs are distinct identities. Queue delivery must use an
-explicit thread ID. New manifests must not reinterpret a session ID as a queue
-thread target.
-
-Historical legacy-resume support remains readable for old run manifests but is
-not an approved launch mode for a new production study. If the queue-native
-contract, external storage gate, active-run registry, or review exporter is
-unavailable or fails its preflight, new long-running production is blocked until
-that infrastructure issue is repaired.
-
-See [`async_orchestration.md`](async_orchestration.md) for launch/recovery details.
+Historical manifests and review packages remain evidence. Their recorded
+continuation or review state is not newly validated, and this workflow does not
+rewrite them. See the [Issue #108 scope](../plans/issue108_r6c1_codex_removal_20261024.md)
+and the [historical async-orchestration notice](async_orchestration.md).
 
 ## Experiment result review
 
@@ -167,7 +161,7 @@ the raw data lake.
 ## Development environment and Git handling
 
 The official development environment is WSL2 Ubuntu 24.04 with VS Code Remote
-WSL, Codex CLI running inside Ubuntu, Ubuntu system Python 3.12, and uv. Keep
+WSL, Pi Code running inside Ubuntu, Ubuntu system Python 3.12, and uv. Keep
 checkouts/worktrees under `/home/...`; do not use Windows-native project
 commands or place active worktrees under `/mnt/c/...`. Follow the
 [development environment guide](development_environment.md) for setup and
