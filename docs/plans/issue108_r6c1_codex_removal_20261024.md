@@ -1,7 +1,7 @@
 # Issue #108 — R6-C1 legacy Codex retirement scope
 
 **Tracking:** [Issue #108](https://github.com/miyabimm/saw-com-optimizer/issues/108), under #106/#75/#73/#71/#53.  
-**Status:** `C1_IMPLEMENTED / DRAFT_PR_OPEN / HASWELL_CI_PASS / HISTORICAL_REPLAY_NOT_REQUIRED / ACTIVE_RUN_GATE_OPEN`.
+**Status:** `C1_IMPLEMENTED / DRAFT_PR_OPEN / INITIAL_HASWELL_CI_PASS / REVIEW_PATCH_CI_PENDING / HISTORICAL_REPLAY_NOT_REQUIRED / ACTIVE_RUN_GATE_OPEN`.
 **Base:** verified GitHub `main` / `origin/main` `639d2c033bb540e4b8343f9d4f385f694e2ba427` (PR #107).  
 **Worktree:** `/home/user/src/saw-com-optimizer-issue108`, branch `issue108-r6c1-codex-removal`.  
 **Authorization:** the Issue #108 owner instruction authorizes only scoped source removal and deterministic software tests. No real Pi/Codex/COM/FE/optimizer work, historical-run operation, data migration, or active-process manipulation is authorized.
@@ -36,7 +36,8 @@ This addendum records the owner decision in Issue #108 and supersedes the histor
 - Full local `uv run --locked --no-sync pytest -q` was attempted: **686 passed, 79 failed, 15 subtests passed**. Failures included missing `numpy` distribution metadata and missing `yaml` in subprocess imports. No local dependencies were installed or synchronized; this local result is environment-blocked.
 - GitHub Actions CI run [40085467489](https://github.com/miyabimm/saw-com-optimizer/actions/runs/40085467489) passed for commit `98cffa24545d1eb6c842aca92ca225d9717ad9cc`: **767 passed in 106.57s**. The project CI used `OPENBLAS_CORETYPE=Haswell`, ran `uv sync --locked --extra test --extra benchmark` in its ephemeral runner, then `uv run --locked pytest`; the 92-case Q1-A public/leaf goldens and import guards were included in this full-suite pass. Local dependency state was not changed.
 - Passed on the current tip: `compileall` for `src/sawopt` and modified orchestration/study tests; `git diff --check`; AST import scan found no imports of the deleted Codex transport modules; `find_spec` returned `None` for both removed modules. No real Pi/Codex, COM/FE/optimizer, or scientific study was run.
-- Active legacy-worker status remains **unknown**. No processes or arbitrary run roots were inspected or manipulated. This remains a pre-merge owner gate; the Draft PR is for independent review only.
+- **ChatGPT independent review patch (two commits):** preserved the historical `session_checkpoint.json` artifact name and schema for supported non-agent resumes, with `session_id=null` and no Codex dispatch, instead of introducing a new `resume_checkpoint.json` file. Extended `tests/unit/orchestration/test_cli.py` to assert reattach/resume path and metadata compatibility. The initial exact-head CI success described above was from `7352fb26fa21fd1ddb4fbfa341147d7bc2c34166`, **before** this patch; the amended PR head needs a separate successful full Haswell CI before acceptance. This preserves existing non-agent state metadata; it does not restore Codex session behavior.
+- Active legacy-worker status remains **unknown**. No processes or arbitrary run roots were inspected or manipulated. This remains a pre-merge owner gate; the Draft PR is for independent review only. See [owner-gated read-only preflight #110](https://github.com/miyabimm/saw-com-optimizer/issues/110).
 
 ### Caller and safety-owner dispositions
 
@@ -53,4 +54,4 @@ This addendum records the owner decision in Issue #108 and supersedes the histor
 
 ## Delivery and stop
 
-Draft PR [#109](https://github.com/miyabimm/saw-com-optimizer/pull/109) is open from `issue108-r6c1-codex-removal`; implementation commit `98cffa24545d1eb6c842aca92ca225d9717ad9cc` is the reviewed change set. Roll back that implementation with `git revert 98cffa24545d1eb6c842aca92ca225d9717ad9cc` if required. Per-file caller/safety dispositions, unsupported entrypoints, validation evidence, and active-run uncertainty are recorded above. Stop at Draft PR for independent review. No Ready/merge, C2, historical-data action or experiment follows automatically. The active legacy-worker owner gate remains open.
+Draft PR [#109](https://github.com/miyabimm/saw-com-optimizer/pull/109) is open from `issue108-r6c1-codex-removal`; Pi Code's initial implementation commit is `98cffa24545d1eb6c842aca92ca225d9717ad9cc`; later review patch commits include `7bddeb19bfb07393277538a42ea075a535a9015e` and `46c28d1cbb3916bbcdd132effbf71bce6667d29d`. Roll back **the complete merged PR squash commit** using `git revert <actual_merge_sha>` after merge if required; reverting the initial implementation commit alone will not reverse review edits. Do not alter old run data during rollback. Per-file caller/safety dispositions, unsupported entrypoints, validation evidence, and active-run uncertainty are recorded above. Stop at Draft PR for independent review. No Ready/merge, C2, historical-data action or experiment follows automatically. The active legacy-worker owner gate remains open.
