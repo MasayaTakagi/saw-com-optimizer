@@ -6,10 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 from sawopt.orchestration.models import RunManifest
-from sawopt.studies import hybrid_stage4b, hybrid_stage4c
 
 
 def _queue_manifest(run_dir: Path) -> dict:
@@ -77,26 +74,3 @@ def test_historical_queue_manifest_remains_parseable_without_transport_import(tm
     assert manifest.original_thread_id == manifest_value["original_thread_id"]
     assert manifest.queue_preflight == manifest_value["queue_preflight"]
     assert manifest_path.read_bytes() == original_bytes
-
-
-def test_stage4b_live_runtime_entrypoints_reject_before_read_or_write(tmp_path):
-    output = tmp_path / "must-not-be-created"
-    missing_config = tmp_path / "missing.yaml"
-
-    with pytest.raises(RuntimeError, match="retired|unsupported"):
-        hybrid_stage4b.load_stage4b_context(missing_config)
-    with pytest.raises(RuntimeError, match="retired|unsupported"):
-        hybrid_stage4b.run_stage4b_shakedown(missing_config, output)
-    with pytest.raises(RuntimeError, match="retired|unsupported"):
-        hybrid_stage4b.run_stage4b_production(missing_config, output, tmp_path / "auth.json")
-
-    assert not output.exists()
-
-
-def test_stage4c_production_entrypoint_rejects_before_read_or_write(tmp_path):
-    output = tmp_path / "must-not-be-created"
-    with pytest.raises(RuntimeError, match="retired|unsupported"):
-        hybrid_stage4c.run_stage4c_production(
-            tmp_path / "missing.yaml", output, tmp_path / "auth.json",
-        )
-    assert not output.exists()

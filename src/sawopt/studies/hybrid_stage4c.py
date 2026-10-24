@@ -1,15 +1,14 @@
-"""Frozen Stage 4C confirmatory P_D versus D_P protocol.
+"""Frozen Stage 4C protocol contract and evidence helpers.
 
-This is a narrow adapter over the qualified Stage 4A context and Stage 4B
-cell engine. Stage 4B's implementation is imported unchanged; Stage 4C owns
-the frozen contract, fresh matched matrix, manifest, and post-run handoff.
+This module validates the protected Stage 4A inputs and retains the frozen
+Stage 4C matrix/manifest semantics for historical report and audit consumers.
+The legacy Stage 4C production execution entrypoint is retired.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 from datetime import datetime, timezone
-from pathlib import Path, PureWindowsPath
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import numpy as np
@@ -19,7 +18,6 @@ from .hybrid import stage4a_load_context
 
 STUDY_TYPE = "hybrid_stage4c_confirmatory"
 PROTOCOL_REVISION = "stage4c_confirmatory_v1"
-AUTHORIZATION_SCOPE = "stage4c-confirmatory-production-v1"
 TOPOLOGIES = ("P_D", "D_P")
 SEEDS = (20261007, 20261008, 20261009, 20261010, 20261011)
 STAGE4B_SEEDS = (20261002, 20261003, 20261004, 20261005, 20261006)
@@ -416,169 +414,6 @@ def ensure_stage4c_run_manifest(
     return value, True
 
 
-def authorization_claim_id(metadata: Mapping[str, Any]) -> str:
-    """Return the source/protocol-scoped one-shot authorization identity."""
-    payload = "|".join((
-        str(metadata.get("authorization_scope", "")),
-        str(metadata.get("computation_fingerprint", "")),
-        str(metadata.get("source_commit_sha", "")),
-    ))
-    if not all(payload.split("|")):
-        raise ValueError("Stage 4C authorization claim key is incomplete")
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
-def build_authorization_metadata(
-    context: Mapping[str, Any], *, source_commit_sha: str, run_id: str,
-    authorized_at: str,
-) -> dict[str, Any]:
-    """Bind a future explicit approval to this exact frozen protocol."""
-    if not source_commit_sha or not run_id or not authorized_at:
-        raise ValueError("Stage 4C authorization requires source, run ID, and timestamp")
-    return {
-        "user_authorized_production": True,
-        "authorization_scope": AUTHORIZATION_SCOPE,
-        "required_production_root": PRODUCTION_RUN_ROOT,
-        "study_type": STUDY_TYPE,
-        "protocol_revision": PROTOCOL_REVISION,
-        "protocol_fingerprint": PROTOCOL_REVISION,
-        "computation_fingerprint": context["fingerprint"]["computation_fingerprint"],
-        "source_commit_sha": str(source_commit_sha),
-        "run_id": str(run_id),
-        "topologies": list(TOPOLOGIES),
-        "comparison_arms": list(TOPOLOGIES),
-        "seeds": list(SEEDS),
-        "expected_cell_count": 10,
-        "budget_per_cell": BUDGET,
-        "population_schedule_terminal_budget": BUDGET,
-        "checkpoints": list(CHECKPOINTS),
-        "initial_population_rule": "18 * topology_dimension",
-        "initial_populations": {"P_D": 234, "D_P": 234},
-        "production_early_stop": False,
-        "search_grid_sha256": SEARCH_GRID_SHA256,
-        "search_grid_points": 1001,
-        "common_validation_grid_id": COMMON_GRID_ID,
-        "common_validation_grid_points": 9113,
-        "common_validation_grid_sha256": COMMON_GRID_SHA256,
-        "source_impedance_ohm": 50.0,
-        "load_impedance_ohm": 50.0,
-        "cold_start": True,
-        "warm_start": False,
-        "parent_transfer": False,
-        "topology_transfer": False,
-        "historical_population_injection": False,
-        "run_storage_policy": "external_persistent_v1",
-        "authorized_at": str(authorized_at),
-    }
-
-
-def verify_stage4c_authorization(
-    context: Mapping[str, Any], manifest_path: str | Path,
-) -> dict[str, Any]:
-    """Verify a future caller-supplied orchestration manifest; never mint approval."""
-    path = Path(manifest_path)
-    raw = json.loads(path.read_text(encoding="utf-8"))
-    metadata = raw.get("experiment_metadata", {})
-    if not isinstance(metadata, Mapping):
-        raise ValueError("Stage 4C orchestration manifest lacks experiment metadata")
-    for key, expected in build_authorization_metadata(
-        context, source_commit_sha=str(raw.get("source_commit_sha", "")),
-        run_id=str(raw.get("run_id", "")),
-        authorized_at=str(metadata.get("authorized_at", "")),
-    ).items():
-        if metadata.get(key) != expected:
-            raise PermissionError(f"Stage 4C authorization manifest mismatch: {key}")
-    if raw.get("study_type") != STUDY_TYPE:
-        raise PermissionError("Stage 4C authorization manifest study type mismatch")
-    if metadata.get("orchestration_run_dir") != raw.get("run_dir"):
-        raise PermissionError("Stage 4C orchestration run path differs from its authorization metadata")
-    if metadata.get("optimizer_run_dir") != raw.get("optimizer_run_dir"):
-        raise PermissionError("Stage 4C optimizer run path differs from its authorization metadata")
-    if raw.get("run_storage_policy") != "external_persistent_v1":
-        raise PermissionError("Stage 4C production requires external_persistent_v1 storage")
-    if not raw.get("persistent_run_root") or not _is_absolute_path(raw["persistent_run_root"]):
-        raise PermissionError("Stage 4C production requires an absolute external persistent run root")
-    if not _is_within(raw["persistent_run_root"], PRODUCTION_RUN_ROOT):
-        raise PermissionError("Stage 4C production root must be below the frozen external production destination")
-    if not _is_within(raw.get("run_dir", ""), raw["persistent_run_root"]):
-        raise PermissionError("Stage 4C run directory is outside its declared persistent root")
-    if (raw.get("continuation_mode") != "queue" or raw.get("review_after_completion") is not True
-            or not raw.get("original_thread_id")
-            or raw.get("queue_preflight", {}).get("status") != "PASS"
-            or raw.get("queue_preflight", {}).get("thread_id") != raw.get("original_thread_id")):
-        raise PermissionError("Stage 4C authorization must preserve the qualified exact-thread queue workflow")
-    from ..reporting.github_review import _canonical_json_sha256, load_review_spec
-
-    spec = raw.get("review_spec")
-    if (raw.get("review_spec_id") != "hybrid_stage4c"
-            or raw.get("review_stage") != "stage4c"
-            or raw.get("review_contract_version") != "1"
-            or raw.get("review_output_dir", "").replace("\\", "/").strip("/")
-            != f"reports/experiment_reviews/stage4c/{raw.get('run_id', '')}"):
-        raise PermissionError("Stage 4C authorization review destination/identity mismatch")
-    declared_spec = load_review_spec("hybrid_stage4c", context["root"])
-    if (not isinstance(spec, Mapping) or dict(spec) != declared_spec
-            or _canonical_json_sha256(spec) != raw.get("review_spec_sha256")):
-        raise PermissionError("Stage 4C authorization frozen review spec mismatch")
-    if "codex_session_id" in metadata or "callback_enabled" in metadata:
-        raise PermissionError("Stage 4C protocol metadata contains deprecated session/callback fields")
-
-    from ..orchestration.active_runs import git_common_dir
-
-    claim_id = authorization_claim_id(metadata)
-    claim_path = (
-        git_common_dir(Path(context["root"]))
-        / "sawopt-stage4c-authorization-claims"
-        / f"{claim_id}.json"
-    )
-    if metadata.get("authorization_claim_id") != claim_id:
-        raise PermissionError("Stage 4C authorization claim identifier mismatch")
-    recorded_claim_path = Path(str(metadata.get("authorization_claim_path", ""))).resolve(strict=False)
-    if recorded_claim_path != claim_path.resolve(strict=False):
-        raise PermissionError("Stage 4C authorization claim path mismatch")
-    if not claim_path.is_file():
-        raise PermissionError("Stage 4C one-shot authorization claim is missing")
-    claim = json.loads(claim_path.read_text(encoding="utf-8"))
-    if (
-        not isinstance(claim, Mapping)
-        or claim.get("schema_version") != 1
-        or claim.get("claim_id") != claim_id
-        or claim.get("authorization_scope") != AUTHORIZATION_SCOPE
-        or claim.get("computation_fingerprint") != metadata.get("computation_fingerprint")
-        or claim.get("source_commit_sha") != metadata.get("source_commit_sha")
-        or claim.get("run_id") != raw.get("run_id")
-    ):
-        raise PermissionError("Stage 4C one-shot authorization claim does not match this run")
-    return {
-        "manifest": raw,
-        "authorization": dict(metadata),
-        "claim_id": claim_id,
-        "claim_path": claim_path,
-    }
-
-
-def _is_absolute_path(candidate: str | Path) -> bool:
-    """Recognize native absolute paths and frozen Windows paths during portable review/tests."""
-    value = str(candidate)
-    return Path(value).is_absolute() or PureWindowsPath(value).is_absolute()
-
-
-def _is_within(candidate: str | Path, parent: str | Path) -> bool:
-    """Compare path components without accepting textual prefixes, including Windows paths on POSIX CI."""
-    candidate_text, parent_text = str(candidate), str(parent)
-    if PureWindowsPath(parent_text).is_absolute():
-        try:
-            PureWindowsPath(candidate_text).relative_to(PureWindowsPath(parent_text))
-        except ValueError:
-            return False
-        return True
-    try:
-        Path(candidate).resolve(strict=False).relative_to(Path(parent).resolve(strict=False))
-    except (OSError, RuntimeError, ValueError):
-        return False
-    return True
-
-
 def _atomic_json(path: Path, value: Any) -> None:
     from .hybrid import stage4a_clean
     from .hybrid_stage4b import write_atomic_json as _atomic
@@ -587,22 +422,12 @@ def _atomic_json(path: Path, value: Any) -> None:
     _atomic(path, stage4a_clean(value))
 
 
-def run_stage4c_production(
-    config_path: str | Path, run_path: str | Path,
-    authorization_manifest_path: str | Path,
-) -> dict[str, Any]:
-    """Reject the retired Stage 4C production execution entrypoint."""
-    raise RuntimeError("legacy Stage 4C production execution is retired")
-
-
 __all__ = [
     "BUDGET", "CHECKPOINTS", "COMMON_GRID_ID", "COMMON_GRID_SHA256",
     "FINALIST_COUNT", "INITIAL_POPULATION_MULTIPLIER", "PROTOCOL_REVISION",
     "PRODUCTION_TOTAL_EVALUATIONS", "SEARCH_GRID_SHA256", "SEEDS",
     "STAGE4B_SEEDS", "STUDY_TYPE", "TOPOLOGIES", "PRODUCTION_RUN_ROOT",
-    "QUALIFICATION_RUN_ROOT", "AUTHORIZATION_SCOPE", "authorization_claim_id", "build_authorization_metadata",
-    "build_stage4c_run_manifest", "expected_matrix", "load_stage4c_context",
-    "run_stage4c_production", "validate_frozen_config",
+    "QUALIFICATION_RUN_ROOT", "build_stage4c_run_manifest", "expected_matrix",
+    "load_stage4c_context", "validate_frozen_config",
     "ensure_stage4c_run_manifest", "validate_stage4c_run_manifest",
-    "verify_stage4c_authorization",
 ]

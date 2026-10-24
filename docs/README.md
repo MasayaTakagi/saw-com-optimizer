@@ -60,7 +60,11 @@ supersede the five current sources above:
   executables and its preserved evidence; it does not authorize experiments.
   The [Issue #119 cutover record](plans/issue119_r6c2b2a_legacy_cli_cutover_20261024.md)
   documents the separately owner-approved old CLI/orchestration deletion;
-  independent review is still required. Other C2B follow-up work and R7 remain
+  [PR #121](https://github.com/miyabimm/saw-com-optimizer/pull/121) merged to
+  `main` at `06c71c29a3648f5e60015b3fbc06a375e2f2936d`, and [merged-main CI
+  #40104807026](https://github.com/miyabimm/saw-com-optimizer/actions/runs/40104807026)
+  passed on Haswell (721/721 tests).
+  Other C2B follow-up work and R7 remain
   separate owner gates. Historical documents that describe earlier
   active paths remain dated evidence, not current instructions. The R3 and R4
   records are scoped to Issues #65 and #67; R6 is scoped to Issue #71's

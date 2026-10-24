@@ -25,7 +25,6 @@ from sawopt.reporting.hybrid_stage4c import (
 from sawopt.studies import hybrid_stage4c as stage4c
 from sawopt.studies.hybrid import stage4a_load_context
 from sawopt.studies.hybrid_stage4c import (
-    AUTHORIZATION_SCOPE,
     BUDGET,
     CHECKPOINTS,
     COMMON_GRID_ID,
@@ -37,15 +36,11 @@ from sawopt.studies.hybrid_stage4c import (
     STAGE4B_SEEDS,
     STUDY_TYPE,
     TOPOLOGIES,
-    authorization_claim_id,
-    build_authorization_metadata,
     build_stage4c_run_manifest,
     ensure_stage4c_run_manifest,
     expected_matrix,
     load_stage4c_context,
     validate_frozen_config,
-    validate_stage4c_run_manifest,
-    verify_stage4c_authorization,
 )
 
 
@@ -53,9 +48,14 @@ CONFIG = "configs/studies/hybrid_stage4c_confirmatory.yaml"
 BASELINE_CONFIG = "configs/studies/hybrid_stage4a_qualification.yaml"
 
 
-def test_stage4c_shakedown_execution_entrypoint_is_absent():
-    assert "run_stage4c_shakedown" not in stage4c.__all__
-    assert not hasattr(stage4c, "run_stage4c_shakedown")
+def test_stage4c_retired_execution_and_authorization_surface_is_absent():
+    for symbol in (
+        "run_stage4c_shakedown", "run_stage4c_production",
+        "authorization_claim_id", "build_authorization_metadata",
+        "verify_stage4c_authorization",
+    ):
+        assert symbol not in stage4c.__all__
+        assert not hasattr(stage4c, symbol)
 
 
 def _baseline_contract():
@@ -146,7 +146,7 @@ def test_stage4c_fingerprint_separates_computation_from_reporting():
     assert "src/sawopt/reporting/hybrid_stage4c.py" not in computation
 
 
-def test_stage4c_manifest_and_authorization_contract_have_no_legacy_fields(tmp_path, monkeypatch):
+def test_stage4c_run_manifest_contract_has_no_legacy_transport_fields():
     context = load_stage4c_context(CONFIG)
     manifest = build_stage4c_run_manifest(
         context, run_id="stage4c-fixture", source_commit_sha="a" * 40,
@@ -160,78 +160,6 @@ def test_stage4c_manifest_and_authorization_contract_have_no_legacy_fields(tmp_p
     assert manifest["seeds"] == list(SEEDS)
     assert manifest["run_storage_policy"] == "external_persistent_v1"
     assert not ({"codex_session_id", "callback_enabled"} & set(manifest))
-    metadata = build_authorization_metadata(
-        context, source_commit_sha="a" * 40, run_id="stage4c-fixture",
-        authorized_at="2026-10-05T00:00:00+00:00",
-    )
-    assert metadata["authorization_scope"] == AUTHORIZATION_SCOPE
-    assert not ({"codex_session_id", "callback_enabled"} & set(metadata))
-    git_common = tmp_path / "git-common"
-    claim_dir = git_common / "sawopt-stage4c-authorization-claims"
-    claim_dir.mkdir(parents=True)
-    monkeypatch.setattr("sawopt.orchestration.active_runs.git_common_dir", lambda _root: git_common)
-    claim_id = authorization_claim_id(metadata)
-    claim_path = claim_dir / f"{claim_id}.json"
-    claim_payload = {
-        "schema_version": 1,
-        "claim_id": claim_id,
-        "authorization_scope": metadata["authorization_scope"],
-        "computation_fingerprint": metadata["computation_fingerprint"],
-        "source_commit_sha": metadata["source_commit_sha"],
-        "run_id": metadata["run_id"],
-        "claimed_at_utc": "2026-10-05T00:00:01+00:00",
-    }
-    claim_path.write_text(json.dumps(claim_payload), encoding="utf-8")
-    metadata["authorization_claim_id"] = claim_id
-    metadata["authorization_claim_path"] = str(claim_path.resolve())
-    orchestration_manifest = {
-        "run_id": "stage4c-fixture", "source_commit_sha": "a" * 40,
-        "study_type": STUDY_TYPE, "run_storage_policy": "external_persistent_v1",
-        "persistent_run_root": PRODUCTION_RUN_ROOT,
-        "run_dir": f"{PRODUCTION_RUN_ROOT}/stage4c-fixture",
-        "optimizer_run_dir": f"{PRODUCTION_RUN_ROOT}/stage4c-fixture/optimizer",
-        "continuation_mode": "queue", "review_after_completion": True,
-        "original_thread_id": "01a0e89c-1c65-72a3-beb6-489f0cf01b30",
-        "queue_preflight": {
-            "status": "PASS",
-            "thread_id": "01a0e89c-1c65-72a3-beb6-489f0cf01b30",
-        },
-        "review_spec_id": "hybrid_stage4c", "review_stage": "stage4c",
-        "review_contract_version": "1",
-        "review_output_dir": "reports/experiment_reviews/stage4c/stage4c-fixture",
-        "review_spec": load_review_spec("hybrid_stage4c", Path.cwd()),
-        "review_spec_sha256": _canonical_json_sha256(
-            load_review_spec("hybrid_stage4c", Path.cwd())
-        ),
-        "experiment_metadata": {
-            **metadata,
-            "orchestration_run_dir": f"{PRODUCTION_RUN_ROOT}/stage4c-fixture",
-            "optimizer_run_dir": f"{PRODUCTION_RUN_ROOT}/stage4c-fixture/optimizer",
-        },
-    }
-    path = tmp_path / "authorization.json"
-    path.write_text(json.dumps(orchestration_manifest), encoding="utf-8")
-    assert verify_stage4c_authorization(context, path)["authorization"]["study_type"] == STUDY_TYPE
-    orchestration_manifest["persistent_run_root"] = "relative/run-root"
-    path.write_text(json.dumps(orchestration_manifest), encoding="utf-8")
-    with pytest.raises(PermissionError, match="absolute external persistent run root"):
-        verify_stage4c_authorization(context, path)
-
-    orchestration_manifest["persistent_run_root"] = PRODUCTION_RUN_ROOT
-    path.write_text(json.dumps(orchestration_manifest), encoding="utf-8")
-    claim_path.unlink()
-    with pytest.raises(PermissionError, match="one-shot authorization claim is missing"):
-        verify_stage4c_authorization(context, path)
-
-    claim_path.write_text(json.dumps({**claim_payload, "run_id": "different-run"}), encoding="utf-8")
-    with pytest.raises(PermissionError, match="one-shot authorization claim does not match this run"):
-        verify_stage4c_authorization(context, path)
-
-    claim_path.write_text(json.dumps(claim_payload), encoding="utf-8")
-    orchestration_manifest["experiment_metadata"]["authorization_claim_path"] = str(tmp_path / "wrong-claim.json")
-    path.write_text(json.dumps(orchestration_manifest), encoding="utf-8")
-    with pytest.raises(PermissionError, match="authorization claim path mismatch"):
-        verify_stage4c_authorization(context, path)
 
 
 def test_stage4c_resume_manifest_preserves_creation_time_and_rejects_protocol_drift(tmp_path):
