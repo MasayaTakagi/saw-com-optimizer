@@ -103,6 +103,39 @@ def _raise(code: str) -> None:
     raise PiSessionError(code) from None
 
 
+def _configured_raw_root() -> Path | None:
+    if "SAWOPT_DATA_ROOT" not in os.environ:
+        return None
+    raw = os.environ["SAWOPT_DATA_ROOT"]
+    if not raw or not os.path.isabs(raw) or ".." in Path(raw).parts:
+        _raise("SESSION_STORE_UNSAFE")
+    descriptor: int | None = None
+    try:
+        configured = Path(raw).resolve(strict=True)
+        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(configured, flags)
+        info = os.fstat(descriptor)
+        linked = os.stat(configured, follow_symlinks=False)
+        mode = stat.S_IMODE(info.st_mode)
+        if (
+            not stat.S_ISDIR(info.st_mode) or (info.st_dev, info.st_ino) != (linked.st_dev, linked.st_ino)
+            or not (mode & 0o444) or not (mode & 0o111)
+            or not os.access(configured, os.R_OK | os.X_OK)
+        ):
+            _raise("SESSION_STORE_UNSAFE")
+        return configured
+    except PiSessionError:
+        raise
+    except (OSError, RuntimeError, ValueError):
+        _raise("SESSION_STORE_UNSAFE")
+    finally:
+        if descriptor is not None:
+            try:
+                os.close(descriptor)
+            except OSError:
+                _raise("SESSION_STORE_UNSAFE")
+
+
 class SessionReferenceStore:
     """One explicit test-only mapping under a private disposable temp directory."""
 
@@ -117,6 +150,9 @@ class SessionReferenceStore:
         if not raw or not os.path.isabs(raw) or ".." in Path(raw).parts or sys.platform != "linux":
             _raise("SESSION_STORE_UNSAFE")
         candidate = Path(os.path.abspath(raw))
+        configured_raw_root = _configured_raw_root()
+        if configured_raw_root is not None and candidate.is_relative_to(configured_raw_root):
+            _raise("SESSION_STORE_UNSAFE")
         try:
             temp_root = Path(tempfile.gettempdir()).resolve(strict=True)
             if not candidate.is_relative_to(temp_root):

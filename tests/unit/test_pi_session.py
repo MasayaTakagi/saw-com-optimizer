@@ -420,6 +420,131 @@ def test_test_session_reference_under_pi_home_is_rejected_without_access(tmp_pat
     assert metadata_absent
 
 
+@pytest.mark.parametrize("use_symlink_alias", [False, True])
+def test_configured_raw_root_and_symlink_alias_are_excluded_before_register_or_load(
+    tmp_path, monkeypatch, use_symlink_alias,
+):
+    raw_root = tmp_path / "protected-raw"
+    raw_root.mkdir(mode=0o700)
+    os.chmod(raw_root, 0o700)
+    sentinel = raw_root / "sentinel.txt"
+    sentinel.write_text("synthetic preservation sentinel", encoding="utf-8")
+    os.chmod(sentinel, 0o600)
+    configured_root = raw_root
+    if use_symlink_alias:
+        configured_root = tmp_path / "raw-alias"
+        configured_root.symlink_to(raw_root, target_is_directory=True)
+    session_root = raw_root / "test-session-root"
+    session_root.mkdir(mode=0o700)
+    os.chmod(session_root, 0o700)
+    session_file = session_root / "session.jsonl"
+    session_file.write_text("test fixture only", encoding="utf-8")
+    os.chmod(session_file, 0o600)
+    monkeypatch.setenv("SAWOPT_DATA_ROOT", str(configured_root))
+    store = SessionReferenceStore(session_root)
+
+    outcomes = []
+    try:
+        store.register(
+            local_association_key="local-key",
+            pi_session_id=SESSION_ID,
+            session_file=session_file,
+            expected_pi_version=PI_VERSION,
+        )
+    except PiSessionError as error:
+        outcomes.append(error.code)
+    else:
+        outcomes.append("ALLOWED")
+    try:
+        store.load()
+    except PiSessionError as error:
+        outcomes.append(error.code)
+    else:
+        outcomes.append("ALLOWED")
+
+    metadata_absent = not (session_root / "session-reference.json").exists()
+    assert outcomes == ["SESSION_STORE_UNSAFE", "SESSION_STORE_UNSAFE"]
+    assert metadata_absent
+    assert sentinel.read_text(encoding="utf-8") == "synthetic preservation sentinel"
+    assert session_file.read_text(encoding="utf-8") == "test fixture only"
+
+
+@pytest.mark.parametrize("invalid_kind", ["empty", "relative", "missing", "broken-alias", "non-directory", "unreadable"])
+def test_invalid_configured_raw_root_fails_closed_before_session_metadata(
+    tmp_path, monkeypatch, invalid_kind,
+):
+    session_root = tmp_path / "separate-private-session"
+    session_root.mkdir(mode=0o700)
+    os.chmod(session_root, 0o700)
+    session_file = session_root / "session.jsonl"
+    session_file.write_text("test fixture only", encoding="utf-8")
+    os.chmod(session_file, 0o600)
+    restore_mode = None
+    if invalid_kind == "empty":
+        configured_raw = ""
+    elif invalid_kind == "relative":
+        configured_raw = "relative/raw-root"
+    elif invalid_kind == "missing":
+        configured_raw = str(tmp_path / "missing-raw-root")
+    elif invalid_kind == "broken-alias":
+        broken_target = tmp_path / "missing-target"
+        configured_alias = tmp_path / "broken-raw-alias"
+        configured_alias.symlink_to(broken_target, target_is_directory=True)
+        configured_raw = str(configured_alias)
+    elif invalid_kind == "non-directory":
+        configured_file = tmp_path / "raw-root-file"
+        configured_file.write_text("not a directory", encoding="utf-8")
+        configured_raw = str(configured_file)
+    else:
+        unreadable = tmp_path / "unreadable-raw-root"
+        unreadable.mkdir(mode=0o700)
+        os.chmod(unreadable, 0o000)
+        configured_raw = str(unreadable)
+        restore_mode = unreadable
+    monkeypatch.setenv("SAWOPT_DATA_ROOT", configured_raw)
+    store = SessionReferenceStore(session_root)
+
+    outcomes = []
+    try:
+        try:
+            store.register(
+                local_association_key="local-key",
+                pi_session_id=SESSION_ID,
+                session_file=session_file,
+                expected_pi_version=PI_VERSION,
+            )
+        except PiSessionError as error:
+            outcomes.append(error.code)
+        else:
+            outcomes.append("ALLOWED")
+        try:
+            store.load()
+        except PiSessionError as error:
+            outcomes.append(error.code)
+        else:
+            outcomes.append("ALLOWED")
+    finally:
+        if restore_mode is not None:
+            os.chmod(restore_mode, 0o700)
+
+    metadata_absent = not (session_root / "session-reference.json").exists()
+    assert outcomes == ["SESSION_STORE_UNSAFE", "SESSION_STORE_UNSAFE"]
+    assert metadata_absent
+    assert session_file.read_text(encoding="utf-8") == "test fixture only"
+
+
+def test_unrelated_private_session_fixture_still_works_with_configured_raw_root(tmp_path, monkeypatch):
+    raw_root = tmp_path / "configured-raw"
+    raw_root.mkdir(mode=0o700)
+    os.chmod(raw_root, 0o700)
+    monkeypatch.setenv("SAWOPT_DATA_ROOT", str(raw_root))
+
+    root, _session_file, store, _reference, transport = _fixture(tmp_path)
+
+    assert root != raw_root and root not in raw_root.parents and raw_root not in root.parents
+    assert PiSessionAdapter(store, transport).attach_exact().state is SessionState.ATTACHED
+
+
 @pytest.mark.parametrize("unsafe_part", ["root", "nested-directory", "session-file"])
 def test_insecure_directory_or_session_file_permissions_fail_closed(tmp_path, unsafe_part):
     root = tmp_path / "mode-root"
