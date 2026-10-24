@@ -6,6 +6,10 @@
 > no current command path to run or resume this qualification. Do not recreate
 > those scripts or treat this historical plan as execution authorization.
 
+The [original pre-retirement plan and environment inventory](../history/wsl2_core_qualification_original_archival_20261024.md)
+is preserved verbatim as historical context. Its commands are not supported or
+authorized for execution.
+
 This page records a superseded environment/qualification proposal. It is not a
 current setup guide, a report of a newly completed qualification, or permission
 to run Codex, COM/FE, an optimizer, checkpoint recovery, or a scientific study.
