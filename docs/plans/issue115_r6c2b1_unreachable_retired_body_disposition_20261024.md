@@ -1,6 +1,6 @@
 # Issue #115 — R6-C2B1 retired-body disposition
 
-**Status:** `FIVE_GUARDED_BODIES_REMOVED / DRAFT_PR_AND_EXACT_HEAD_CI_PENDING`
+**Status:** `FIVE_GUARDED_BODIES_REMOVED / DRAFT_PR_OPEN / EXACT_HEAD_CI_PASS / INDEPENDENT_REVIEW_PENDING`
 
 **Scope/base:** Issue [#115](https://github.com/miyabimm/saw-com-optimizer/issues/115), C2B0 inventory [#113](issue113_r6c2b0_legacy_owner_caller_inventory_20261024.md), base `ec2c28350ce51edcaaba3b4943c5e5ee0c1ab23e` (merged PR #114). This is a software-only removal of unreachable source text after existing unconditional retirement guards.
 
@@ -27,7 +27,7 @@ Each signature, docstring, exception type/message, module import identity, and `
 - Q1-A canonicalization verifiers: public **92/92** and leaf **92/92**, fixture SHA-256 `3763c5746f4bf800a54f310aeeb94f493520fc0962505b1eed85d3c32b589aa2`. Both fresh-process import guards passed with no forbidden imports.
 - `compileall` and `git diff --check`: passed.
 - A full local no-sync test attempt used an existing environment from another worktree because this worktree had no test-enabled `.venv` and its existing environment lacked pytest. It reported **738 passed, 14 failed, 15 subtests passed**. All 14 failures were detached synthetic-task subprocess cases ending in `LAUNCH_AMBIGUOUS` / no worker claim (12 in `test_synthetic_task_worker.py`, one real test-owned zombie case in `test_synthetic_task_resume.py`, and one synthetic task case in `test_pi_session.py`). The reused environment's editable install points at another worktree; this is a plausible source-path mismatch, not a proven cause. No tests were deleted or weakened. The exact clean-checkout PR-head GitHub Actions result is required to resolve this local discrepancy.
-- **Exact PR-head Haswell CI:** pending; report the final PR-head SHA and Actions result in the Draft PR handoff. No earlier/base CI is substituted for this check.
+- **Exact PR-head Haswell CI:** Actions [#40095424244](https://github.com/miyabimm/saw-com-optimizer/actions/runs/40095424244), exact implementation PR HEAD `e35bd5057d3e76d76e51699d78ca64f2c449e4a8`: `OPENBLAS_CORETYPE=Haswell`, **752 collected / 752 passed** (73.70 s). This check covers the five source removals and regression test. The disposition-report-only follow-up commit, if any, is a different PR HEAD and must also have its own successful exact-head check before handoff; no base or prior-head result is substituted.
 
 ## Explicit non-scope / rollback / next gates
 
