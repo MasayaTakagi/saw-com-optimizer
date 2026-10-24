@@ -200,6 +200,13 @@ class CliTests(unittest.TestCase):
                 self.assertEqual(cli.launch(args), 0)
             launch_mock.assert_not_called()
             self.assertEqual(load_status(run_dir)["resume_count"], 1)
+            checkpoint = run_dir / "session_checkpoint.json"
+            self.assertTrue(checkpoint.is_file())
+            self.assertFalse((run_dir / "resume_checkpoint.json").exists())
+            payload = json.loads(checkpoint.read_text(encoding="utf-8"))
+            self.assertEqual(payload["mode"], "reattach")
+            self.assertEqual(payload["session_id"], None)
+            self.assertEqual(load_status(run_dir)["session_checkpoint_path"], str(checkpoint))
 
     def test_resume_orphan_restarts_worker_with_resume_flag(self):
         with TemporaryDirectory() as temporary:
@@ -222,6 +229,10 @@ class CliTests(unittest.TestCase):
             command = launch_mock.call_args.kwargs["command"]
             self.assertIn("--resume", command)
             self.assertEqual(load_status(run_dir)["state"], "STARTING")
+            checkpoint = run_dir / "session_checkpoint.json"
+            self.assertTrue(checkpoint.is_file())
+            self.assertFalse((run_dir / "resume_checkpoint.json").exists())
+            self.assertEqual(json.loads(checkpoint.read_text(encoding="utf-8"))["mode"], "resume")
 
     def test_resume_keeps_the_manifest_optimizer_output_directory(self):
         with TemporaryDirectory() as temporary:
