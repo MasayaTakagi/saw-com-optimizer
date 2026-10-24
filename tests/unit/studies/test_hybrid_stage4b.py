@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from sawopt.studies import hybrid_stage4b
 from sawopt.reporting.hybrid_stage4b import (
     _classify,
     paired_comparisons,
@@ -63,6 +64,27 @@ def _synthetic_cells():
 def test_stage4b_live_context_and_fingerprint_regeneration_are_retired():
     with pytest.raises(RuntimeError, match="retired"):
         load_stage4b_context(CONFIG)
+
+
+def test_stage4b_manifest_verification_rejects_before_file_or_source_access(monkeypatch, tmp_path):
+    def unexpected_access(*args, **kwargs):
+        raise AssertionError("retired manifest verification attempted external access")
+
+    monkeypatch.setattr(hybrid_stage4b, "_read_json", unexpected_access)
+    monkeypatch.setattr(hybrid_stage4b, "_source_state", unexpected_access)
+    context = {
+        "root": tmp_path,
+        "fingerprint": {"computation_fingerprint": "unused"},
+        "matrix": [],
+        "config_path": tmp_path / "missing-config.yaml",
+    }
+
+    with pytest.raises(RuntimeError, match="legacy Stage 4B production authorization is retired"):
+        hybrid_stage4b.verify_production_manifest(
+            context, tmp_path / "missing-run", tmp_path / "missing-authorization.json",
+        )
+
+    assert not (tmp_path / "missing-run").exists()
 
 
 def test_stage4b_production_and_shakedown_reject_before_read_or_write(tmp_path):
