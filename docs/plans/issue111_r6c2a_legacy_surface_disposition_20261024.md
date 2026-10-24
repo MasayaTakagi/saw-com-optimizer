@@ -115,10 +115,16 @@ requires its own authorized scope and independent review.
 
 ## Validation and rollback
 
-Required C2A validation: focused hook-absence test, exact-head full Haswell
-pytest CI, Q1-A public/leaf 92-case goldens and import guards, compile checks,
-diff checks, and Markdown relative-link checks. This draft must stop for
-independent review; CI success and self-validation are not acceptance.
+### Validation evidence
+
+- Exact reviewed implementation commit `60bc630a331d2db382b40152f32e4bcfdb89170d`
+  passed full GitHub CI run [40090087980](https://github.com/miyabimm/saw-com-optimizer/actions/runs/40090087980): `OPENBLAS_CORETYPE=Haswell`, fixed-evaluation numerical reproducibility diagnostic PASS, **751 collected / 751 passed**. The full unfiltered suite includes the Q1-A public/leaf golden verification and import guards.
+- The test delta is accounted for: the dedicated C2C preflight module had **15 collected cases** (14 test functions, one two-value parametrization), all removed with that isolated feature. The former hook-policy file had two tests; one guide-wording assertion was retired and the hook-presence check was replaced with one negative absence guard. Net suite collection changed from the verified PR #109 baseline 767 to 751 (**−16**), consistent with those removals/replacement.
+- `python3.12 -m compileall -q src tests` — PASS.
+- Focused hook-absence guard — PASS by direct stdlib invocation. Local pytest could not be run: the fresh worktree has no `.venv` and system Python has no pytest. No dependency synchronization or installation was performed; exact-head GitHub CI is the full-suite evidence.
+- `git diff --check` and staged diff check — PASS. Relative Markdown link check — PASS across all changed/new Markdown files. Static `src/` and `scripts/` scan found no reference to the removed hook path.
+
+The implementation commit above passed CI before the documentation-only validation-record update in this plan. The Draft PR's current exact head and its final CI status are recorded on GitHub; this PR remains stopped for independent review. CI success is not external acceptance.
 
 No active worker or external hook absence is inferred. No process/root audit was
 repeated; Issue #110's accepted bounded PASS_SCOPED disposition is not expanded
