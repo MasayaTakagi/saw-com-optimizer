@@ -2,7 +2,7 @@
 
 **Tracking:** [Issue #124](https://github.com/MasayaTakagi/saw-com-optimizer/issues/124), latest owner directive dated 2026-10-25 JST. The latest issue body/comment supersedes earlier requests to retain the old `export-review` command/exporter. The separately planned [Issue #125](https://github.com/MasayaTakagi/saw-com-optimizer/issues/125) is out of scope.
 
-**Baseline:** verified `main` / PR #123 merge `a0974b45dc68c003ed1ce830b86c54ee830d91f6`; owner-recorded merged-main Haswell CI #40108364146 passed 717/717. **Status:** source/test/docs implementation in progress; final exact-head CI and Draft PR evidence to be appended before handoff.
+**Baseline:** verified `main` / PR #123 merge `a0974b45dc68c003ed1ce830b86c54ee830d91f6`; owner-recorded merged-main Haswell CI #40108364146 passed 717/717. **Status:** implementation is in Draft PR [#126](https://github.com/miyabimm/saw-com-optimizer/pull/126) on `issue124-r6c2b5-reporting`; latest exact-head CI is tracked by the PR Checks tab before review/acceptance.
 
 ## Binding boundaries
 
@@ -41,4 +41,6 @@ Update only current-facing documentation that describes the removed command or o
 
 ## Final validation record
 
-To be completed at exact PR head: focused reporting/orchestration/R5/scientific tests available without creating or borrowing a local environment; Python compile check; `git diff --check`; changed-Markdown link/reference checks; full locked Haswell CI; expected collected-test delta is 717 → 693 (12 old exporter + 6 old dispatcher + 8 old Stage 4C export tests removed, 2 focused static/publication tests added), subject to CI collection confirmation; and explicit confirmation of retained R5 consumers and no scientific/data access. Delivery stops at a Draft PR for independent review.
+- Local checks: `python3.12 -m compileall -q src tests`, the static absence regression (invoked without project imports), `git diff --check`, 108 local Markdown paths across 15 changed docs, and protected-path diff checks passed. No local pytest was attempted because this worktree has no `.venv` and environment creation/synchronization was not authorized.
+- Full locked CI on the code commit `c429fb689d67dc1a6246dca7ab5491a26057214e` passed on GitHub Actions run [#40113708610](https://github.com/miyabimm/saw-com-optimizer/actions/runs/40113708610) using the project workflow and Haswell fixture path. The final exact-head result is the latest green check shown on Draft PR #126. The expected collected count is 693 (717 baseline − 12 old exporter tests − 6 parametrized legacy-dispatcher cases − 8 Stage 4C export cases + 2 static/publication regressions); the Actions Checks API did not expose the pytest count, so this arithmetic is not presented as a collected-count measurement.
+- Protected R5 modules/tests, frozen Stage 4C study config, and historical `reports/` paths are unchanged. No scientific study, raw/checkpoint access, production export, or evidence operation was performed. Delivery stops at Draft PR #126 for independent review.
