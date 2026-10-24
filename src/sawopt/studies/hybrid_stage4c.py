@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import subprocess
 from datetime import datetime, timezone
 from pathlib import Path, PureWindowsPath
 from typing import Any, Mapping, Sequence
@@ -30,9 +28,6 @@ CHECKPOINTS = (8000, 16000, 24000, 32000, 48000, 64000, 80000, 96000)
 INITIAL_POPULATION_MULTIPLIER = 18
 FINALIST_COUNT = 16
 PRODUCTION_TOTAL_EVALUATIONS = len(TOPOLOGIES) * len(SEEDS) * BUDGET
-SHAKEDOWN_SEED = 20261012
-SHAKEDOWN_BUDGET = 512
-SHAKEDOWN_CHECKPOINTS = (400, 512)
 SEARCH_GRID_SHA256 = "212dd2b0b71ddeffb7a8865937d132ee596870f25c989ac7d90c5dab6fd7faa0"
 COMMON_GRID_ID = "2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f"
 COMMON_GRID_SHA256 = "54c1daf67dd2bb9242f95e638d7bd801db536acc2c7d6f00c1f62a788bead554"
@@ -104,13 +99,6 @@ def expected_matrix(
         "historical_population_injection": False,
     } for topology in topologies for seed in seeds]
 
-
-def expected_shakedown_matrix() -> list[dict[str, Any]]:
-    """Return the isolated two-topology matrix for non-scientific qualification."""
-    return expected_matrix(
-        seeds=(SHAKEDOWN_SEED,), budget=SHAKEDOWN_BUDGET,
-        terminal_budget=SHAKEDOWN_BUDGET, checkpoints=SHAKEDOWN_CHECKPOINTS,
-    )
 
 
 def _require_equal(label: str, actual: Any, expected: Any) -> None:
@@ -348,31 +336,27 @@ def load_stage4c_context(config_path: str | Path) -> dict[str, Any]:
 
 def build_stage4c_run_manifest(
     context: Mapping[str, Any], *, run_id: str, source_commit_sha: str,
-    mode: str = "production", run_storage_policy: str = "external_persistent_v1",
+    run_storage_policy: str = "external_persistent_v1",
 ) -> dict[str, Any]:
-    """Build a small immutable protocol manifest without deprecated session fields."""
+    """Build the immutable Stage 4C production protocol manifest."""
     if not run_id or not source_commit_sha:
         raise ValueError("Stage 4C run manifest requires run_id and source_commit_sha")
-    if mode not in {"production", "shakedown"}:
-        raise ValueError("Stage 4C run mode must be production or shakedown")
-    expected_policy = "external_persistent_v1" if mode == "production" else "external_qualification_v1"
-    if run_storage_policy != expected_policy:
-        raise ValueError(f"Stage 4C {mode} requires storage policy {expected_policy}")
-    contract = context["contract"]
+    if run_storage_policy != "external_persistent_v1":
+        raise ValueError("Stage 4C production requires storage policy external_persistent_v1")
     return {
         "schema_version": 1,
         "run_id": str(run_id),
-        "mode": mode,
+        "mode": "production",
         "study_type": STUDY_TYPE,
         "protocol_revision": PROTOCOL_REVISION,
         "computation_fingerprint": context["fingerprint"]["computation_fingerprint"],
         "source_commit_sha": str(source_commit_sha),
         "topologies": list(TOPOLOGIES),
-        "expected_cell_count": len(TOPOLOGIES) * (len(SEEDS) if mode == "production" else 1),
-        "seeds": list(SEEDS) if mode == "production" else [SHAKEDOWN_SEED],
-        "budget_per_cell": BUDGET if mode == "production" else SHAKEDOWN_BUDGET,
-        "population_schedule_terminal_budget": BUDGET if mode == "production" else SHAKEDOWN_BUDGET,
-        "checkpoints": list(CHECKPOINTS) if mode == "production" else list(SHAKEDOWN_CHECKPOINTS),
+        "expected_cell_count": len(TOPOLOGIES) * len(SEEDS),
+        "seeds": list(SEEDS),
+        "budget_per_cell": BUDGET,
+        "population_schedule_terminal_budget": BUDGET,
+        "checkpoints": list(CHECKPOINTS),
         "initial_population_rule": "18 * topology_dimension",
         "initial_populations": {"P_D": 234, "D_P": 234},
         "production_early_stop": False,
@@ -388,11 +372,10 @@ def build_stage4c_run_manifest(
         "topology_transfer": False,
         "historical_population_injection": False,
         "run_storage_policy": run_storage_policy,
-        "required_storage_root": (PRODUCTION_RUN_ROOT if mode == "production"
-                                  else QUALIFICATION_RUN_ROOT),
-        "ranking_eligible": mode == "production",
-        "scientific_evidence": mode == "production",
-        "matrix": expected_matrix() if mode == "production" else expected_shakedown_matrix(),
+        "required_storage_root": PRODUCTION_RUN_ROOT,
+        "ranking_eligible": True,
+        "scientific_evidence": True,
+        "matrix": expected_matrix(),
         "fingerprint_schema_version": context["fingerprint"]["fingerprint_schema_version"],
         "dependency_manifest": context["fingerprint"]["dependency_manifest"],
     }
@@ -612,78 +595,14 @@ def run_stage4c_production(
     raise RuntimeError("legacy Stage 4C production execution is retired")
 
 
-def run_stage4c_shakedown(
-    config_path: str | Path, run_path: str | Path, *, resume: bool = False,
-) -> dict[str, Any]:
-    """Run the explicitly non-scientific two-cell Stage 4C qualification path."""
-    from ..orchestration.persistent_storage import validate_persistent_run_location
-    from .hybrid_stage4b import read_source_state, run_matched_cell
-
-    context = load_stage4c_context(config_path)
-    run = Path(run_path)
-    if not run.is_absolute():
-        raise ValueError("Stage 4C shakedown path must be absolute")
-    run = run.resolve(strict=False)
-    qualification_root = Path(QUALIFICATION_RUN_ROOT).resolve(strict=False)
-    if run == qualification_root or not _is_within(run, qualification_root):
-        raise ValueError("Stage 4C shakedown must be below the frozen external qualification root")
-    if _is_within(run, context["root"]):
-        raise ValueError("Stage 4C shakedown must be outside every repository worktree")
-    storage_target = run if not run.exists() else run / f".storage-validation-{os.getpid()}"
-    storage_validation = validate_persistent_run_location(storage_target, context["root"])
-    if not storage_validation.passed:
-        raise ValueError(f"Stage 4C shakedown storage validation failed: {storage_validation.reason}")
-
-    source = read_source_state(Path(context["root"]))
-    if source["status_short"]:
-        raise RuntimeError("Stage 4C shakedown requires a clean committed source tree")
-    manifest_path = run / "metadata" / "stage4c_run_manifest.json"
-    expected_manifest = build_stage4c_run_manifest(
-        context, run_id=run.name, source_commit_sha=source["head"],
-        mode="shakedown", run_storage_policy="external_qualification_v1",
-    )
-    if manifest_path.is_file() and not resume:
-        raise FileExistsError("Stage 4C shakedown already exists; pass resume=True to continue it")
-    if not manifest_path.is_file() and resume:
-        raise FileNotFoundError("cannot resume Stage 4C shakedown without its original manifest")
-    if not manifest_path.exists() and run.exists() and any(run.iterdir()):
-        raise FileExistsError("Stage 4C shakedown output is non-empty without its run manifest")
-    run_manifest, manifest_created = ensure_stage4c_run_manifest(manifest_path, expected_manifest)
-    if manifest_created:
-        (run / "metadata").mkdir(parents=True, exist_ok=True)
-        _atomic_json(run / "metadata" / "protocol_snapshot.json", context["contract"])
-        _atomic_json(run / "metadata" / "integrity_check.json", {
-            "status": "RUNNING", "complete": False,
-            "cells_present": 0, "cells_completed": 0, "expected_cells": 2,
-        })
-        (run / "metadata" / "config_snapshot.yaml").write_text(
-            Path(context["config_path"]).read_text(encoding="utf-8"), encoding="utf-8",
-        )
-
-    results = []
-    for item in expected_shakedown_matrix():
-        results.append(run_matched_cell(
-            context, run, topology=item["topology"], seed=item["seed"],
-            budget=SHAKEDOWN_BUDGET, checkpoints=SHAKEDOWN_CHECKPOINTS,
-            terminal_budget=SHAKEDOWN_BUDGET, finalist_count=FINALIST_COUNT,
-            mode="shakedown", source_commit_sha=source["head"], resume=resume,
-            compact_history_cache=True,
-        ))
-    from ..reporting.hybrid_stage4c import write_stage4c_shakedown_reports
-
-    report = write_stage4c_shakedown_reports(run, context, results, run_manifest)
-    return {**report, "run_dir": str(run), "cells": results}
-
-
 __all__ = [
     "BUDGET", "CHECKPOINTS", "COMMON_GRID_ID", "COMMON_GRID_SHA256",
     "FINALIST_COUNT", "INITIAL_POPULATION_MULTIPLIER", "PROTOCOL_REVISION",
     "PRODUCTION_TOTAL_EVALUATIONS", "SEARCH_GRID_SHA256", "SEEDS",
-    "SHAKEDOWN_BUDGET", "SHAKEDOWN_CHECKPOINTS", "SHAKEDOWN_SEED",
     "STAGE4B_SEEDS", "STUDY_TYPE", "TOPOLOGIES", "PRODUCTION_RUN_ROOT",
     "QUALIFICATION_RUN_ROOT", "AUTHORIZATION_SCOPE", "authorization_claim_id", "build_authorization_metadata",
-    "build_stage4c_run_manifest", "expected_matrix", "expected_shakedown_matrix", "load_stage4c_context",
-    "run_stage4c_production", "run_stage4c_shakedown", "validate_frozen_config",
+    "build_stage4c_run_manifest", "expected_matrix", "load_stage4c_context",
+    "run_stage4c_production", "validate_frozen_config",
     "ensure_stage4c_run_manifest", "validate_stage4c_run_manifest",
     "verify_stage4c_authorization",
 ]
