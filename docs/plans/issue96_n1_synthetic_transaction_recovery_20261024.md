@@ -1,7 +1,7 @@
 # Issue #96 N1 — synthetic same-run transaction/recovery contract
 
 **Date:** 2026-10-24 JST
-**Status:** `OWNER_AUTHORIZED / TEST_OWNED_SYNTHETIC_ONLY / IMPLEMENTATION_IN_PROGRESS`
+**Status:** `OWNER_AUTHORIZED / TEST_OWNED_SYNTHETIC_ONLY / DRAFT_PR_CI_PASS / AWAITING_INDEPENDENT_REVIEW`
 **Base:** `63f837b14ba12be6fe4299b1e1759d423f655da2` (verified GitHub `main`, PR #95 merge).
 **Authority:** Issue [#96](https://github.com/MasayaTakagi/saw-com-optimizer/issues/96), owner work order [comment](https://github.com/MasayaTakagi/saw-com-optimizer/issues/96#issuecomment-6380953524).
 
