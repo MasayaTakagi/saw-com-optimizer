@@ -43,7 +43,8 @@ supersede the five current sources above:
   [Issue #80 synthetic task contract](plans/issue80_synthetic_task_contract_20261023.md),
   [Issue #82 synthetic-recovery contract](plans/issue82_synthetic_recovery_contract_20261023.md),
   [Issue #84 mock-only Pi-session contract](plans/issue84_pi_session_mock_contract.md),
-  and [Issue #94 R6-C migration/three-continuity design](plans/issue94_r6c_three_resume_migration_design_20261024.md)
+  [Issue #94 R6-C migration/three-continuity design](plans/issue94_r6c_three_resume_migration_design_20261024.md),
+  and [Issue #96 N1 transaction/recovery contract](plans/issue96_n1_synthetic_transaction_recovery_20261024.md)
   record staged reconstruction work. The R3 and R4 records are scoped to
   Issues #65 and #67; R6 is scoped to Issue #71's software/synthetic-only
   authorization; R7 is an audit/CI evidence and owner-decision proposal under
@@ -52,8 +53,9 @@ supersede the five current sources above:
   countdown recovery and does not authorize scientific or Pi-session recovery;
   Issue #84 authorizes only an injected fake Pi-session adapter and does not
   authorize real Pi runtime/session use; Issue #94 records a docs-only/static
-  design audit and authorizes no implementation, legacy cutover, active-run
-  inspection, real Pi runtime, or scientific work.
+  design audit; Issue #96 authorizes only its bounded test-owned synthetic N1
+  implementation and software verification. Neither issue authorizes legacy
+  cutover, active-run inspection, real Pi runtime, or scientific work.
   The R7 legacy dispositions do not authorize
   cleanup under Issue #75. None authorizes Q1 qualification, real experiments,
   or production runs.
