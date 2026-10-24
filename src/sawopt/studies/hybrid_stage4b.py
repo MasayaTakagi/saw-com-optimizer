@@ -95,7 +95,8 @@ def _expected_matrix(*, seeds: Sequence[int] = SEEDS, budget: int = BUDGET,
 
 
 def load_stage4b_context(config_path: str | Path) -> dict[str, Any]:
-    """Load and fail-closed validate the fixed production protocol."""
+    """Retired legacy Stage 4B runtime context/fingerprint builder."""
+    raise RuntimeError("legacy Stage 4B context and fingerprint regeneration are retired")
     from ..io.config import load_experiment_config
     from ..io.provenance import build_fingerprint_metadata
     from ..design.topology import RESONATOR_BOUNDS
@@ -291,7 +292,8 @@ def authorization_claim_id(metadata: Mapping[str, Any]) -> str:
 def verify_production_manifest(
     context: Mapping[str, Any], run_path: str | Path, authorization_manifest_path: str | Path,
 ) -> dict[str, Any]:
-    """Fail closed unless the child is bound to the one-shot orchestration manifest."""
+    """Retired historical production-authorization verifier."""
+    raise RuntimeError("legacy Stage 4B production authorization is retired")
     from ..orchestration.models import RunManifest
 
     root = Path(context["root"]).resolve()
@@ -496,6 +498,8 @@ def _run_cell(
     finalist_count: int, mode: str, source_commit_sha: str,
     resume: bool, compact_history_cache: bool = False,
 ) -> dict[str, Any]:
+    if mode == "production":
+        raise RuntimeError("legacy Stage 4B production cell execution is retired")
     from ..design.topology import RESONATOR_BOUNDS
     from ..optimization.counters import GeometryGateCounters, evaluation_status
     from ..optimization.checkpoint_session import LShadeCheckpointSession
@@ -939,7 +943,8 @@ def _initialize_batch_run(run: Path, context: Mapping[str, Any], *, mode: str,
 def run_stage4b_shakedown(
     config_path: str | Path, run_path: str | Path, *, resume: bool = False,
 ) -> dict[str, Any]:
-    """Run a separate four-topology, 512-unique dispatch/resume shakedown."""
+    """Reject the retired Stage 4B runtime qualification entrypoint."""
+    raise RuntimeError("legacy Stage 4B shakedown execution is retired")
     context = load_stage4b_context(config_path)
     root = Path(context["root"])
     run = Path(run_path)
@@ -1025,7 +1030,8 @@ def run_stage4b_shakedown(
 def run_stage4b_production(
     config_path: str | Path, run_path: str | Path, authorization_manifest_path: str | Path,
 ) -> dict[str, Any]:
-    """Run or resume only the 20 cells authorized by one immutable manifest."""
+    """Reject the retired Stage 4B production execution entrypoint."""
+    raise RuntimeError("legacy Stage 4B production execution is retired")
     context = load_stage4b_context(config_path)
     root = Path(context["root"])
     run = Path(run_path)

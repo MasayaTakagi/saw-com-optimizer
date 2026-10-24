@@ -608,7 +608,8 @@ def run_stage4c_production(
     config_path: str | Path, run_path: str | Path,
     authorization_manifest_path: str | Path,
 ) -> dict[str, Any]:
-    """Execute/resume the exact 10-cell matrix after a separately authorized launch."""
+    """Reject the retired Stage 4C production execution entrypoint."""
+    raise RuntimeError("legacy Stage 4C production execution is retired")
     from .hybrid_stage4b import read_source_state, run_matched_cell
 
     context = load_stage4c_context(config_path)

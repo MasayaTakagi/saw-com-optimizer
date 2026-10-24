@@ -9,8 +9,6 @@ from unittest import mock
 from sawopt.orchestration import cli
 from sawopt.orchestration.models import RunManifest
 from sawopt.orchestration.run_manager import (
-    atomic_write_json,
-    callback_lock_path,
     create_run,
     load_manifest,
     load_status,
@@ -41,7 +39,7 @@ class CliTests(unittest.TestCase):
                 "configs/studies/postrun_workflow_qualification.yaml",
                 "--run-dir",
                 str(run_dir),
-                "--no-callback",
+                "--continuation-mode", "disabled",
             ])
             with mock.patch.object(cli.subprocess, "check_output", side_effect=_clean_git_snapshot), \
                     mock.patch.object(cli, "launch_detached", return_value=4242) as launch_mock:
@@ -63,43 +61,33 @@ class CliTests(unittest.TestCase):
     def test_new_launch_rejects_session_id_instead_of_reinterpreting_as_thread(self):
         with TemporaryDirectory() as temporary:
             run_dir = Path(temporary) / "explicit-session"
-            args = cli.build_parser().parse_args([
-                "launch",
-                "--config",
-                "configs/studies/postrun_workflow_qualification.yaml",
-                "--run-dir",
-                str(run_dir),
-                "--session-id",
-                "session-A",
-            ])
-            with self.assertRaisesRegex(ValueError, "session-id"):
-                cli.launch(args)
+            with self.assertRaisesRegex(RuntimeError, "retired"):
+                cli.main([
+                    "launch", "--config", "configs/studies/postrun_workflow_qualification.yaml",
+                    "--run-dir", str(run_dir), "--session-id", "session-A",
+                ])
             self.assertFalse(run_dir.exists())
 
-    def test_preflight_failure_prevents_run_creation_and_worker_launch(self):
+    def test_queue_launch_is_rejected_before_run_creation_or_worker_launch(self):
         with TemporaryDirectory() as temporary:
             run_dir = Path(temporary) / "blocked-before-launch"
-            args = cli.build_parser().parse_args([
-                "launch", "--config", "configs/studies/postrun_workflow_qualification.yaml",
-                "--run-dir", str(run_dir), "--thread-id", "01a0e89c-1c65-72a3-beb6-489f0cf01b30",
-            ])
-            with mock.patch("sawopt.orchestration.codex_queue.current_codex_thread_id", return_value="01a0e89c-1c65-72a3-beb6-489f0cf01b30"), \
-                    mock.patch("sawopt.orchestration.codex_queue.run_codex_queue_preflight", side_effect=RuntimeError("preflight denied")), \
-                    mock.patch.object(cli, "launch_detached") as launch_mock:
-                with self.assertRaisesRegex(RuntimeError, "preflight denied"):
-                    cli.launch(args)
+            with mock.patch.object(cli, "launch_detached") as launch_mock:
+                with self.assertRaisesRegex(RuntimeError, "queue continuation is retired"):
+                    cli.main([
+                        "launch", "--config", "configs/studies/postrun_workflow_qualification.yaml",
+                        "--run-dir", str(run_dir), "--continuation-mode", "queue",
+                    ])
             launch_mock.assert_not_called()
             self.assertFalse(run_dir.exists())
 
-    def test_queue_launch_rejects_session_id_before_run_creation(self):
+    def test_removed_session_options_are_rejected_before_run_creation(self):
         with TemporaryDirectory() as temporary:
             run_dir = Path(temporary) / "run"
-            args = cli.build_parser().parse_args([
-                "launch", "--config", "configs/studies/postrun_workflow_qualification.yaml",
-                "--run-dir", str(run_dir), "--session-id", "session-A",
-            ])
-            with self.assertRaisesRegex(ValueError, "session-id"):
-                cli.launch(args)
+            with self.assertRaisesRegex(RuntimeError, "retired"):
+                cli.main([
+                    "launch", "--config", "configs/studies/postrun_workflow_qualification.yaml",
+                    "--run-dir", str(run_dir), "--session-id", "session-A",
+                ])
             self.assertFalse(run_dir.exists())
 
     def test_new_v4_launch_does_not_store_a_session_checkpoint(self):
@@ -107,7 +95,7 @@ class CliTests(unittest.TestCase):
             run_dir = Path(temporary) / "checkpointed"
             args = cli.build_parser().parse_args([
                 "launch", "--config", "configs/studies/postrun_workflow_qualification.yaml",
-                "--run-dir", str(run_dir), "--no-callback",
+                "--run-dir", str(run_dir), "--continuation-mode", "disabled",
             ])
             with mock.patch.object(cli.subprocess, "check_output", side_effect=_clean_git_snapshot), \
                     mock.patch.object(cli, "launch_detached", return_value=4344):
@@ -126,7 +114,7 @@ class CliTests(unittest.TestCase):
             }}
             args = cli.build_parser().parse_args([
                 "launch", "--config", "configs/studies/postrun_workflow_qualification.yaml",
-                "--run-root", str(root), "--no-callback",
+                "--run-root", str(root), "--continuation-mode", "disabled",
             ])
             with mock.patch("sawopt.io.config.load_experiment_config", return_value=payload), \
                     mock.patch.object(cli.subprocess, "check_output", side_effect=_clean_git_snapshot), \
@@ -149,7 +137,7 @@ class CliTests(unittest.TestCase):
         run_dir = ROOT / "runs" / "blocked-production-storage-test"
         args = cli.build_parser().parse_args([
             "launch", "--config", "configs/studies/postrun_workflow_qualification.yaml",
-            "--run-dir", str(run_dir), "--no-callback",
+            "--run-dir", str(run_dir), "--continuation-mode", "disabled",
         ])
         payload = {"study": {
             "type": "postrun_workflow_qualification",
@@ -159,12 +147,10 @@ class CliTests(unittest.TestCase):
         }}
         with mock.patch("sawopt.io.config.load_experiment_config", return_value=payload), \
                 mock.patch.object(cli, "launch_detached") as launch_mock, \
-                mock.patch.object(cli, "_claim_stage4b_authorization") as claim_mock, \
                 mock.patch.object(cli, "create_run") as create_mock:
             with self.assertRaisesRegex(ValueError, "FAIL_INSIDE_WORKTREE"):
                 cli.launch(args)
         launch_mock.assert_not_called()
-        claim_mock.assert_not_called()
         create_mock.assert_not_called()
         self.assertFalse(run_dir.exists())
 
@@ -180,7 +166,7 @@ class CliTests(unittest.TestCase):
             }}
             args = cli.build_parser().parse_args([
                 "launch", "--config", "configs/studies/postrun_workflow_qualification.yaml",
-                "--run-root", str(persistent_root), "--no-callback",
+                "--run-root", str(persistent_root), "--continuation-mode", "disabled",
             ])
             with mock.patch("sawopt.io.config.load_experiment_config", return_value=payload), \
                     mock.patch.object(cli.subprocess, "check_output", side_effect=_clean_git_snapshot), \
@@ -207,13 +193,20 @@ class CliTests(unittest.TestCase):
             transition(run_dir, "RUNNING", optimizer_pid=456)
             args = cli.build_parser().parse_args([
                 "launch", "--config", "configs/base/b28_dms_baseline.yaml",
-                "--run-dir", str(run_dir), "--resume", "--no-callback",
+                "--run-dir", str(run_dir), "--resume", "--continuation-mode", "disabled",
             ])
             with mock.patch.object(cli, "pid_exists", side_effect=lambda pid: pid in {123, 456}), \
                     mock.patch.object(cli, "launch_detached") as launch_mock:
                 self.assertEqual(cli.launch(args), 0)
             launch_mock.assert_not_called()
             self.assertEqual(load_status(run_dir)["resume_count"], 1)
+            checkpoint = run_dir / "session_checkpoint.json"
+            self.assertTrue(checkpoint.is_file())
+            self.assertFalse((run_dir / "resume_checkpoint.json").exists())
+            payload = json.loads(checkpoint.read_text(encoding="utf-8"))
+            self.assertEqual(payload["mode"], "reattach")
+            self.assertEqual(payload["session_id"], None)
+            self.assertEqual(load_status(run_dir)["session_checkpoint_path"], str(checkpoint))
 
     def test_resume_orphan_restarts_worker_with_resume_flag(self):
         with TemporaryDirectory() as temporary:
@@ -229,13 +222,17 @@ class CliTests(unittest.TestCase):
             transition(run_dir, "ORPHANED", error="test")
             args = cli.build_parser().parse_args([
                 "launch", "--config", "configs/base/b28_dms_baseline.yaml",
-                "--run-dir", str(run_dir), "--resume", "--no-callback",
+                "--run-dir", str(run_dir), "--resume", "--continuation-mode", "disabled",
             ])
             with mock.patch.object(cli, "launch_detached", return_value=7878) as launch_mock:
                 self.assertEqual(cli.launch(args), 0)
             command = launch_mock.call_args.kwargs["command"]
             self.assertIn("--resume", command)
             self.assertEqual(load_status(run_dir)["state"], "STARTING")
+            checkpoint = run_dir / "session_checkpoint.json"
+            self.assertTrue(checkpoint.is_file())
+            self.assertFalse((run_dir / "resume_checkpoint.json").exists())
+            self.assertEqual(json.loads(checkpoint.read_text(encoding="utf-8"))["mode"], "resume")
 
     def test_resume_keeps_the_manifest_optimizer_output_directory(self):
         with TemporaryDirectory() as temporary:
@@ -254,7 +251,7 @@ class CliTests(unittest.TestCase):
             transition(run_dir, "ORPHANED", error="test")
             args = cli.build_parser().parse_args([
                 "launch", "--config", "configs/base/b28_dms_baseline.yaml",
-                "--run-dir", str(run_dir), "--resume", "--no-callback",
+                "--run-dir", str(run_dir), "--resume", "--continuation-mode", "disabled",
             ])
             with mock.patch.object(cli, "launch_detached", return_value=7879) as launch_mock:
                 self.assertEqual(cli.launch(args), 0)
@@ -262,17 +259,12 @@ class CliTests(unittest.TestCase):
             self.assertIn("--resume", command)
             self.assertEqual(load_manifest(run_dir).effective_optimizer_run_dir, str(optimizer_dir))
 
-    def test_session_id_cannot_be_silently_ignored_when_callback_is_disabled(self):
-        args = cli.build_parser().parse_args([
-            "launch",
-            "--config",
-            "configs/base/b28_dms_baseline.yaml",
-            "--session-id",
-            "session-A",
-            "--no-callback",
-        ])
-        with self.assertRaisesRegex(ValueError, "--session-id.*--no-callback"):
-            cli.launch(args)
+    def test_session_cli_option_is_rejected_instead_of_ignored(self):
+        with self.assertRaisesRegex(RuntimeError, "retired"):
+            cli.main([
+                "launch", "--config", "configs/base/b28_dms_baseline.yaml",
+                "--session-id", "session-A", "--continuation-mode", "disabled",
+            ])
 
     def test_recover_marks_dead_worker_as_orphaned(self):
         with TemporaryDirectory() as temporary:
@@ -321,70 +313,6 @@ class CliTests(unittest.TestCase):
             status = load_status(run_dir)
             self.assertEqual(status["state"], "ORPHANED_CHILD")
             self.assertIn("automatic rerun is forbidden", status["error"])
-
-    def test_review_manually_retries_callback_without_rerunning_optimizer(self):
-        with TemporaryDirectory() as temporary:
-            run_dir = Path(temporary) / "manual-review"
-            create_run(RunManifest(
-                schema_version=1,
-                run_id="manual-review",
-                experiment_name="dummy",
-                created_at=datetime.now(timezone.utc).isoformat(),
-                project_root=str(run_dir),
-                run_dir=str(run_dir),
-                command=["dummy"],
-                config_path=None,
-                codex_session_id="session-review",
-                codex_model=None,
-                callback_enabled=True,
-                review_after_completion=True,
-            ))
-            transition(run_dir, "STARTING", worker_pid=123)
-            transition(run_dir, "RUNNING")
-            transition(run_dir, "COMPLETED", exit_code=0)
-            self.assertTrue(cli.prepare_callback(run_dir, automatic=True))
-            cli.finish_callback(run_dir, success=False, exit_code=9, error="smoke failure")
-            args = Namespace(run_id=str(run_dir), codex_executable="codex-test")
-            with mock.patch.object(cli, "run_codex_callback", return_value=0) as callback_mock:
-                self.assertEqual(cli.review(args), 0)
-            callback_mock.assert_called_once()
-            status = load_status(run_dir)
-            self.assertEqual(status["state"], "REVIEWED")
-            self.assertEqual(status["optimizer_state"], "COMPLETED")
-            self.assertEqual(status["callback_attempts"], 2)
-
-    def test_recover_reclaims_stale_callback_lock_without_rerunning_optimizer(self):
-        with TemporaryDirectory() as temporary:
-            run_dir = Path(temporary) / "stale-callback"
-            create_run(RunManifest(
-                schema_version=1,
-                run_id="stale-callback",
-                experiment_name="dummy",
-                created_at=datetime.now(timezone.utc).isoformat(),
-                project_root=str(run_dir),
-                run_dir=str(run_dir),
-                command=["dummy"],
-                config_path=None,
-                codex_session_id="session-stale",
-                codex_model=None,
-                callback_enabled=True,
-                review_after_completion=True,
-            ))
-            transition(run_dir, "STARTING", worker_pid=123)
-            transition(run_dir, "RUNNING")
-            transition(run_dir, "COMPLETED", exit_code=0)
-            self.assertTrue(cli.prepare_callback(run_dir, automatic=True))
-            atomic_write_json(callback_lock_path(run_dir), {
-                "pid": 99999999,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "hostname": "dead-host",
-            })
-
-            self.assertEqual(cli.recover(Namespace(run_id=str(run_dir))), 0)
-            status = load_status(run_dir)
-            self.assertEqual(status["state"], "CALLBACK_FAILED")
-            self.assertFalse(callback_lock_path(run_dir).exists())
-
 
 if __name__ == "__main__":
     unittest.main()

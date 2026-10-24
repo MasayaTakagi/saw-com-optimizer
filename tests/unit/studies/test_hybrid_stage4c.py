@@ -286,50 +286,15 @@ def test_stage4c_external_storage_gate_rejects_repository_local_output(tmp_path)
     assert not rejected.passed
 
 
-def test_stage4c_authorization_claim_uses_git_common_state_not_repo_runs(tmp_path):
-    repository = tmp_path / "repo"
-    repository.mkdir()
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    metadata = {
-        "authorization_scope": AUTHORIZATION_SCOPE,
-        "computation_fingerprint": "c" * 64,
-        "source_commit_sha": "a" * 40,
-        "run_id": "stage4c-claim-fixture",
-    }
-    _claim_id, claim_path = orchestration_cli._claim_stage4c_authorization(repository, metadata)
-    assert claim_path == repository / ".git" / "sawopt-stage4c-authorization-claims" / f"{claim_path.stem}.json"
-    assert claim_path.is_file()
-    assert not (repository / "runs").exists()
-
-
-def test_stage4c_claim_is_source_protocol_scoped_and_duplicate_run_id_is_rejected(tmp_path):
-    repository = tmp_path / "repo"
-    repository.mkdir()
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    metadata_a = {
-        "authorization_scope": AUTHORIZATION_SCOPE,
-        "computation_fingerprint": "c" * 64,
-        "source_commit_sha": "a" * 40,
-        "run_id": "stage4c-run-a",
-    }
-    metadata_b = {**metadata_a, "run_id": "stage4c-run-b"}
-    assert authorization_claim_id(metadata_a) == authorization_claim_id(metadata_b)
-    claim_id, claim_path = orchestration_cli._claim_stage4c_authorization(repository, metadata_a)
-    assert claim_id == authorization_claim_id(metadata_a)
-    claim = json.loads(claim_path.read_text(encoding="utf-8"))
-    assert claim["run_id"] == "stage4c-run-a"
-    with pytest.raises(RuntimeError, match="already been claimed"):
-        orchestration_cli._claim_stage4c_authorization(repository, metadata_b)
-    assert not (repository / "runs").exists()
-
-
-def test_stage4c_claim_is_consumed_before_active_run_registration():
-    import inspect
-
-    source = inspect.getsource(orchestration_cli.launch)
-    claim_marker = "claim_id, claim_path = _claim_stage4c_authorization"
-    registry_marker = "register_active_run("
-    assert source.index(claim_marker) < source.index(registry_marker)
+def test_stage4c_orchestration_launch_is_retired_before_output(monkeypatch, tmp_path):
+    monkeypatch.setattr(orchestration_cli, "project_root", lambda: Path.cwd())
+    args = orchestration_cli.build_parser().parse_args([
+        "launch", "--config", CONFIG, "--run-dir", str(tmp_path / "must-not-exist"),
+        "--continuation-mode", "disabled",
+    ])
+    with pytest.raises(RuntimeError, match="retired"):
+        orchestration_cli.launch(args)
+    assert not (tmp_path / "must-not-exist").exists()
 
 
 def _synthetic_review_run(tmp_path, *, repository_root, context):
@@ -746,12 +711,6 @@ def test_stage4c_model_materiality_threshold_and_feasibility_equivalence_rules()
     assert feasibility_wins["classification"] == "STAGE4C_CLEAR_CONFIRMATORY_WINNER"
 
 
-def test_stage4c_orchestration_requires_separate_production_authorization(monkeypatch):
-    monkeypatch.setattr(orchestration_cli, "project_root", lambda: Path.cwd())
-    args = type("Args", (), {
-        "resume": False, "no_callback": False, "session_id": None,
-        "continuation_mode": "disabled", "config": CONFIG,
-        "authorize_stage4c_production": False,
-    })()
-    with pytest.raises(PermissionError, match="--authorize-stage4c-production"):
-        orchestration_cli.launch(args)
+def test_stage4c_production_authorization_cli_flag_is_retired():
+    with pytest.raises(RuntimeError, match="retired"):
+        orchestration_cli.main(["launch", "--authorize-stage4c-production"])

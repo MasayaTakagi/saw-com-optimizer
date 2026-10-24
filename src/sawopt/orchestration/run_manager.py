@@ -1,4 +1,4 @@
-"""Filesystem-backed run manifests, status transitions, and session capture."""
+"""Filesystem-backed run manifests, status transitions, and historical status reads."""
 from __future__ import annotations
 
 import json
@@ -6,7 +6,6 @@ import csv
 import hashlib
 import os
 import re
-import secrets
 import socket
 import subprocess
 import time
@@ -23,22 +22,18 @@ TRANSITIONS = {
     "CREATED": {"STARTING", "FAILED"},
     "STARTING": {"RUNNING", "FAILED", "ORPHANED", "ORPHANED_CHILD"},
     "RUNNING": {"COMPLETED", "REVIEW_WAITING", "FAILED", "ORPHANED", "ORPHANED_CHILD"},
-    "COMPLETED": {"CALLBACK_PENDING", "REVIEW_WAITING"},
-    "FAILED": {"CALLBACK_PENDING", "STARTING", "REVIEW_WAITING"},
-    "CALLBACK_PENDING": {"CALLBACK_RUNNING"},
-    "CALLBACK_RUNNING": {"REVIEWED", "CALLBACK_FAILED"},
-    "CALLBACK_FAILED": {"CALLBACK_PENDING"},
-    "REVIEW_WAITING": {"CALLBACK_PENDING", "REVIEWED"},
+    "COMPLETED": {"REVIEW_WAITING"},
+    "FAILED": {"STARTING", "REVIEW_WAITING"},
+    "CALLBACK_PENDING": set(),
+    "CALLBACK_RUNNING": set(),
+    "CALLBACK_FAILED": set(),
+    "REVIEW_WAITING": set(),
     "REVIEWED": set(),
     "ORPHANED": {"STARTING"},
     "ORPHANED_CHILD": {"STARTING"},
 }
 
 LOCK_STALE_AFTER_S = 300.0
-
-
-class SessionValidationError(ValueError):
-    """Raised when an automatically captured Codex session is unsafe to use."""
 
 
 def utc_now() -> str:
@@ -174,14 +169,6 @@ def status_path(run_dir: Path) -> Path:
     return Path(run_dir) / "status.json"
 
 
-def callback_lock_path(run_dir: Path) -> Path:
-    return Path(run_dir) / "callback.lock"
-
-
-def continuation_lock_path(run_dir: Path) -> Path:
-    return Path(run_dir) / ".continuation.lock"
-
-
 def continuation_delivery_path(run_dir: Path) -> Path:
     return Path(run_dir) / "continuation_delivery.json"
 
@@ -203,7 +190,11 @@ def load_status(run_dir: Path) -> dict[str, Any]:
 
 
 def create_run(manifest: RunManifest) -> None:
-    """Create a new run directory without overwriting an existing run."""
+    """Create a new non-agent run directory without overwriting an existing run."""
+    if manifest.uses_retired_agent_transport or manifest.study_type in {
+        "hybrid_stage4b_topology_comparison", "hybrid_stage4c_confirmatory",
+    }:
+        raise RuntimeError("creating legacy Codex-linked and Stage 4B/4C runs is retired")
     run_dir = Path(manifest.run_dir)
     if run_dir.exists() and any(run_dir.iterdir()):
         raise FileExistsError(f"run directory is not empty: {run_dir}")
@@ -271,53 +262,6 @@ def transition(run_dir: Path, new_state: str, **updates: Any) -> dict[str, Any]:
     return _mutate_status(Path(run_dir), mutate)
 
 
-def prepare_callback(run_dir: Path, *, automatic: bool) -> bool:
-    """Claim one callback attempt; return False for an already handled run."""
-    run_dir = Path(run_dir)
-    current = load_status(run_dir)
-    current_state = current["state"]
-    if current.get("callback_completed") or current_state == "REVIEWED":
-        return False
-    if automatic and int(current.get("callback_attempts", 0)) >= 1:
-        return False
-    if current_state in {"COMPLETED", "FAILED", "REVIEW_WAITING", "CALLBACK_FAILED"}:
-        transition(run_dir, "CALLBACK_PENDING")
-
-    def mutate(value: dict[str, Any]) -> None:
-        state = value["state"]
-        if value.get("callback_completed") or state == "REVIEWED":
-            value["_skip_callback"] = True
-            return
-        if automatic and int(value.get("callback_attempts", 0)) >= 1:
-            value["_skip_callback"] = True
-            return
-        if state != "CALLBACK_PENDING":
-            raise ValueError(f"callback cannot start from {state}")
-        if "CALLBACK_RUNNING" not in TRANSITIONS[state]:
-            raise ValueError(f"callback cannot start from {state}")
-        value["callback_attempts"] = int(value.get("callback_attempts", 0)) + 1
-        value["state"] = "CALLBACK_RUNNING"
-        value["callback_started_at"] = utc_now()
-        value["callback_exit_code"] = None
-        value["error"] = None
-        value.pop("_skip_callback", None)
-
-    value = _mutate_status(run_dir, mutate)
-    return not value.pop("_skip_callback", False)
-
-
-def finish_callback(run_dir: Path, *, success: bool, exit_code: int | None,
-                    error: str | None = None) -> dict[str, Any]:
-    """Record callback completion without changing optimizer success/failure."""
-    return transition(
-        Path(run_dir),
-        "REVIEWED" if success else "CALLBACK_FAILED",
-        callback_completed=bool(success),
-        callback_exit_code=exit_code,
-        error=error,
-    )
-
-
 def record_optimizer_completion(run_dir: Path, *, disposition: str,
                                 exit_code: int | None, error: str | None = None) -> dict[str, Any]:
     """Persist terminal optimizer evidence before attempting continuation."""
@@ -358,186 +302,6 @@ def load_continuation_delivery(run_dir: Path) -> dict[str, Any] | None:
     return _read_delivery(Path(run_dir))
 
 
-def _mirror_delivery_status(run_dir: Path, delivery: dict[str, Any]) -> None:
-    update_status_fields(
-        run_dir, continuation_mode="queue", continuation_state=str(delivery["state"]),
-        continuation_attempt_count=1, continuation_delivery_id=delivery["delivery_id"],
-        continuation_claimed_at=delivery["claimed_at"],
-        continuation_command_started_at=delivery.get("command_started_at"),
-        continuation_exit_code=delivery.get("exit_code"),
-        continuation_acknowledged=delivery.get("sender_accepted"),
-        continuation_error=delivery.get("error"),
-        continuation_receiver_confirmed_at=delivery.get("receiver_confirmed_at"),
-        continuation_receiver_thread_id=delivery.get("receiver_thread_id"),
-    )
-
-
-def _write_delivery_locked(run_dir: Path, delivery: dict[str, Any]) -> None:
-    atomic_write_json(continuation_delivery_path(run_dir), delivery)
-    # Ledger write is authoritative even if this best-effort mirror fails.
-    _mirror_delivery_status(run_dir, delivery)
-
-
-def record_continuation_preflight_failure(run_dir: Path, error: str) -> None:
-    if continuation_delivery_path(Path(run_dir)).exists():
-        raise ValueError("one-shot continuation claim already exists")
-    update_status_fields(
-        run_dir, continuation_mode="queue", continuation_state="PENDING",
-        continuation_error=str(error),
-    )
-
-
-def claim_queue_delivery(run_dir: Path, *, delivery_id: str) -> dict[str, Any]:
-    """Exclusively persist the single attempt before spawning the queue CLI."""
-    run_dir = Path(run_dir).resolve()
-    manifest = load_manifest(run_dir)
-    if manifest.schema_version != 4 or manifest.continuation_mode != "queue":
-        raise ValueError("one-shot publisher queue supports only schema-v4 queue manifests")
-    if not re.fullmatch(r"[0-9a-f]{32}", str(delivery_id)):
-        raise ValueError("invalid delivery ID")
-    status = load_status(run_dir)
-    if status.get("state") not in {"COMPLETED", "FAILED"}:
-        raise ValueError("queue delivery requires a terminal optimizer state")
-    completion_path = optimizer_completion_path(run_dir)
-    if not completion_path.is_file():
-        raise ValueError("durable optimizer completion marker is missing")
-    completion = json.loads(completion_path.read_text(encoding="utf-8"))
-    if (completion.get("run_id") != manifest.run_id
-            or completion.get("disposition") != status.get("optimizer_state")
-            or completion.get("result_reference") != str(run_dir)):
-        raise ValueError("durable optimizer completion evidence does not match the run")
-    ledger_path = continuation_delivery_path(run_dir)
-    now = utc_now()
-    delivery = {
-        "schema_version": 1, "state": "CLAIMED", "attempt_count": 1,
-        "delivery_id": delivery_id, "run_id": manifest.run_id,
-        "original_thread_id": manifest.original_thread_id,
-        "delivery_sentinel": manifest.delivery_sentinel,
-        "next_expected_step": manifest.next_expected_step,
-        "result_reference": completion["result_reference"],
-        "claimed_at": now, "command_started_at": None,
-        "exit_code": None, "sender_accepted": None, "error": None,
-        "sender_finished_at": None, "receiver_confirmed_at": None,
-        "receiver_thread_id": None,
-    }
-    try:
-        fd = os.open(ledger_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-    except FileExistsError as exc:
-        raise ValueError("queue attempt already claimed; automatic resend is forbidden") from exc
-    try:
-        payload = memoryview((json.dumps(delivery, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
-        while payload:
-            written = os.write(fd, payload)
-            if written <= 0:
-                raise OSError("short write while persisting queue claim")
-            payload = payload[written:]
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-    _mirror_delivery_status(run_dir, delivery)
-    return delivery
-
-
-def mark_queue_command_started(run_dir: Path) -> dict[str, Any]:
-    root = Path(run_dir).resolve()
-    with exclusive_lock(continuation_lock_path(root)):
-        delivery = _read_delivery(root)
-        if delivery is None or delivery["state"] != "CLAIMED" or delivery.get("command_started_at"):
-            raise ValueError("queue command requires an unstarted CLAIMED attempt")
-        delivery["command_started_at"] = utc_now()
-        _write_delivery_locked(root, delivery)
-        return delivery
-
-
-def record_queue_sender_result(run_dir: Path, *, exit_code: int | None,
-                               error: str | None = None, stdout_sha256: str | None = None,
-                               stderr_sha256: str | None = None,
-                               sender_diagnostics: dict[str, Any] | None = None) -> dict[str, Any]:
-    root = Path(run_dir).resolve()
-    with exclusive_lock(continuation_lock_path(root)):
-        delivery = _read_delivery(root)
-        if delivery is None:
-            raise ValueError("queue sender has no durable claim")
-        if delivery["state"] == "RECEIVER_CONFIRMED":
-            return delivery
-        if delivery["state"] != "CLAIMED" or not delivery.get("command_started_at"):
-            raise ValueError("sender outcome cannot be recorded for this delivery state")
-        accepted = exit_code == 0 and error is None
-        delivery.update({
-            "state": "SENDER_ACCEPTED" if accepted else "AMBIGUOUS",
-            "exit_code": exit_code,
-            "sender_accepted": accepted,
-            "stdout_sha256": stdout_sha256,
-            "stderr_sha256": stderr_sha256,
-            "error": None if accepted else (error or f"codex queue exited with code {exit_code}"),
-            "sender_finished_at": utc_now(),
-        })
-        if sender_diagnostics is not None:
-            delivery["sender_diagnostics"] = sender_diagnostics
-        _write_delivery_locked(root, delivery)
-        return delivery
-
-
-def mark_stranded_queue_attempt_ambiguous(run_dir: Path) -> dict[str, Any] | None:
-    root = Path(run_dir).resolve()
-    if not continuation_delivery_path(root).exists():
-        return None
-    with exclusive_lock(continuation_lock_path(root)):
-        delivery = _read_delivery(root)
-        if delivery is None or delivery["state"] != "CLAIMED":
-            return delivery
-        delivery.update({
-            "state": "AMBIGUOUS",
-            "error": "sender ended without durable outcome; resend forbidden",
-            "sender_finished_at": utc_now(),
-        })
-        _write_delivery_locked(root, delivery)
-        return delivery
-
-
-def confirm_queue_delivery(run_dir: Path, *, run_id: str, delivery_id: str,
-                           delivery_sentinel: str) -> dict[str, Any]:
-    """Confirm the queued turn using runtime CODEX_THREAD_ID, never a CLI ID."""
-    from .codex_queue import current_codex_thread_id
-
-    root = Path(run_dir).resolve()
-    manifest = load_manifest(root)
-    thread_id = current_codex_thread_id()
-    if manifest.schema_version != 4 or manifest.continuation_mode != "queue":
-        raise ValueError("receiver confirmation requires a new schema-v4 queue run")
-    if thread_id != manifest.original_thread_id:
-        raise ValueError("current runtime thread does not match original_thread_id")
-    if run_id != manifest.run_id or delivery_sentinel != manifest.delivery_sentinel:
-        raise ValueError("queued run/sentinel does not match immutable manifest")
-    if not re.fullmatch(r"[0-9a-f]{32}", delivery_id):
-        raise ValueError("invalid delivery ID")
-    completion = json.loads(optimizer_completion_path(root).read_text(encoding="utf-8"))
-    status = load_status(root)
-    if (completion.get("run_id") != manifest.run_id
-            or completion.get("disposition") != status.get("optimizer_state")):
-        raise ValueError("optimizer terminal evidence does not match run status")
-    with exclusive_lock(continuation_lock_path(root)):
-        delivery = _read_delivery(root)
-        if delivery is None or delivery.get("attempt_count") != 1:
-            raise ValueError("no durable single-attempt delivery claim exists")
-        if (delivery.get("delivery_id") != delivery_id
-                or delivery.get("run_id") != run_id
-                or delivery.get("original_thread_id") != thread_id
-                or delivery.get("delivery_sentinel") != delivery_sentinel
-                or not delivery.get("command_started_at")):
-            raise ValueError("receiver does not match exact claimed delivery identity")
-        if delivery["state"] not in {"CLAIMED", "SENDER_ACCEPTED", "AMBIGUOUS", "RECEIVER_CONFIRMED"}:
-            raise ValueError("delivery state cannot be receiver-confirmed")
-        if delivery["state"] == "RECEIVER_CONFIRMED":
-            return delivery
-        delivery.update({
-            "state": "RECEIVER_CONFIRMED", "receiver_confirmed_at": utc_now(),
-            "receiver_thread_id": thread_id, "error": None,
-        })
-        _write_delivery_locked(root, delivery)
-        return delivery
-
-
 def _git_output(root: Path, *args: str) -> str:
     return subprocess.check_output(
         ["git", *args], cwd=root, text=True, encoding="utf-8", errors="replace",
@@ -550,6 +314,8 @@ def mark_review_published(run_dir: Path, *, review_path: str, branch: str,
     """Finalize publication only after canonical committed evidence is upstream."""
     root = Path(run_dir).resolve()
     manifest = load_manifest(root)
+    if manifest.uses_retired_agent_transport:
+        raise RuntimeError("publication finalization for legacy Codex-linked runs is retired")
     if manifest.schema_version != 4 or not manifest.review_output_dir:
         raise ValueError("publication finalization requires a schema-v4 run")
     expected_path = manifest.review_output_dir.replace("\\", "/").strip("/")
@@ -619,10 +385,6 @@ def mark_review_published(run_dir: Path, *, review_path: str, branch: str,
     status = load_status(root)
     if status.get("optimizer_state") not in {"COMPLETED", "FAILED"}:
         raise ValueError("optimizer is not in a terminal state")
-    if manifest.continuation_mode == "queue":
-        delivery = load_continuation_delivery(root)
-        if delivery is None or delivery.get("state") != "RECEIVER_CONFIRMED":
-            raise ValueError("exact-thread queue receiver has not been confirmed")
     if status.get("review_evidence_state") == "PUBLISHED":
         if status.get("review_publication_commit") == commit and status.get("review_publication_branch") == branch:
             _release_published_active_run(repo, manifest)
@@ -652,6 +414,8 @@ def mark_review_exported(run_dir: Path) -> dict[str, Any]:
     """Record successful deterministic export without changing run state."""
     root = Path(run_dir).resolve()
     manifest = load_manifest(root)
+    if manifest.uses_retired_agent_transport:
+        raise RuntimeError("review export state mutation for legacy Codex-linked runs is retired")
     if manifest.schema_version != 4 or not manifest.review_output_dir:
         raise ValueError("review export state requires a schema-v4 run")
     if load_status(root).get("optimizer_state") not in {"COMPLETED", "FAILED"}:
@@ -669,81 +433,6 @@ def mark_review_exported(run_dir: Path) -> dict[str, Any]:
     )
 
 
-def read_current_session(path: Path, project_root: Path, *, max_age_s: float = 86400.0,
-                         now: datetime | None = None) -> dict[str, Any]:
-    """Load and validate the Hook-captured session bound to this project root."""
-    path = Path(path)
-    if not path.exists():
-        raise SessionValidationError(f"Codex session capture is missing: {path}")
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise SessionValidationError(f"invalid Codex session capture: {path}") from exc
-    session_id = str(value.get("session_id", "")).strip()
-    if not session_id:
-        raise SessionValidationError("Codex session capture contains an empty session_id")
-    hook_event = value.get("hook_event_name") or value.get("hook_event")
-    if hook_event is not None and str(hook_event) != "SessionStart":
-        raise SessionValidationError(
-            f"Codex session capture has unexpected hook event: {hook_event}"
-        )
-    expected = Path(project_root).resolve()
-    captured_project_root = value.get("project_root")
-    if captured_project_root:
-        actual_project_root = Path(str(captured_project_root)).resolve()
-        if os.path.normcase(str(actual_project_root)) != os.path.normcase(str(expected)):
-            raise SessionValidationError(
-                "Codex session capture project_root does not match project root: "
-                f"{actual_project_root} != {expected}"
-            )
-    captured_cwd = value.get("session_cwd") or value.get("cwd")
-    if not captured_cwd:
-        raise SessionValidationError("Codex session capture contains no session_cwd")
-    actual = Path(str(captured_cwd)).resolve()
-    if not actual.is_dir():
-        raise SessionValidationError(f"Codex session cwd does not exist: {actual}")
-    try:
-        common = os.path.commonpath([os.path.normcase(str(actual)), os.path.normcase(str(expected))])
-    except ValueError:
-        common = ""
-    if common != os.path.normcase(str(expected)):
-        raise SessionValidationError(
-            f"Codex session cwd is outside project root: {actual} not under {expected}"
-        )
-    captured_at = value.get("captured_at")
-    if not captured_at:
-        raise SessionValidationError("Codex session capture contains no captured_at")
-    try:
-        timestamp = datetime.fromisoformat(str(captured_at))
-        if timestamp.tzinfo is None:
-            timestamp = timestamp.replace(tzinfo=timezone.utc)
-    except ValueError as exc:
-        raise SessionValidationError("Codex session capture has invalid captured_at") from exc
-    reference = now or datetime.now(timezone.utc)
-    age = (reference - timestamp).total_seconds()
-    if age < -60 or age > float(max_age_s):
-        raise SessionValidationError(
-            f"Codex session capture is stale or from the future (age={age:.0f}s)"
-        )
-    return value
-
-
-def resolve_session(
-    *,
-    explicit_session_id: str | None,
-    session_path: Path,
-    project_root: Path,
-    max_age_s: float,
-) -> dict[str, Any]:
-    """Resolve a callback target with explicit IDs taking precedence."""
-    if explicit_session_id is not None:
-        session_id = str(explicit_session_id).strip()
-        if not session_id:
-            raise SessionValidationError("explicit Codex session ID must not be empty")
-        return {"session_id": session_id, "source": "explicit"}
-    return read_current_session(session_path, project_root, max_age_s=max_age_s)
-
-
 def parse_timestamp(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -754,7 +443,7 @@ def parse_timestamp(value: str | None) -> datetime | None:
 
 
 def format_status(run_dir: Path) -> str:
-    """Return concise human-readable status for PowerShell and CI logs."""
+    """Render recorded status; historical callback/queue fields are not verified."""
     run_dir = Path(run_dir).resolve()
     manifest = load_manifest(run_dir)
     status = load_status(run_dir)
@@ -798,15 +487,10 @@ def format_status(run_dir: Path) -> str:
 
 
 __all__ = [
-    "SessionValidationError", "atomic_write_json", "callback_lock_path",
-    "claim_queue_delivery", "confirm_queue_delivery", "continuation_delivery_path",
-    "continuation_lock_path", "create_run", "exclusive_lock", "finish_callback",
-    "format_status", "load_continuation_delivery", "load_manifest", "load_status",
-    "lock_owner_pid", "manifest_path", "mark_queue_command_started",
-    "mark_review_exported", "mark_review_published", "mark_stranded_queue_attempt_ambiguous",
-    "optimizer_completion_path", "record_continuation_preflight_failure",
-    "record_optimizer_completion", "record_queue_sender_result",
-    "prepare_callback", "read_current_session", "read_lock_metadata",
-    "reclaim_stale_lock", "resolve_session", "status_path", "transition",
-    "update_status_fields", "utc_now",
+    "atomic_write_json", "continuation_delivery_path", "create_run",
+    "exclusive_lock", "format_status", "load_continuation_delivery",
+    "load_manifest", "load_status", "lock_owner_pid", "manifest_path",
+    "mark_review_exported", "mark_review_published", "optimizer_completion_path",
+    "read_lock_metadata", "reclaim_stale_lock", "record_optimizer_completion",
+    "status_path", "transition", "update_status_fields", "utc_now",
 ]

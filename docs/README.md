@@ -47,7 +47,8 @@ supersede the five current sources above:
   [Issue #96 N1 transaction/recovery contract](plans/issue96_n1_synthetic_transaction_recovery_20261024.md),
   and [Issue #75 Codex retirement policy (2026-10-24)](plans/issue75_legacy_codex_retirement_decision_20261024.md)
   record staged reconstruction work. The [Issue #106 C0 static caller/evidence inventory](plans/issue106_r6c0_codex_removal_inventory_20261024.md)
-  records the authorized Codex retirement preflight and C1 stop gates. The R3 and R4 records are scoped to
+  records the preflight; its historical-fingerprint reconstruction stop gate is superseded by the owner-authorized
+  [Issue #108 R6-C1 scope](plans/issue108_r6c1_codex_removal_20261024.md). The R3 and R4 records are scoped to
   Issues #65 and #67; R6 is scoped to Issue #71's software/synthetic-only
   authorization; R7 is an audit/CI evidence and owner-decision proposal under
   Issue #74; Issue #77 is a design proposal; Issue #80 authorizes only isolated
@@ -58,9 +59,10 @@ supersede the five current sources above:
   design audit; Issue #96 authorizes only its bounded test-owned synthetic N1
   implementation and software verification. Neither issue authorizes legacy
   cutover, active-run inspection, real Pi runtime, or scientific work.
-  The later owner decision for Issue #75 removes old Codex queue/callback
-  without waiting for Pi session parity; code retirement still needs a separate
-  reviewed implementation PR and frozen scientific evidence protection.
+  The later owner decisions for Issues #75 and #108 authorize scoped removal of
+  old Codex queue/callback behavior without Pi-session parity or historical
+  Stage4B fingerprint reconstruction; implementation must stop at a Draft PR
+  for independent review and retain frozen scientific evidence.
   Earlier R7/#77 replacement-prerequisite statements are historical where they
   conflict with that newer policy. No plan authorizes Q1 qualification, real
   experiments, or production runs.

@@ -1,4 +1,4 @@
-"""Detached worker: run an existing optimizer entry point, then callback."""
+"""Detached worker for supported non-agent optimizer runs."""
 from __future__ import annotations
 
 import os
@@ -6,19 +6,12 @@ import json
 import subprocess
 import traceback
 from pathlib import Path
-from typing import Callable
-
-from .codex_callback import run_codex_callback
 from ..io.checkpoints import complete_study_run, finalize_run_checkpoints
 from ..io.legacy_lifecycle import legacy_process_disposition
 from ..io.lifecycle import RunDisposition
 from .run_manager import (
-    callback_lock_path,
-    exclusive_lock,
-    finish_callback,
     load_manifest,
     load_status,
-    prepare_callback,
     record_optimizer_completion,
     transition,
     update_status_fields,
@@ -81,11 +74,17 @@ def _run_optimizer(manifest, run_dir: Path, *, resume: bool = False) -> int:
         return int(process.wait())
 
 
-def execute_run(run_dir: Path, *, callback_runner: Callable[..., int] | None = None,
-                codex_executable: str | None = None, resume: bool = False) -> dict:
-    """Execute one durable run and return its final status dictionary."""
+def execute_run(run_dir: Path, *, resume: bool = False) -> dict:
+    """Execute a non-agent run; retired transport-linked manifests fail closed."""
     run_dir = Path(run_dir).resolve()
     manifest = load_manifest(run_dir)
+    if (manifest.uses_retired_agent_transport
+            or manifest.study_type in {
+                "hybrid_stage4b_topology_comparison", "hybrid_stage4c_confirmatory",
+            }
+            or "--stage4b-authorization-manifest" in manifest.command
+            or "--stage4c-authorization-manifest" in manifest.command):
+        raise RuntimeError("legacy Codex-linked and Stage 4B/4C worker execution is retired")
     status = load_status(run_dir)
     if status["state"] == "CREATED":
         transition(run_dir, "STARTING")
@@ -175,71 +174,8 @@ def execute_run(run_dir: Path, *, callback_runner: Callable[..., int] | None = N
                 error=error,
             )
 
-    if manifest.schema_version == 4 and manifest.continuation_mode == "queue":
-        # The worker owns one finite sender attempt and exits. Only the resumed
-        # exact-thread Codex task can export/publish evidence and mark review waiting.
-        from .codex_queue import send_queue_continuation
-        from .run_manager import (
-            continuation_delivery_path, mark_stranded_queue_attempt_ambiguous,
-            record_continuation_preflight_failure,
-        )
-        try:
-            send_queue_continuation(run_dir, timeout_s=float(manifest.queue_timeout_seconds))
-        except BaseException as exc:
-            if continuation_delivery_path(run_dir).exists():
-                try:
-                    mark_stranded_queue_attempt_ambiguous(run_dir)
-                except BaseException:
-                    # An unreadable ledger is still an irreversibly claimed slot.
-                    pass
-            else:
-                try:
-                    record_continuation_preflight_failure(
-                        run_dir, f"{type(exc).__name__}: {exc}",
-                    )
-                except BaseException:
-                    pass
-
-    elif manifest.schema_version < 4 and manifest.callback_enabled and manifest.review_after_completion:
-        claimed = False
-        lock_path = Path(callback_lock_path(run_dir))
-        try:
-            with exclusive_lock(lock_path):
-                claimed = prepare_callback(run_dir, automatic=True)
-                if claimed:
-                    failed = exit_code != 0 or load_status(run_dir).get("optimizer_state") == "FAILED"
-                    try:
-                        if callback_runner is None:
-                            callback_exit = run_codex_callback(
-                                manifest,
-                                exit_code=exit_code,
-                                optimizer_failed=failed,
-                                codex_executable=codex_executable,
-                                timeout_s=(
-                                    None if manifest.callback_timeout_minutes is None
-                                    else manifest.callback_timeout_minutes * 60.0
-                                ),
-                            )
-                        else:
-                            callback_exit = int(callback_runner(
-                                manifest,
-                                exit_code=exit_code,
-                                optimizer_failed=failed,
-                            ))
-                    except BaseException as exc:
-                        _append_exception(run_dir, exc)
-                        finish_callback(run_dir, success=False, exit_code=None, error=str(exc))
-                    else:
-                        finish_callback(
-                            run_dir,
-                            success=callback_exit == 0,
-                            exit_code=callback_exit,
-                            error=None if callback_exit == 0 else f"callback exited with code {callback_exit}",
-                        )
-        except (FileExistsError, TimeoutError):
-            # Another worker/manual review owns the callback.  The durable
-            # status remains authoritative and no duplicate resume is issued.
-            pass
+    # Completion and checkpoint-finalization evidence is retained, but there is
+    # no automatic queue handoff, callback, or session-resume dispatch.
     return load_status(run_dir)
 
 
