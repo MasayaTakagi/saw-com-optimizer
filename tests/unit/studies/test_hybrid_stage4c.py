@@ -22,8 +22,8 @@ from sawopt.reporting.hybrid_stage4c import (
     stopband_rows,
     validate_stage4c_review_contract,
     write_stage4c_reports,
-    write_stage4c_shakedown_reports,
 )
+from sawopt.studies import hybrid_stage4c as stage4c
 from sawopt.studies.hybrid import stage4a_load_context
 from sawopt.studies.hybrid_stage4c import (
     AUTHORIZATION_SCOPE,
@@ -34,9 +34,6 @@ from sawopt.studies.hybrid_stage4c import (
     PROTOCOL_REVISION,
     PRODUCTION_RUN_ROOT,
     SEARCH_GRID_SHA256,
-    SHAKEDOWN_BUDGET,
-    SHAKEDOWN_CHECKPOINTS,
-    SHAKEDOWN_SEED,
     SEEDS,
     STAGE4B_SEEDS,
     STUDY_TYPE,
@@ -46,9 +43,7 @@ from sawopt.studies.hybrid_stage4c import (
     build_stage4c_run_manifest,
     ensure_stage4c_run_manifest,
     expected_matrix,
-    expected_shakedown_matrix,
     load_stage4c_context,
-    run_stage4c_shakedown,
     validate_frozen_config,
     validate_stage4c_run_manifest,
     verify_stage4c_authorization,
@@ -57,6 +52,11 @@ from sawopt.studies.hybrid_stage4c import (
 
 CONFIG = "configs/studies/hybrid_stage4c_confirmatory.yaml"
 BASELINE_CONFIG = "configs/studies/hybrid_stage4a_qualification.yaml"
+
+
+def test_stage4c_shakedown_execution_entrypoint_is_absent():
+    assert "run_stage4c_shakedown" not in stage4c.__all__
+    assert not hasattr(stage4c, "run_stage4c_shakedown")
 
 
 def _baseline_contract():
@@ -92,12 +92,6 @@ def test_stage4c_exact_frozen_protocol_and_matrix():
     assert context["contract"]["common_validation_grid_id"] == COMMON_GRID_ID
     assert context["contract"]["common_validation_grid_sha256"] == COMMON_GRID_SHA256
     assert context["initial_populations"] == {"P_D": 234, "D_P": 234}
-    shakedown = expected_shakedown_matrix()
-    assert {(row["topology"], row["seed"]) for row in shakedown} == {
-        (topology, SHAKEDOWN_SEED) for topology in TOPOLOGIES
-    }
-    assert all(row["budget"] == row["population_schedule_terminal_budget"] == SHAKEDOWN_BUDGET
-               and row["checkpoints"] == list(SHAKEDOWN_CHECKPOINTS) for row in shakedown)
 
 
 @pytest.mark.parametrize(
@@ -159,6 +153,7 @@ def test_stage4c_manifest_and_authorization_contract_have_no_legacy_fields(tmp_p
         context, run_id="stage4c-fixture", source_commit_sha="a" * 40,
     )
     assert manifest["study_type"] == STUDY_TYPE
+    assert manifest["mode"] == "production"
     assert manifest["protocol_revision"] == PROTOCOL_REVISION
     assert manifest["budget_per_cell"] == manifest["population_schedule_terminal_budget"] == BUDGET
     assert manifest["checkpoints"] == list(CHECKPOINTS)
@@ -588,45 +583,6 @@ def test_stage4c_terminal_boundary_hit_blocks_maturity(tmp_path):
     assert terminal["hard_bound_unresolved"] is True
     assert terminal["boundary_pending_confirmation"] is True
     assert terminal["maturity_classification"] == "IMMATURE_OR_INCOMPLETE"
-
-
-def test_stage4c_shakedown_report_is_explicitly_non_scientific(tmp_path):
-    context = load_stage4c_context(CONFIG)
-    run = tmp_path / "qualification-run"
-    cells = []
-    for topology in TOPOLOGIES:
-        cell_dir = run / "optimization" / topology / f"seed{SHAKEDOWN_SEED}"
-        cell_dir.mkdir(parents=True)
-        cell = {
-            "topology": topology, "seed": SHAKEDOWN_SEED,
-            "status": "COMPLETED", "mode": "shakedown",
-            "unique_evaluations": SHAKEDOWN_BUDGET,
-            "budget": SHAKEDOWN_BUDGET,
-            "population_schedule_terminal_budget": SHAKEDOWN_BUDGET,
-            "initial_population": 234,
-            "checkpoint_records": list(SHAKEDOWN_CHECKPOINTS),
-            "common_validation_grid_id": COMMON_GRID_ID,
-            "cold_start": True, "warm_start": False,
-            "parent_transfer": False, "topology_transfer": False,
-            "historical_population_injection": False,
-            "checkpoint_summaries": [], "physics_failures": 0,
-            "runtime": {},
-        }
-        cells.append(cell)
-        (cell_dir / "cell_result.json").write_text("{}", encoding="utf-8")
-        for checkpoint in SHAKEDOWN_CHECKPOINTS:
-            (cell_dir / f"B{checkpoint}.json").write_text("{}", encoding="utf-8")
-    manifest = build_stage4c_run_manifest(
-        context, run_id=run.name, source_commit_sha="a" * 40,
-        mode="shakedown", run_storage_policy="external_qualification_v1",
-    )
-    report = write_stage4c_shakedown_reports(run, context, cells, manifest)
-    assert report["status"] == "PASS"
-    assert report["classification"] == "NON_SCIENTIFIC_STAGE4C_SHAKEDOWN_PASS"
-    assert report["ranking_eligible"] is False
-    assert report["scientific_evidence"] == "NO"
-    assert (run / "summary" / "shakedown_cells.csv").is_file()
-    assert (run / "metadata" / "shakedown_status.json").is_file()
 
 
 def _mature_classification_fixture(*, winner_component="max_violation", max_delta=0.05, ripple_delta=0.0):

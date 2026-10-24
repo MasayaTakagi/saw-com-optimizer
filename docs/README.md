@@ -55,6 +55,9 @@ supersede the five current sources above:
   submitted in PR #112; its review and merge disposition are tracked by that
   PR, not by this index. The [Issue #113 C2B0 inventory](plans/issue113_r6c2b0_legacy_owner_caller_inventory_20261024.md)
   is a docs-only static caller/safety map; it authorizes no source deletion.
+  The [Issue #118 Stage 4C execution retirement record](plans/issue118_r6c2b3a_stage4c_execution_retirement_20261024.md)
+  documents the software-only removal of obsolete Stage 4C/WSL qualification
+  executables and its preserved evidence; it does not authorize experiments.
   C2B follow-up work and R7 remain separate owner gates. Historical documents that describe earlier
   active paths remain dated evidence, not current instructions. The R3 and R4
   records are scoped to Issues #65 and #67; R6 is scoped to Issue #71's

@@ -42,12 +42,13 @@ Before removing a worktree, follow the
 process, lock, and data protections are separate safety responsibilities; do
 not weaken them as part of environment cleanup.
 
-`tools/wsl/` and [`../qualifications/wsl2_core_qualification.md`](../qualifications/wsl2_core_qualification.md)
-are historical qualification artifacts, not the current setup path. Some
-scripts install or invoke the retired Codex CLI and exercise legacy Stage 4B/4C
-code. Do not run those scripts without a separately reviewed, explicit owner
-authorization and a new compatibility disposition. They were not modified or
-executed as part of Issue #111.
+[`../qualifications/wsl2_core_qualification.md`](../qualifications/wsl2_core_qualification.md)
+is an archival, non-operational record. Issue #118 removed the retired WSL
+Codex/Stage 4B/Stage 4C qualification entrypoints (`bootstrap-wsl.sh`,
+`qualify-core.sh`, `qualification_smoke.py`, and `collect-report.sh`); do not
+attempt to run or recreate that workflow. The remaining WSL host
+preflight/install/diagnostic tools are separate, potentially host-mutating
+utilities and are not authorized by this development guide.
 
 For current project policy, use [`../README.md`](../README.md),
 [`../development.md`](../development.md), and

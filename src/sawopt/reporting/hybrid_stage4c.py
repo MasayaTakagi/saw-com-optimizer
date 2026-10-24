@@ -16,9 +16,8 @@ from ..optimization.selection import DEFAULT_COMPARATOR
 from .candidate_integrity import validated_hybrid_rank_key
 from ..studies.hybrid_stage4c import (
     BUDGET, CHECKPOINTS, COMMON_GRID_ID, COMMON_GRID_SHA256, PROTOCOL_REVISION,
-    SEARCH_GRID_SHA256, SEEDS, SHAKEDOWN_BUDGET, SHAKEDOWN_CHECKPOINTS,
-    SHAKEDOWN_SEED, STUDY_TYPE, TOPOLOGIES, PRODUCTION_RUN_ROOT,
-    expected_matrix, expected_shakedown_matrix,
+    SEARCH_GRID_SHA256, SEEDS, STUDY_TYPE, TOPOLOGIES, PRODUCTION_RUN_ROOT,
+    expected_matrix,
 )
 
 
@@ -642,114 +641,6 @@ def write_stage4c_reports(
     return report
 
 
-def write_stage4c_shakedown_reports(
-    run_directory: str | Path, context: Mapping[str, Any],
-    cells: Sequence[Mapping[str, Any]], manifest: Mapping[str, Any],
-) -> dict[str, Any]:
-    """Write qualification diagnostics without topology ranking or scientific closeout."""
-    from ..studies.hybrid_stage4b import matched_cell_paths
-
-    run = Path(run_directory)
-    expected_root = str(context["contract"]["storage_contract"]["qualification_root"])
-    checks = {
-        "shakedown_mode": manifest.get("mode") == "shakedown",
-        "external_qualification_policy": manifest.get("run_storage_policy") == "external_qualification_v1",
-        "external_qualification_root": manifest.get("required_storage_root") == expected_root,
-        "frozen_shakedown_matrix": manifest.get("matrix") == expected_shakedown_matrix(),
-        "seed_budget_checkpoints": (
-            manifest.get("seeds") == [SHAKEDOWN_SEED]
-            and manifest.get("budget_per_cell") == SHAKEDOWN_BUDGET
-            and manifest.get("population_schedule_terminal_budget") == SHAKEDOWN_BUDGET
-            and manifest.get("checkpoints") == list(SHAKEDOWN_CHECKPOINTS)
-        ),
-        "production_not_ranking_eligible": manifest.get("ranking_eligible") is False,
-        "production_not_scientific_evidence": manifest.get("scientific_evidence") is False,
-        "two_expected_cells": len(cells) == len(TOPOLOGIES),
-        "topologies_exact": {row.get("topology") for row in cells} == set(TOPOLOGIES),
-        "fresh_shakedown_seed": all(int(row.get("seed", -1)) == SHAKEDOWN_SEED for row in cells),
-        "budget_and_terminal_schedule": all(
-            int(row.get("budget", -1)) == SHAKEDOWN_BUDGET
-            and int(row.get("population_schedule_terminal_budget", -1)) == SHAKEDOWN_BUDGET
-            and int(row.get("unique_evaluations", -1)) == SHAKEDOWN_BUDGET
-            for row in cells
-        ),
-        "checkpoints_exact": all(row.get("checkpoint_records") == list(SHAKEDOWN_CHECKPOINTS) for row in cells),
-        "independent_cold_starts": all(
-            row.get("cold_start") is True and row.get("warm_start") is False
-            and row.get("parent_transfer") is False and row.get("topology_transfer") is False
-            and row.get("historical_population_injection") is False
-            for row in cells
-        ),
-        "cell_mode_is_shakedown": all(row.get("mode") == "shakedown" for row in cells),
-        "common_grid_identity": all(row.get("common_validation_grid_id") == COMMON_GRID_ID for row in cells),
-    }
-    checkpoint_paths = []
-    for row in cells:
-        cell_dir, _cell_manifest, result_path = matched_cell_paths(
-            run, str(row["topology"]), int(row["seed"]),
-        )
-        checkpoint_paths.append(
-            result_path.is_file()
-            and all((cell_dir / f"B{point}.json").is_file() for point in SHAKEDOWN_CHECKPOINTS)
-        )
-    checks["cell_results_and_checkpoints_persisted"] = all(checkpoint_paths)
-    passed = all(checks.values())
-    integrity = {
-        "status": "PASS" if passed else "FAIL",
-        "complete": passed,
-        "cells_expected": len(TOPOLOGIES),
-        "cells_present": len(cells),
-        "cells_completed": sum(row.get("status") == "COMPLETED" for row in cells),
-        "topologies_present": [row.get("topology") for row in cells],
-        "seed": SHAKEDOWN_SEED,
-        "budget_per_cell": SHAKEDOWN_BUDGET,
-        "population_schedule_terminal_budget": SHAKEDOWN_BUDGET,
-        "checkpoints": list(SHAKEDOWN_CHECKPOINTS),
-        "common_validation_grid_id": COMMON_GRID_ID,
-    }
-    status = {
-        "status": "PASS" if passed else "FAIL",
-        "classification": "NON_SCIENTIFIC_STAGE4C_SHAKEDOWN_PASS" if passed else "NON_SCIENTIFIC_STAGE4C_SHAKEDOWN_FAIL",
-        "checks": checks,
-        "integrity": integrity,
-        "ranking_eligible": False,
-        "scientific_evidence": "NO",
-        "production_authorized": False,
-    }
-    summary_rows = []
-    for cell in cells:
-        summary_rows.append({
-            "topology": cell.get("topology"), "seed": cell.get("seed"),
-            "status": cell.get("status"), "unique_evaluations": cell.get("unique_evaluations"),
-            "budget_per_cell": cell.get("budget"),
-            "population_schedule_terminal_budget": cell.get("population_schedule_terminal_budget"),
-            "initial_population": cell.get("initial_population"),
-            "checkpoint_records": json.dumps(cell.get("checkpoint_records", [])),
-            "checkpoint_summaries": json.dumps(cell.get("checkpoint_summaries", []), allow_nan=False),
-            "common_validation_grid_id": cell.get("common_validation_grid_id"),
-            "physics_failures": cell.get("physics_failures"),
-            "runtime": json.dumps(cell.get("runtime", {}), allow_nan=False),
-        })
-    _write_json(run / "metadata" / "integrity_check.json", integrity)
-    _write_json(run / "metadata" / "shakedown_status.json", status)
-    _write_json(run / "metadata" / "run_completion.json", {
-        "status": "COMPLETED" if passed else "INCOMPLETE",
-        "study_type": STUDY_TYPE, "protocol_revision": PROTOCOL_REVISION,
-        "mode": "shakedown", "scientific_evidence": False,
-        "cells_completed": integrity["cells_completed"], "cells_expected": integrity["cells_expected"],
-    })
-    _write_csv(run / "summary" / "shakedown_cells.csv", summary_rows)
-    (run / "summary" / "shakedown_report.md").write_text(
-        "# Stage 4C non-scientific shakedown\n\n"
-        f"- Classification: `{status['classification']}`.\n"
-        "- This 512-evaluation qualification run is not topology evidence and is not ranking eligible.\n"
-        "- Production was not authorized or launched by this shakedown.\n"
-        f"- Persisted outside the worktree under `{expected_root}`.\n",
-        encoding="utf-8", newline="\n",
-    )
-    return status
-
-
 def validate_stage4c_review_contract(run_directory: str | Path, repository_root: str | Path) -> dict[str, Any]:
     """Fail closed unless this is a complete Stage 4C production review input."""
     from .github_review import ReviewExportError, _canonical_json_sha256, load_review_spec
@@ -851,5 +742,4 @@ __all__ = [
     "convergence_rows", "export_stage4c_review", "paired_comparisons",
     "primary_summary", "runtime_rows", "stopband_rows",
     "validate_stage4c_review_contract", "write_stage4c_reports",
-    "write_stage4c_shakedown_reports",
 ]
