@@ -53,7 +53,9 @@ supersede the five current sources above:
   `604091d550c8fad302ed179e3e177d3a1ee3c7c1`. The [Issue #111 C2A disposition](plans/issue111_r6c2a_legacy_surface_disposition_20261024.md)
   records the project-local hook and current-facing documentation cleanup
   submitted in PR #112; its review and merge disposition are tracked by that
-  PR, not by this index. C2B and R7 remain separate future owner gates. Historical documents that describe earlier
+  PR, not by this index. The [Issue #113 C2B0 inventory](plans/issue113_r6c2b0_legacy_owner_caller_inventory_20261024.md)
+  is a docs-only static caller/safety map; it authorizes no source deletion.
+  C2B follow-up work and R7 remain separate owner gates. Historical documents that describe earlier
   active paths remain dated evidence, not current instructions. The R3 and R4
   records are scoped to Issues #65 and #67; R6 is scoped to Issue #71's
   software/synthetic-only authorization; R7 is an audit/CI evidence and
